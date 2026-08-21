@@ -11,7 +11,8 @@ type componentClassifier struct {
 }
 
 type componentPathRule struct {
-	kind     componentKind
+	role     componentRole
+	category string
 	segments []componentPathSegment
 }
 
@@ -21,36 +22,33 @@ type componentPathSegment struct {
 }
 
 type componentRuleSet struct {
-	kind      componentKind
+	role      componentRole
+	category  string
 	templates []string
 }
 
 func newComponentClassifier(configuration ComponentRules) (componentClassifier, error) {
-	sets := []componentRuleSet{
-		{kind: componentKindApplicationModule, templates: configuration.ApplicationModules},
-		{kind: componentKindSharedModule, templates: configuration.SharedModules},
-		{kind: componentKindLibrary, templates: configuration.Libraries},
-		{kind: componentKindDevelopment, templates: configuration.DevelopmentTools},
-		{kind: componentKindInfrastructure, templates: configuration.Infrastructure},
-		{kind: componentKindApplication, templates: configuration.Applications},
+	sets, err := componentRuleSets(configuration)
+	if err != nil {
+		return componentClassifier{}, err
 	}
-	seen := make(map[string]componentKind)
+	seen := make(map[string]string)
 	var rules []componentPathRule
 	for _, set := range sets {
 		for _, template := range set.templates {
-			if previousKind, exists := seen[template]; exists {
+			if previousCategory, exists := seen[template]; exists {
 				return componentClassifier{}, fmt.Errorf(
-					"component template %q is assigned to both %s and %s",
+					"the configuration assigns component template %q to both %s and %s",
 					template,
-					previousKind,
-					set.kind,
+					previousCategory,
+					set.category,
 				)
 			}
-			rule, err := compileComponentPathRule(template, set.kind)
+			rule, err := compileComponentPathRule(template, set.role, set.category)
 			if err != nil {
 				return componentClassifier{}, err
 			}
-			seen[template] = set.kind
+			seen[template] = set.category
 			rules = append(rules, rule)
 		}
 	}
@@ -60,9 +58,57 @@ func newComponentClassifier(configuration ComponentRules) (componentClassifier, 
 	return componentClassifier{rules: rules}, nil
 }
 
-func compileComponentPathRule(template string, kind componentKind) (componentPathRule, error) {
-	if !validComponentKind(kind) {
-		return componentPathRule{}, fmt.Errorf("component template %q has unknown kind %q", template, kind)
+func componentRuleSets(configuration ComponentRules) ([]componentRuleSet, error) {
+	sets := make([]componentRuleSet, 0, len(configuration.Taxonomy)+6)
+	categoryIdentifiers := make(stringSet)
+	for _, category := range configuration.Taxonomy {
+		if category.Identifier == "" || category.Identifier != strings.TrimSpace(category.Identifier) {
+			return nil, fmt.Errorf(
+				"component category identifier %q must be non-empty and have no surrounding spaces",
+				category.Identifier,
+			)
+		}
+		if categoryIdentifiers.contains(category.Identifier) {
+			return nil, fmt.Errorf("the taxonomy repeats component category identifier %q", category.Identifier)
+		}
+		if !validComponentRole(category.Role) {
+			return nil, fmt.Errorf("component category %q has unknown role %q", category.Identifier, category.Role)
+		}
+		if len(category.Paths) == 0 {
+			return nil, fmt.Errorf(
+				"component category %q must contain at least one path template",
+				category.Identifier,
+			)
+		}
+		categoryIdentifiers.add(category.Identifier)
+		sets = append(sets, componentRuleSet{
+			role:      category.Role,
+			category:  category.Identifier,
+			templates: category.Paths,
+		})
+	}
+	sets = append(sets,
+		legacyComponentRuleSet(componentRoleApplicationModule, configuration.ApplicationModules),
+		legacyComponentRuleSet(componentRoleSharedModule, configuration.SharedModules),
+		legacyComponentRuleSet(componentRoleLibrary, configuration.Libraries),
+		legacyComponentRuleSet(componentRoleDevelopment, configuration.DevelopmentTools),
+		legacyComponentRuleSet(componentRoleInfrastructure, configuration.Infrastructure),
+		legacyComponentRuleSet(componentRoleApplication, configuration.Applications),
+	)
+	return sets, nil
+}
+
+func legacyComponentRuleSet(role componentRole, templates []string) componentRuleSet {
+	return componentRuleSet{role: role, category: string(role), templates: templates}
+}
+
+func compileComponentPathRule(
+	template string,
+	role componentRole,
+	category string,
+) (componentPathRule, error) {
+	if !validComponentRole(role) {
+		return componentPathRule{}, fmt.Errorf("component template %q has unknown role %q", template, role)
 	}
 	if template == "" || template != strings.TrimSpace(template) || strings.Contains(template, "\\") {
 		return componentPathRule{}, fmt.Errorf(
@@ -107,7 +153,7 @@ func compileComponentPathRule(template string, kind componentKind) (componentPat
 		}
 		segments = append(segments, componentPathSegment{literal: pathSegment})
 	}
-	if kind == componentKindApplication {
+	if role == componentRoleApplication {
 		if !placeholders.contains("application") {
 			return componentPathRule{}, fmt.Errorf(
 				"application template %q must contain {application}",
@@ -117,31 +163,17 @@ func compileComponentPathRule(template string, kind componentKind) (componentPat
 	} else if !placeholders.contains("component") {
 		return componentPathRule{}, fmt.Errorf(
 			"%s template %q must contain {component}",
-			kind,
+			role,
 			template,
 		)
 	}
-	if kind == componentKindApplicationModule && !placeholders.contains("application") {
+	if role == componentRoleApplicationModule && !placeholders.contains("application") {
 		return componentPathRule{}, fmt.Errorf(
 			"application-module template %q must contain {application}",
 			template,
 		)
 	}
-	return componentPathRule{kind: kind, segments: segments}, nil
-}
-
-func validComponentKind(kind componentKind) bool {
-	switch kind {
-	case componentKindApplication,
-		componentKindApplicationModule,
-		componentKindSharedModule,
-		componentKindLibrary,
-		componentKindInfrastructure,
-		componentKindDevelopment:
-		return true
-	default:
-		return false
-	}
+	return componentPathRule{role: role, category: category, segments: segments}, nil
 }
 
 func (classifier componentClassifier) classify(relativePath string) (componentDescriptor, bool) {
@@ -153,49 +185,50 @@ func (classifier componentClassifier) classify(relativePath string) (componentDe
 	for _, rule := range classifier.rules {
 		placeholderValues, ruleMatches := rule.matchPath(pathSegments)
 		if !ruleMatches {
-			if rule.kind != componentKindApplicationModule && rule.matchesStrictPrefix(pathSegments) {
+			if rule.role != componentRoleApplicationModule && rule.matchesStrictPrefix(pathSegments) {
 				return componentDescriptor{}, false
 			}
 			continue
 		}
 		componentName := placeholderValues["component"]
-		if rule.kind == componentKindApplication {
+		if rule.role == componentRoleApplication {
 			componentName = placeholderValues["application"]
 		}
 		return componentDescriptor{
 			identifier:  strings.Join(pathSegments[:len(rule.segments)], "/"),
 			name:        componentName,
-			kind:        rule.kind,
+			role:        rule.role,
+			category:    rule.category,
 			application: placeholderValues["application"],
 		}, true
 	}
 	return componentDescriptor{}, false
 }
 
-func (rule componentPathRule) matchesStrictPrefix(parts []string) bool {
-	if len(parts) >= len(rule.segments) {
+func (rule componentPathRule) matchesStrictPrefix(pathSegments []string) bool {
+	if len(pathSegments) >= len(rule.segments) {
 		return false
 	}
-	for index, part := range parts {
+	for index, pathSegment := range pathSegments {
 		segment := rule.segments[index]
-		if segment.literal != "" && segment.literal != part {
+		if segment.literal != "" && segment.literal != pathSegment {
 			return false
 		}
 	}
 	return true
 }
 
-func (rule componentPathRule) matchPath(parts []string) (map[string]string, bool) {
-	if len(parts) < len(rule.segments) {
+func (rule componentPathRule) matchPath(pathSegments []string) (map[string]string, bool) {
+	if len(pathSegments) < len(rule.segments) {
 		return nil, false
 	}
 	placeholderValues := make(map[string]string, 2)
 	for index, segment := range rule.segments {
 		if segment.placeholder != "" {
-			placeholderValues[segment.placeholder] = parts[index]
+			placeholderValues[segment.placeholder] = pathSegments[index]
 			continue
 		}
-		if segment.literal != parts[index] {
+		if segment.literal != pathSegments[index] {
 			return nil, false
 		}
 	}
@@ -203,6 +236,14 @@ func (rule componentPathRule) matchPath(parts []string) (map[string]string, bool
 }
 
 func cloneComponentRules(rules ComponentRules) ComponentRules {
+	taxonomy := []ComponentCategoryRule{}
+	for _, category := range rules.Taxonomy {
+		taxonomy = append(taxonomy, ComponentCategoryRule{
+			Identifier: category.Identifier,
+			Role:       category.Role,
+			Paths:      slices.Clone(category.Paths),
+		})
+	}
 	return ComponentRules{
 		Applications:       slices.Clone(rules.Applications),
 		ApplicationModules: slices.Clone(rules.ApplicationModules),
@@ -210,6 +251,7 @@ func cloneComponentRules(rules ComponentRules) ComponentRules {
 		Libraries:          slices.Clone(rules.Libraries),
 		Infrastructure:     slices.Clone(rules.Infrastructure),
 		DevelopmentTools:   slices.Clone(rules.DevelopmentTools),
+		Taxonomy:           taxonomy,
 	}
 }
 
@@ -218,5 +260,5 @@ func pathWithForwardSlashes(value string) string {
 }
 
 // mutate4go-manifest-begin
-// {"version":1,"tested_at":"2026-08-21T09:14:48Z","module_hash":"56740936a66fc7c6535d1d981444389c2e35b2e60a9743aa0295a0932cebb207","functions":[{"id":"func/newComponentClassifier","name":"newComponentClassifier","line":28,"end_line":61,"hash":"2f3890a29459eb73eecf10f8f08b392fbafca6366b8e8fde586380a46276eeb7"},{"id":"func/compileComponentPathRule","name":"compileComponentPathRule","line":63,"end_line":131,"hash":"2da5cb6fb77afa463471c5bcba7a5e40cf82377bc86ef1dba9c7856286a890a4"},{"id":"func/validComponentKind","name":"validComponentKind","line":133,"end_line":145,"hash":"43490af2e3b20e1bb6268e5d13feac6ce30f8aa47899004ad8912f213ddb7b81"},{"id":"func/componentClassifier.classify","name":"componentClassifier.classify","line":147,"end_line":173,"hash":"0b35c10d328cf919bfb0ae70c7efa1a2c2320bda8f06d4717c0b8c047b7b6fd6"},{"id":"func/componentPathRule.matchesStrictPrefix","name":"componentPathRule.matchesStrictPrefix","line":175,"end_line":186,"hash":"d3bd58f10c7de5419efb0626764d4129c01b382fbec5fb977b8e61a8b64c2fac"},{"id":"func/componentPathRule.matchPath","name":"componentPathRule.matchPath","line":188,"end_line":203,"hash":"df87f4925f00c7dcb9f17f18ed07a7886df9ee71a0e11655d29238cd2a034146"},{"id":"func/cloneComponentRules","name":"cloneComponentRules","line":205,"end_line":214,"hash":"286483ba1b5c1b9926ecaf8a47b5ee67ae1f108127dd95c2cd3dd219ef842bdc"},{"id":"func/pathWithForwardSlashes","name":"pathWithForwardSlashes","line":216,"end_line":218,"hash":"185c18d6c96a7ba28d3bc6dd03aa6b2e89feaf7e19dfd2e354cb7f5a3f3057c1"}]}
+// {"version":1,"tested_at":"2026-08-21T17:14:46Z","module_hash":"f3d8cc9185d69ce4daa2d9cf7d55858118992c8efab27a0ee94dad43c3f21e9f","functions":[{"id":"func/newComponentClassifier","name":"newComponentClassifier","line":30,"end_line":59,"hash":"190ac0525d0997e26374f11c2822901a58e9c05be20e77590712af44dfea0bab"},{"id":"func/componentRuleSets","name":"componentRuleSets","line":61,"end_line":99,"hash":"28f2071ac184fad74e0dfc7a46118dc74e5069f1bb84e71a82d1a470cff8e4db"},{"id":"func/legacyComponentRuleSet","name":"legacyComponentRuleSet","line":101,"end_line":103,"hash":"5bfe3f74596ea8f2bdd3494c56d878208eb366d9943cb4c8cee2108a54637a95"},{"id":"func/compileComponentPathRule","name":"compileComponentPathRule","line":105,"end_line":177,"hash":"1ce50894eda2400c9067774531156636c62f38416be0496121a595f7eb01368b"},{"id":"func/componentClassifier.classify","name":"componentClassifier.classify","line":179,"end_line":206,"hash":"c7e20a967a01ce642ed2771e610a6bec4e5cab523fb89e673986b2cec3be4672"},{"id":"func/componentPathRule.matchesStrictPrefix","name":"componentPathRule.matchesStrictPrefix","line":208,"end_line":219,"hash":"eaac74b06884265a0619ba6a9e33672bbea72fd2ffb3abe369c1cd606d66f853"},{"id":"func/componentPathRule.matchPath","name":"componentPathRule.matchPath","line":221,"end_line":236,"hash":"5b3033d6322d6c69fa1b70f3e6a0bf24dd98b2b80349e3fb389b945d93861b8a"},{"id":"func/cloneComponentRules","name":"cloneComponentRules","line":238,"end_line":256,"hash":"98a87adfe2f93fe532a79d59a9102d9bbbf8b860505424296cde9948dcf345ea"},{"id":"func/pathWithForwardSlashes","name":"pathWithForwardSlashes","line":258,"end_line":260,"hash":"185c18d6c96a7ba28d3bc6dd03aa6b2e89feaf7e19dfd2e354cb7f5a3f3057c1"}]}
 // mutate4go-manifest-end

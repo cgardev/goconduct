@@ -11,6 +11,8 @@ import (
 	"strings"
 	"testing"
 
+	querymodel "digginginsights.com/v3/internal/devtool/dependencygraph/internal/query"
+
 	"github.com/spf13/cobra"
 )
 
@@ -121,7 +123,7 @@ func TestQueryCommands_EmitFilteredJSONWithoutPipes(t *testing.T) {
 				{
 					name: "components",
 					arguments: []string{
-						"components", "--root", repositoryRoot, "--kind", "library",
+						"components", "--root", repositoryRoot, "--role", "library",
 						"--sort", "afferent", "--limit", "1",
 					},
 				},
@@ -255,7 +257,7 @@ func TestCommandConfiguration_ApplyExplicitScopeOverrides(t *testing.T) {
 		var configurationPath string
 		var output bytes.Buffer
 		var commandError error
-		var result summaryQueryResult
+		var result querymodel.SummaryResult
 
 		t.Run("Given a document and explicit repository, analysis, and ignore flags", func(*testing.T) {
 			repositoryRoot = newAnalyzerFixture(t)
@@ -397,8 +399,8 @@ func TestAnalyzeCommand_ApplyFailureThreshold(t *testing.T) {
 			})
 
 			t.Run("Then the command returns the typed finding error", func(t *testing.T) {
-				if !errors.Is(commandError, errArchitectureFindings) {
-					t.Fatalf("command error is %v, want errArchitectureFindings", commandError)
+				if !errors.Is(commandError, errArchitectureFindingThresholdReached) {
+					t.Fatalf("command error is %v, want errArchitectureFindingThresholdReached", commandError)
 				}
 			})
 
@@ -511,7 +513,7 @@ func TestFindingThreshold_FilterSeverity(t *testing.T) {
 			})
 
 			t.Run("Then the failure threshold returns the expected typed result", func(t *testing.T) {
-				hasFailure := errors.Is(result, errArchitectureFindings)
+				hasFailure := errors.Is(result, errArchitectureFindingThresholdReached)
 				if hasFailure != testCase.wantFailure {
 					t.Fatalf("threshold error is %v, want failure %t", result, testCase.wantFailure)
 				}

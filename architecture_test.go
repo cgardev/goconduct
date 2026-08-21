@@ -10,31 +10,49 @@ import (
 	"testing"
 )
 
-func TestLayerArchitecture_RejectProjectImportsInPureFiles(t *testing.T) {
+func TestLayerArchitecture_KeepCoreFilesWithinImportBoundaries(t *testing.T) {
 	testCases := []struct {
 		file           string
 		allowedImports []string
 	}{
-		{file: "domain.go", allowedImports: []string{}},
 		{
-			file:           "calculation.go",
-			allowedImports: []string{"cmp", "math", "slices", "sort", "strings"},
+			file: "domain.go",
+			allowedImports: []string{
+				"digginginsights.com/v3/internal/devtool/dependencygraph/internal/architecture",
+				"digginginsights.com/v3/internal/devtool/dependencygraph/internal/report",
+			},
+		},
+		{
+			file: "calculation.go",
+			allowedImports: []string{
+				"digginginsights.com/v3/internal/devtool/dependencygraph/internal/architecture",
+				"digginginsights.com/v3/internal/devtool/dependencygraph/internal/calculation",
+				"sort",
+			},
 		},
 		{
 			file:           "classification.go",
 			allowedImports: []string{"fmt", "slices", "strings"},
 		},
 		{
-			file:           "query.go",
-			allowedImports: []string{"cmp", "errors", "fmt", "slices", "strings"},
+			file: "functioncalculation.go",
+			allowedImports: []string{
+				"digginginsights.com/v3/internal/devtool/dependencygraph/internal/calculation",
+			},
+		},
+		{file: "internal/architecture/domain.go", allowedImports: []string{}},
+		{file: "internal/calculation/metrics.go", allowedImports: []string{"math"}},
+		{
+			file:           "internal/architecture/rules.go",
+			allowedImports: []string{"cmp", "slices", "strings"},
 		},
 		{
-			file:           "functioncalculation.go",
-			allowedImports: []string{"cmp", "slices", "strconv", "strings"},
+			file:           "internal/application/ports.go",
+			allowedImports: []string{"context"},
 		},
 		{
-			file:           "functionquery.go",
-			allowedImports: []string{"cmp", "errors", "fmt", "slices", "strings"},
+			file:           "internal/application/usecase.go",
+			allowedImports: []string{"context", "errors", "fmt"},
 		},
 	}
 	for _, testCase := range testCases {
@@ -42,7 +60,7 @@ func TestLayerArchitecture_RejectProjectImportsInPureFiles(t *testing.T) {
 			var imports []string
 			var parseError error
 
-			t.Run("Given the layer has a closed standard-library import set", func(t *testing.T) {
+			t.Run("Given the file has a closed import set", func(t *testing.T) {
 				imports = make([]string, 0)
 			})
 
@@ -76,7 +94,7 @@ func TestLayerArchitecture_RejectProjectImportsInPureFiles(t *testing.T) {
 				return
 			}
 
-			t.Run("And the layer has no infrastructure or transport dependency", func(t *testing.T) {
+			t.Run("And the file has only its permitted dependencies", func(t *testing.T) {
 				if !slices.Equal(imports, testCase.allowedImports) {
 					t.Errorf(
 						"%s imports %v, want only %v",
@@ -104,7 +122,6 @@ func TestLayerArchitecture_RejectRepositoryRootsOutsideConfiguration(t *testing.
 				"analyzer.go",
 				"classification.go",
 				"calculation.go",
-				"query.go",
 			} {
 				payload, err := os.ReadFile(file)
 				if err != nil {
@@ -133,6 +150,58 @@ func TestLayerArchitecture_RejectRepositoryRootsOutsideConfiguration(t *testing.
 				} {
 					if strings.Contains(payload, fixedRoot) {
 						t.Errorf("%s fixes repository layout %s outside configuration", file, fixedRoot)
+					}
+				}
+			}
+		})
+	})
+}
+
+func TestLayerArchitecture_KeepRuntimeAdaptersBehindGraphPorts(t *testing.T) {
+	t.Run("Scenario: The test inspects each runtime adapter", func(t *testing.T) {
+		var payloads map[string]string
+		var readError error
+
+		t.Run("Given the runtime adapter source files", func(t *testing.T) {
+			payloads = make(map[string]string)
+		})
+
+		t.Run("When the test reads the adapter source", func(t *testing.T) {
+			for _, file := range []string{
+				"assets.go",
+				"cache.go",
+				"events.go",
+				"graphapi.go",
+				"lifecycle.go",
+				"monitor.go",
+				"server.go",
+			} {
+				payload, err := os.ReadFile(file)
+				if err != nil {
+					readError = err
+					return
+				}
+				payloads[file] = string(payload)
+			}
+		})
+
+		if !t.Run("Then the test can inspect each runtime adapter", func(t *testing.T) {
+			if readError != nil {
+				t.Fatalf("read runtime adapter source: %v", readError)
+			}
+		}) {
+			return
+		}
+
+		t.Run("And each adapter depends on graph ports only", func(t *testing.T) {
+			for file, payload := range payloads {
+				forbiddenDependencies := []string{"*analyzer", ".analyzer"}
+				if file != "monitor.go" {
+					forbiddenDependencies = append(forbiddenDependencies, "*graphMonitor")
+				}
+				for _, forbidden := range forbiddenDependencies {
+					if strings.Contains(payload, forbidden) {
+						t.Errorf("%s uses the concrete graph source %q", file, forbidden)
 					}
 				}
 			}

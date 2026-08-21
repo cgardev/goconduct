@@ -1,6 +1,8 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -13,23 +15,60 @@ import (
 	"golang.org/x/tools/go/packages"
 )
 
+func TestFunctionAnalysis_StopCanceledPackageLoad(t *testing.T) {
+	t.Run("Scenario: The analysis context ends before Go package loading", func(t *testing.T) {
+		var sourceAnalyzer *analyzer
+		var analysisContext context.Context
+		var sourcePath string
+		var analysisError error
+
+		t.Run("Given a Go source file and a canceled analysis context", func(step *testing.T) {
+			repositoryRoot := t.TempDir()
+			writeFixtureFile(step, repositoryRoot, "go.mod", "module example.com/context\n\ngo 1.26\n")
+			writeFixtureFile(step, repositoryRoot, "sample.go", "package sample\n\nfunc Run() {}\n")
+			sourcePath = filepath.Join(repositoryRoot, "sample.go")
+			sourceAnalyzer = &analyzer{repositoryRoot: repositoryRoot}
+			var cancel context.CancelFunc
+			analysisContext, cancel = context.WithCancel(t.Context())
+			cancel()
+		})
+
+		t.Run("When the analyzer loads Go package type information", func(*testing.T) {
+			_, _, analysisError = sourceAnalyzer.inspectFunctions(
+				analysisContext,
+				"example.com/context",
+				[]string{sourcePath},
+			)
+		})
+
+		t.Run("Then package loading returns the context cancellation", func(t *testing.T) {
+			if !errors.Is(analysisError, context.Canceled) {
+				t.Fatalf("package load error is %v, want context.Canceled", analysisError)
+			}
+		})
+	})
+}
+
 func TestFunctionAnalysis_CalculateResolvedCallMetrics(t *testing.T) {
 	t.Run("Scenario: Production and test functions call package functions and methods", func(t *testing.T) {
 		var sourceAnalyzer *analyzer
 		var graph Graph
 		var analysisError error
 
-		t.Run("Given a repository with direct, generic, method, interface, and initializer calls", func(step *testing.T) {
-			repositoryRoot := newFunctionAnalysisFixture(t)
-			var err error
-			sourceAnalyzer, err = newAnalyzer(fixtureAnalysisConfiguration(repositoryRoot))
-			if err != nil {
-				step.Fatalf("newAnalyzer fails: %v", err)
-			}
-		})
+		t.Run(
+			"Given a repository with direct, generic, method, interface, and initializer calls",
+			func(step *testing.T) {
+				repositoryRoot := newFunctionAnalysisFixture(t)
+				var err error
+				sourceAnalyzer, err = newAnalyzer(fixtureAnalysisConfiguration(repositoryRoot))
+				if err != nil {
+					step.Fatalf("newAnalyzer fails: %v", err)
+				}
+			},
+		)
 
 		t.Run("When the analyzer calculates the function dependency graph", func(*testing.T) {
-			graph, analysisError = sourceAnalyzer.analyze()
+			graph, analysisError = sourceAnalyzer.analyze(t.Context())
 		})
 
 		if !t.Run("Then the analysis resolves production and test function calls", func(t *testing.T) {
@@ -129,7 +168,7 @@ func TestFunctionAnalysis_BuildPackageQueries(t *testing.T) {
 			}
 		})
 
-		t.Run("When package queries and the selected path set are built", func(*testing.T) {
+		t.Run("When the analyzer builds package queries and the selected path set", func(*testing.T) {
 			queries = functionPackageQueries(sourcePaths)
 			pathSet = absolutePathSet([]string{filepath.Join("repository", "first", "..", "first", "a.go")})
 		})
@@ -269,7 +308,9 @@ func TestFunctionAnalysis_ClassifyIdentifiersAndPaths(t *testing.T) {
 }
 
 func TestFunctionAnalysis_InspectTypedPackage(t *testing.T) {
-	t.Run("Scenario: One package contains functions, methods, initializers, and unresolved calls", func(t *testing.T) {
+	t.Run("Scenario: One package contains functions, methods, initializers, and unresolved calls", func(
+		t *testing.T,
+	) {
 		var sourceAnalyzer *analyzer
 		var loadedPackage *packages.Package
 		var fileSet *token.FileSet
@@ -283,11 +324,14 @@ func TestFunctionAnalysis_InspectTypedPackage(t *testing.T) {
 		var boundaryDeclarations []functionDeclaration
 		var boundaryError error
 
-		t.Run("Given a type-checked package with generic, method, interface, and variable calls", func(t *testing.T) {
-			sourceAnalyzer, loadedPackage, fileSet, file, sourcePath = newTypedFunctionFixture(t)
-		})
+		t.Run(
+			"Given a type-checked package with generic, method, interface, and variable calls",
+			func(t *testing.T) {
+				sourceAnalyzer, loadedPackage, fileSet, file, sourcePath = newTypedFunctionFixture(t)
+			},
+		)
 
-		t.Run("When the loaded package is inspected twice", func(*testing.T) {
+		t.Run("When the analyzer inspects the loaded package twice", func(*testing.T) {
 			selectedPaths := absolutePathSet([]string{sourcePath})
 			inspectedPaths := make(stringSet)
 			declarations, references, inspectError = sourceAnalyzer.inspectLoadedPackage(
@@ -411,7 +455,9 @@ func TestFunctionAnalysis_InspectTypedPackage(t *testing.T) {
 			}
 		})
 
-		t.Run("And packages without type data, selected files, or package ownership are omitted", func(t *testing.T) {
+		t.Run("And packages without type data, selected files, or package ownership are omitted", func(
+			t *testing.T,
+		) {
 			emptyPackages := []*packages.Package{
 				{ID: loadedPackage.ID, TypesInfo: nil},
 				{
@@ -429,7 +475,12 @@ func TestFunctionAnalysis_InspectTypedPackage(t *testing.T) {
 					make(stringSet),
 				)
 				if err != nil || len(foundDeclarations) != 0 || len(foundReferences) != 0 {
-					t.Errorf("empty package returned data: declarations=%v references=%v error=%v", foundDeclarations, foundReferences, err)
+					t.Errorf(
+						"empty package returned data: declarations=%v references=%v error=%v",
+						foundDeclarations,
+						foundReferences,
+						err,
+					)
 				}
 			}
 			loadedPackage.ID = loadedPackage.PkgPath
@@ -441,7 +492,12 @@ func TestFunctionAnalysis_InspectTypedPackage(t *testing.T) {
 				make(stringSet),
 			)
 			if err != nil || len(foundDeclarations) != 0 || len(foundReferences) != 0 {
-				t.Errorf("unselected file returned data: declarations=%v references=%v error=%v", foundDeclarations, foundReferences, err)
+				t.Errorf(
+					"unselected file returned data: declarations=%v references=%v error=%v",
+					foundDeclarations,
+					foundReferences,
+					err,
+				)
 			}
 		})
 	})
@@ -474,7 +530,7 @@ func TestFunctionAnalysis_RejectUnclassifiedCalls(t *testing.T) {
 			workFunction = typedFunctionWithName(t, loadedPackage, "Work", "Worker")
 		})
 
-		t.Run("When each function object and call is classified", func(*testing.T) {
+		t.Run("When the analyzer classifies each function object and call", func(*testing.T) {
 			selectedPaths := absolutePathSet([]string{sourcePath})
 			runDeclaration, _, _ = sourceAnalyzer.functionDeclarationFromObject(
 				"example.com/functions",
@@ -698,7 +754,7 @@ func TestFunctionAnalysis_InspectInitializerBoundaries(t *testing.T) {
 			sourceAnalyzer, loadedPackage, fileSet, file, sourcePath = newTypedFunctionFixture(t)
 		})
 
-		t.Run("When each initializer boundary is inspected", func(step *testing.T) {
+		t.Run("When the analyzer inspects each initializer boundary", func(step *testing.T) {
 			calledVariable := variableDeclarationWithName(t, file, "Default")
 			plainVariable := variableDeclarationWithName(t, file, "Plain")
 			initializer, initializerClassified = sourceAnalyzer.packageInitializerDeclaration(

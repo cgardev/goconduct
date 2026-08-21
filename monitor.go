@@ -2,85 +2,56 @@ package main
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
-	"errors"
 	"fmt"
 	"log/slog"
-	"os"
-	"path/filepath"
-	"strconv"
 	"sync"
 	"time"
 )
 
+type graphMonitorSource interface {
+	analyze(context.Context) (Graph, error)
+	snapshot(context.Context) (string, error)
+	graphCacheKey() (string, error)
+	repositoryPath() string
+}
+
 type graphMonitor struct {
-	analyzer        *analyzer
+	source          graphMonitorSource
 	refreshInterval time.Duration
 	logger          *slog.Logger
 
-	refreshMutex sync.Mutex
-	mutex        sync.RWMutex
-	graph        Graph
-	snapshot     string
-	subscribers  map[chan string]struct{}
+	refreshPermit chan struct{}
+	mutex         sync.RWMutex
+	graph         Graph
+	snapshot      string
+	subscribers   map[chan string]struct{}
 }
 
+var _ dashboardMonitor = (*graphMonitor)(nil)
+
 func newGraphMonitor(
-	analyzer *analyzer,
+	ctx context.Context,
+	source graphMonitorSource,
 	refreshInterval time.Duration,
 	logger *slog.Logger,
 ) (*graphMonitor, error) {
-	snapshot, err := analyzer.snapshot()
+	snapshot, err := source.snapshot(ctx)
 	if err != nil {
 		return nil, err
 	}
-	graph, err := analyzer.analyze()
+	graph, err := source.analyze(ctx)
 	if err != nil {
 		return nil, err
 	}
 	return &graphMonitor{
-		analyzer:        analyzer,
+		source:          source,
 		refreshInterval: refreshInterval,
 		logger:          logger,
+		refreshPermit:   make(chan struct{}, 1),
 		graph:           graph,
 		snapshot:        snapshot,
 		subscribers:     make(map[chan string]struct{}),
 	}, nil
-}
-
-func (analyzer *analyzer) snapshot() (string, error) {
-	paths, err := analyzer.sourcePaths()
-	if err != nil {
-		return "", err
-	}
-	paths = append(paths, filepath.Join(analyzer.repositoryRoot, "go.mod"))
-	moduleSumPath := filepath.Join(analyzer.repositoryRoot, "go.sum")
-	if _, err := os.Stat(moduleSumPath); err == nil {
-		paths = append(paths, moduleSumPath)
-	} else if !errors.Is(err, os.ErrNotExist) {
-		return "", fmt.Errorf("inspect repository module sum: %w", err)
-	}
-
-	var buffer []byte
-	for _, path := range paths {
-		information, err := os.Stat(path)
-		if err != nil {
-			return "", fmt.Errorf("inspect repository source file %s: %w", path, err)
-		}
-		relativePath, err := filepath.Rel(analyzer.repositoryRoot, path)
-		if err != nil {
-			return "", fmt.Errorf("resolve repository source file %s: %w", path, err)
-		}
-		buffer = append(buffer, filepath.ToSlash(relativePath)...)
-		buffer = append(buffer, "\x00"...)
-		buffer = strconv.AppendInt(buffer, information.Size(), 10)
-		buffer = append(buffer, "\x00"...)
-		buffer = strconv.AppendInt(buffer, information.ModTime().UnixNano(), 10)
-		buffer = append(buffer, '\n')
-	}
-	digest := sha256.Sum256(buffer)
-	return hex.EncodeToString(digest[:]), nil
 }
 
 func (monitor *graphMonitor) run(ctx context.Context) {
@@ -91,22 +62,24 @@ func (monitor *graphMonitor) run(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			monitor.refresh()
+			monitor.refresh(ctx)
 		}
 	}
 }
 
-func (monitor *graphMonitor) refresh() {
-	if _, err := monitor.freshGraph(); err != nil {
-		monitor.logger.Error("Cannot refresh dependency graph", "error", err)
+func (monitor *graphMonitor) refresh(ctx context.Context) {
+	if _, err := monitor.freshGraph(ctx); err != nil {
+		monitor.logger.Error("The graph monitor cannot refresh the dependency graph.", "error", err)
 	}
 }
 
-func (monitor *graphMonitor) freshGraph() (Graph, error) {
-	monitor.refreshMutex.Lock()
-	defer monitor.refreshMutex.Unlock()
+func (monitor *graphMonitor) freshGraph(ctx context.Context) (Graph, error) {
+	if err := monitor.acquireRefreshPermit(ctx); err != nil {
+		return Graph{}, err
+	}
+	defer monitor.releaseRefreshPermit()
 
-	snapshot, err := monitor.analyzer.snapshot()
+	snapshot, err := monitor.source.snapshot(ctx)
 	if err != nil {
 		return Graph{}, fmt.Errorf("inspect repository changes: %w", err)
 	}
@@ -119,7 +92,7 @@ func (monitor *graphMonitor) freshGraph() (Graph, error) {
 		return current, nil
 	}
 
-	graph, err := monitor.analyzer.analyze()
+	graph, err := monitor.source.analyze(ctx)
 	if err != nil {
 		return Graph{}, fmt.Errorf("calculate dependency graph: %w", err)
 	}
@@ -142,6 +115,19 @@ func (monitor *graphMonitor) freshGraph() (Graph, error) {
 	return graph, nil
 }
 
+func (monitor *graphMonitor) acquireRefreshPermit(ctx context.Context) error {
+	select {
+	case monitor.refreshPermit <- struct{}{}:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func (monitor *graphMonitor) releaseRefreshPermit() {
+	<-monitor.refreshPermit
+}
+
 func (monitor *graphMonitor) currentGraph() Graph {
 	monitor.mutex.RLock()
 	defer monitor.mutex.RUnlock()
@@ -162,6 +148,14 @@ func (monitor *graphMonitor) subscribe() (<-chan string, func()) {
 	return updates, unsubscribe
 }
 
+func (monitor *graphMonitor) graphCacheKey() (string, error) {
+	return monitor.source.graphCacheKey()
+}
+
+func (monitor *graphMonitor) repositoryPath() string {
+	return monitor.source.repositoryPath()
+}
+
 // mutate4go-manifest-begin
-// {"version":1,"tested_at":"2026-08-21T11:41:22Z","module_hash":"32f587a6815aa65b4e01761f3547ef6eccc4ab4a112c9886657ba50ea8e0ee99","functions":[{"id":"func/newGraphMonitor","name":"newGraphMonitor","line":29,"end_line":50,"hash":"ec7120f2a00d34f9299c3593e1cc44f974920b46445af79ae3c1cf1624a4b361"},{"id":"func/analyzer.snapshot","name":"analyzer.snapshot","line":52,"end_line":84,"hash":"4ce2aa8085350031b42fb1ce4bc98c380d866a442aa26a843443c557010f7e0b"},{"id":"func/graphMonitor.run","name":"graphMonitor.run","line":86,"end_line":97,"hash":"cab622474b73943c652088fe48b1e7c3ea11c9bb68fca3e380330be8096d5bab"},{"id":"func/graphMonitor.refresh","name":"graphMonitor.refresh","line":99,"end_line":103,"hash":"8989d24d3f7fa609bf5b8699bd5a6a871c478f8f8ed52544a15c1cf2ad992b49"},{"id":"func/graphMonitor.freshGraph","name":"graphMonitor.freshGraph","line":105,"end_line":143,"hash":"55f7ecf22248516757431afa3daca921162b73400df87658000b487a0cf5cf0c"},{"id":"func/graphMonitor.currentGraph","name":"graphMonitor.currentGraph","line":145,"end_line":149,"hash":"5939912406ef09c7d030f1aab1796dc21b0581217094bad7ee3a7077a9904c86"},{"id":"func/graphMonitor.subscribe","name":"graphMonitor.subscribe","line":151,"end_line":163,"hash":"19418b77900730437dfabb88709efe54df4d1db3474130ed47d7b316ffaf9e74"}]}
+// {"version":1,"tested_at":"2026-08-21T17:28:00Z","module_hash":"f430c5051f7f2bed60df8af6e025d54ffabc3c88b528843cf422df03a82a32a2","functions":[{"id":"func/newGraphMonitor","name":"newGraphMonitor","line":32,"end_line":55,"hash":"82dca6600c2357e4d642ba06e91e78c554fce6a43eb18638ab6e2222c5dd7f03"},{"id":"func/graphMonitor.run","name":"graphMonitor.run","line":57,"end_line":68,"hash":"9f1ae09533866845261f585fbcff002a1693266e1d316febfef9ac3ee18913cd"},{"id":"func/graphMonitor.refresh","name":"graphMonitor.refresh","line":70,"end_line":74,"hash":"fc71a5b4e9dd094bcee53358ba43701720a0733d89ee9cc64a44f382f3a5f9bf"},{"id":"func/graphMonitor.freshGraph","name":"graphMonitor.freshGraph","line":76,"end_line":116,"hash":"a8054dd96da7cfa4d18f5d7b277fff4a91b8aa2f12987ad3cccc7ebdaacf3d78"},{"id":"func/graphMonitor.acquireRefreshPermit","name":"graphMonitor.acquireRefreshPermit","line":118,"end_line":125,"hash":"2968a66e85a98dcb4b8db19402f0800406a7249b8f1bcb6f25cba78b97e02821"},{"id":"func/graphMonitor.releaseRefreshPermit","name":"graphMonitor.releaseRefreshPermit","line":127,"end_line":129,"hash":"bf77787869b8a3e49236441b744bd6ba716dffa4c362b9ba86652cc93590450a"},{"id":"func/graphMonitor.currentGraph","name":"graphMonitor.currentGraph","line":131,"end_line":135,"hash":"5939912406ef09c7d030f1aab1796dc21b0581217094bad7ee3a7077a9904c86"},{"id":"func/graphMonitor.subscribe","name":"graphMonitor.subscribe","line":137,"end_line":149,"hash":"19418b77900730437dfabb88709efe54df4d1db3474130ed47d7b316ffaf9e74"},{"id":"func/graphMonitor.graphCacheKey","name":"graphMonitor.graphCacheKey","line":151,"end_line":153,"hash":"0154b443b120fb5911fe750ed3b3bae439db3e796b6aed6ee1da752395b89624"},{"id":"func/graphMonitor.repositoryPath","name":"graphMonitor.repositoryPath","line":155,"end_line":157,"hash":"631b710830bd42b122ac7e472eaae302e2d35b5ad029c54c580f140956b5fcce"}]}
 // mutate4go-manifest-end

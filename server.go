@@ -1,36 +1,57 @@
 package main
 
 import (
-	"compress/gzip"
 	"context"
-	"encoding/json"
-	"errors"
-	"fmt"
 	"log/slog"
-	"net"
 	"net/http"
-	"strconv"
-	"strings"
 	"time"
 )
 
+type graphReader interface {
+	currentGraph() Graph
+}
+
+type graphRefresher interface {
+	freshGraph(ctx context.Context) (Graph, error)
+}
+
+type graphSubscriber interface {
+	subscribe() (<-chan string, func())
+}
+
+type graphCacheKeyReader interface {
+	graphCacheKey() (string, error)
+}
+
+type dashboardGraphSource interface {
+	graphReader
+	graphRefresher
+	graphSubscriber
+	graphCacheKeyReader
+}
+
 type dashboardHandler struct {
-	monitor           *graphMonitor
+	assets            *dashboardAssetHandler
+	graph             *graphEndpoint
+	events            *graphEventStream
 	logger            *slog.Logger
 	router            *http.ServeMux
 	keepAliveInterval time.Duration
 }
 
-func newDashboardHandler(monitor *graphMonitor, logger *slog.Logger) *dashboardHandler {
+func newDashboardHandler(source dashboardGraphSource, logger *slog.Logger) *dashboardHandler {
 	handler := &dashboardHandler{
-		monitor:           monitor,
+		assets:            newDashboardAssetHandler(logger),
+		graph:             newGraphEndpoint(source, source, source, logger),
+		events:            newGraphEventStream(source, source),
 		logger:            logger,
 		router:            http.NewServeMux(),
 		keepAliveInterval: 20 * time.Second,
 	}
 	handler.router.HandleFunc("GET /{$}", handler.serveDashboard)
-	handler.router.HandleFunc("GET /assets/dashboard.css", handler.serveStyle)
-	handler.router.HandleFunc("GET /assets/dashboard.js", handler.serveScript)
+	for _, asset := range dashboardAssetDefinitions() {
+		handler.router.HandleFunc("GET "+asset.requestPath, handler.assets.serve(asset))
+	}
 	handler.router.HandleFunc("GET /api/graph", handler.serveGraph)
 	handler.router.HandleFunc("GET /api/events", handler.serveEvents)
 	handler.router.HandleFunc("GET /healthz", handler.serveHealth)
@@ -46,177 +67,22 @@ func (handler *dashboardHandler) ServeHTTP(response http.ResponseWriter, request
 }
 
 func (handler *dashboardHandler) serveDashboard(response http.ResponseWriter, _ *http.Request) {
-	handler.serveEmbeddedAsset(response, dashboardDocumentPath, "text/html; charset=utf-8")
-}
-
-func (handler *dashboardHandler) serveStyle(response http.ResponseWriter, _ *http.Request) {
-	handler.serveEmbeddedAsset(response, dashboardStylePath, "text/css; charset=utf-8")
-}
-
-func (handler *dashboardHandler) serveScript(response http.ResponseWriter, _ *http.Request) {
-	handler.serveEmbeddedAsset(response, dashboardScriptPath, "text/javascript; charset=utf-8")
-}
-
-func (handler *dashboardHandler) serveEmbeddedAsset(
-	response http.ResponseWriter,
-	path string,
-	contentType string,
-) {
-	payload, err := dashboardAssets.ReadFile(path)
-	if err != nil {
-		handler.logger.Error("Cannot read embedded dashboard asset", "path", path, "error", err)
-		http.Error(response, "embedded asset unavailable", http.StatusInternalServerError)
-		return
-	}
-	response.Header().Set("Cache-Control", "no-cache")
-	response.Header().Set("Content-Type", contentType)
-	if _, err := response.Write(payload); err != nil {
-		handler.logger.Debug("Cannot write dashboard asset", "path", path, "error", err)
-	}
+	handler.assets.serveAsset(response, dashboardDocumentPath, "text/html; charset=utf-8")
 }
 
 func (handler *dashboardHandler) serveGraph(response http.ResponseWriter, request *http.Request) {
-	cacheKey, err := handler.monitor.analyzer.graphCacheKey()
-	if err != nil {
-		handler.logger.Error("Cannot identify dependency graph cache", "error", err)
-		http.Error(response, "dependency graph unavailable", http.StatusInternalServerError)
-		return
-	}
-	if err := validateGraphCacheRequest(request, cacheKey); err != nil {
-		http.Error(response, err.Error(), http.StatusPreconditionFailed)
-		return
-	}
-	graph := handler.monitor.currentGraph()
-	if request != nil && request.Header.Get(graphCacheKeyHeader) != "" {
-		graph, err = handler.monitor.freshGraph()
-		if err != nil {
-			handler.logger.Error("Cannot refresh dependency graph cache", "error", err)
-			http.Error(response, "dependency graph unavailable", http.StatusServiceUnavailable)
-			return
-		}
-	}
-	response.Header().Set("Cache-Control", "no-store")
-	response.Header().Set("Content-Type", "application/json; charset=utf-8")
-	response.Header().Set(graphCacheKeyHeader, cacheKey)
-	response.Header().Set(graphCacheProtocolHeader, strconv.Itoa(graphCacheProtocolVersion))
-	response.Header().Set(graphCacheRevisionHeader, graph.Revision)
-	response.Header().Set(graphCacheSchemaHeader, strconv.Itoa(graph.SchemaVersion))
-	if err := writeGraphResponse(response, request, graph); err != nil {
-		handler.logger.Debug("Cannot write dependency graph", "error", err)
-	}
-}
-
-func validateGraphCacheRequest(request *http.Request, cacheKey string) error {
-	if request == nil {
-		return nil
-	}
-	requestedKey := request.Header.Get(graphCacheKeyHeader)
-	if requestedKey == "" {
-		return nil
-	}
-	if request.Header.Get(graphCacheProtocolHeader) != strconv.Itoa(graphCacheProtocolVersion) {
-		return fmt.Errorf("%w: cache protocol does not match", errGraphCacheRejected)
-	}
-	if requestedKey != cacheKey {
-		return fmt.Errorf("%w: analysis scope does not match", errGraphCacheRejected)
-	}
-	return nil
-}
-
-func writeGraphResponse(response http.ResponseWriter, request *http.Request, graph Graph) error {
-	if request == nil || !acceptsGzip(request.Header.Get("Accept-Encoding")) {
-		if err := json.NewEncoder(response).Encode(graph); err != nil {
-			return fmt.Errorf("encode dependency graph: %w", err)
-		}
-		return nil
-	}
-	response.Header().Set("Content-Encoding", "gzip")
-	response.Header().Add("Vary", "Accept-Encoding")
-	compressor := gzip.NewWriter(response)
-	if err := json.NewEncoder(compressor).Encode(graph); err != nil {
-		closeError := compressor.Close()
-		return errors.Join(fmt.Errorf("encode dependency graph: %w", err), closeError)
-	}
-	if err := compressor.Close(); err != nil {
-		return fmt.Errorf("close dependency graph compressor: %w", err)
-	}
-	return nil
-}
-
-func acceptsGzip(header string) bool {
-	for value := range strings.SplitSeq(header, ",") {
-		coding, parameters, _ := strings.Cut(value, ";")
-		if strings.TrimSpace(coding) == "gzip" && gzipQuality(parameters) > 0 {
-			return true
-		}
-	}
-	return false
-}
-
-func gzipQuality(parameters string) float64 {
-	for parameter := range strings.SplitSeq(parameters, ";") {
-		name, value, found := strings.Cut(parameter, "=")
-		if !found || strings.TrimSpace(name) != "q" {
-			continue
-		}
-		quality, err := strconv.ParseFloat(strings.TrimSpace(value), 64)
-		if err == nil {
-			return quality
-		}
-	}
-	return 1
+	handler.graph.serve(response, request)
 }
 
 func (handler *dashboardHandler) serveEvents(response http.ResponseWriter, request *http.Request) {
-	flusher, supported := response.(http.Flusher)
-	if !supported {
-		http.Error(response, "event streaming unavailable", http.StatusInternalServerError)
-		return
-	}
-	response.Header().Set("Cache-Control", "no-cache")
-	response.Header().Set("Connection", "keep-alive")
-	response.Header().Set("Content-Type", "text/event-stream")
-	response.Header().Set("X-Accel-Buffering", "no")
-
-	updates, unsubscribe := handler.monitor.subscribe()
-	defer unsubscribe()
-	if err := writeServerEvent(response, "ready", handler.monitor.currentGraph().Revision); err != nil {
-		return
-	}
-	flusher.Flush()
-
-	keepAlive := time.NewTicker(handler.keepAliveInterval)
-	defer keepAlive.Stop()
-	for {
-		select {
-		case <-request.Context().Done():
-			return
-		case revision := <-updates:
-			if err := writeServerEvent(response, "graph", revision); err != nil {
-				return
-			}
-			flusher.Flush()
-		case <-keepAlive.C:
-			if _, err := fmt.Fprint(response, ": keep-alive\n\n"); err != nil {
-				return
-			}
-			flusher.Flush()
-		}
-	}
-}
-
-func writeServerEvent(response http.ResponseWriter, event, data string) error {
-	if _, err := fmt.Fprintf(response, "event: %s\ndata: %s\n\n", event, data); err != nil {
-		return fmt.Errorf("write server event: %w", err)
-	}
-	return nil
+	handler.events.serve(response, request, handler.keepAliveInterval)
 }
 
 func (handler *dashboardHandler) serveHealth(response http.ResponseWriter, _ *http.Request) {
 	response.Header().Set("Cache-Control", "no-store")
 	response.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	if _, err := response.Write([]byte("ok\n")); err != nil {
-		handler.logger.Debug("Cannot write health response", "error", err)
+		handler.logger.Debug("The dashboard handler cannot write the health response.", "error", err)
 	}
 }
 
@@ -226,73 +92,6 @@ func dashboardContentSecurityPolicy() string {
 		"script-src 'self'; style-src 'self'"
 }
 
-func newHTTPServer(ctx context.Context, handler http.Handler) *http.Server {
-	return &http.Server{
-		Handler:           handler,
-		ReadHeaderTimeout: 5 * time.Second,
-		IdleTimeout:       75 * time.Second,
-		MaxHeaderBytes:    1 << 20,
-		BaseContext: func(net.Listener) context.Context {
-			return ctx
-		},
-	}
-}
-
-func dashboardShutdownTimeout() time.Duration {
-	return 5 * time.Second
-}
-
-func runDashboard(
-	ctx context.Context,
-	monitor *graphMonitor,
-	address string,
-	logger *slog.Logger,
-) error {
-	listener, err := net.Listen("tcp", address)
-	if err != nil {
-		return fmt.Errorf("listen on %s: %w", address, err)
-	}
-	server := newHTTPServer(ctx, newDashboardHandler(monitor, logger))
-	monitorContext, stopMonitor := context.WithCancel(ctx)
-	defer stopMonitor()
-	go monitor.run(monitorContext)
-
-	serveErrors := make(chan error)
-	go func() {
-		serveErrors <- server.Serve(listener)
-	}()
-	logger.Info(
-		"Dependency graph dashboard is ready",
-		"url", "http://"+listener.Addr().String(),
-		"repository", monitor.analyzer.repositoryRoot,
-	)
-
-	select {
-	case err := <-serveErrors:
-		if errors.Is(err, http.ErrServerClosed) {
-			return nil
-		}
-		return fmt.Errorf("serve dependency graph dashboard: %w", err)
-	case <-ctx.Done():
-		shutdownContext, cancelShutdown := context.WithTimeout(
-			context.Background(),
-			dashboardShutdownTimeout(),
-		)
-		defer cancelShutdown()
-		if err := server.Shutdown(shutdownContext); err != nil {
-			if closeError := server.Close(); closeError != nil {
-				return fmt.Errorf("shut down dashboard: %w", errors.Join(err, closeError))
-			}
-			return fmt.Errorf("shut down dashboard: %w", err)
-		}
-		serveError := <-serveErrors
-		if !errors.Is(serveError, http.ErrServerClosed) {
-			return fmt.Errorf("serve dependency graph dashboard: %w", serveError)
-		}
-		return nil
-	}
-}
-
 // mutate4go-manifest-begin
-// {"version":1,"tested_at":"2026-08-21T11:43:40Z","module_hash":"1634fb59580ec3a65423a204fe3c6b43fe701f2746724d4435db907e5b5ec1bc","functions":[{"id":"func/newDashboardHandler","name":"newDashboardHandler","line":24,"end_line":38,"hash":"08e8dbcea67431289267e1bbaab0a829a943eeb7ab5cef7ceda8d2d9a69ad5aa"},{"id":"func/dashboardHandler.ServeHTTP","name":"dashboardHandler.ServeHTTP","line":40,"end_line":46,"hash":"2374fbb047d6a67e7a693e2a1c1f0953efb90cfc1d6a614362acfa2f2df9862a"},{"id":"func/dashboardHandler.serveDashboard","name":"dashboardHandler.serveDashboard","line":48,"end_line":50,"hash":"83dda4230e250d7b1152e9f1fc035505caffeb3d282bc132b741671f0643546b"},{"id":"func/dashboardHandler.serveStyle","name":"dashboardHandler.serveStyle","line":52,"end_line":54,"hash":"c609a4534a3746af4592c5c6b1de5ff51a31d78967b97511d0bdc0eb58b790c0"},{"id":"func/dashboardHandler.serveScript","name":"dashboardHandler.serveScript","line":56,"end_line":58,"hash":"4fd16509b7d53e5368bd3784de04021c31e59e55d4ff047a98ff76a826a00989"},{"id":"func/dashboardHandler.serveEmbeddedAsset","name":"dashboardHandler.serveEmbeddedAsset","line":60,"end_line":76,"hash":"e80daf0219a2774250ff3bd346fa5c65aa502c5e4d41c68629640649b16f0cfa"},{"id":"func/dashboardHandler.serveGraph","name":"dashboardHandler.serveGraph","line":78,"end_line":107,"hash":"3b7199f51f35be3f2b4d01a9b6a3d322402a029a828537e7f3076102357e256a"},{"id":"func/validateGraphCacheRequest","name":"validateGraphCacheRequest","line":109,"end_line":124,"hash":"3b2ee5c79fe5c50ca67a15731afdd939f75e7f5e15e1df5b349a006f72c55053"},{"id":"func/writeGraphResponse","name":"writeGraphResponse","line":126,"end_line":144,"hash":"1c70911489427a36cfb6240b00126b8171b97970acba756ef44bc2dc824243a4"},{"id":"func/acceptsGzip","name":"acceptsGzip","line":146,"end_line":154,"hash":"52a2204173ba0ecd2214eda1419ea35433f8b6162a72696398e167cc2d6374bf"},{"id":"func/gzipQuality","name":"gzipQuality","line":156,"end_line":168,"hash":"2fb50fc55492f665d63aff76f9eb767ebb73404b1cfe15c321e1a6728d5cf83e"},{"id":"func/dashboardHandler.serveEvents","name":"dashboardHandler.serveEvents","line":170,"end_line":206,"hash":"dcda3cfd832d47227148aef5df1e33b55334bcd8b1c98de43507c92b20f46577"},{"id":"func/writeServerEvent","name":"writeServerEvent","line":208,"end_line":213,"hash":"3f41198f8da8187b8969223241cdc8c29324d59411785db59dd212d6db0fde62"},{"id":"func/dashboardHandler.serveHealth","name":"dashboardHandler.serveHealth","line":215,"end_line":221,"hash":"d329f635419b99fe62415f10ece1cf3c3bf76e502ea1b27fe87475402a3e6195"},{"id":"func/dashboardContentSecurityPolicy","name":"dashboardContentSecurityPolicy","line":223,"end_line":227,"hash":"ca7c443f057c7b5035f43cb1d42c3ee9ff7e4f7f761596bcbbebad1f5b56c7a6"},{"id":"func/newHTTPServer","name":"newHTTPServer","line":229,"end_line":239,"hash":"561d3af6686eea242162aec5934aafa64ab4f3df0fcb52675e65117f4363a27f"},{"id":"func/dashboardShutdownTimeout","name":"dashboardShutdownTimeout","line":241,"end_line":243,"hash":"c377fd4829227d7213017c071237a2f59bdd8919a5bd5e9d315f97688ec33d6f"},{"id":"func/runDashboard","name":"runDashboard","line":245,"end_line":294,"hash":"39834d01dd9f593d7484c6f4d68e40c39f98d288e3ffb05bb40597a6bd06eef8"}]}
+// {"version":1,"tested_at":"2026-08-21T15:57:52Z","module_hash":"aacf9bfd3f552e05747566e3490006d70856cd37dc92473ca3b0dc2506058828","functions":[{"id":"func/newDashboardHandler","name":"newDashboardHandler","line":42,"end_line":59,"hash":"bbb38d1e5b0ede416e702196f9d9e446bd3047f84afaf268b48be758ab861541"},{"id":"func/dashboardHandler.ServeHTTP","name":"dashboardHandler.ServeHTTP","line":61,"end_line":67,"hash":"2374fbb047d6a67e7a693e2a1c1f0953efb90cfc1d6a614362acfa2f2df9862a"},{"id":"func/dashboardHandler.serveDashboard","name":"dashboardHandler.serveDashboard","line":69,"end_line":71,"hash":"f4810338eaa1f719702af16b45c107419c0cf96fb690c0a3a48fa8891ad70344"},{"id":"func/dashboardHandler.serveGraph","name":"dashboardHandler.serveGraph","line":73,"end_line":75,"hash":"0fa01b9a2d7f4268bf303422e6221daf8ad0eaa5fa0d94cabc8707650741a31c"},{"id":"func/dashboardHandler.serveEvents","name":"dashboardHandler.serveEvents","line":77,"end_line":79,"hash":"1ec3b46f51646a537ac3de423a68f61321ebaa5d04ff7ffa06c6deb642e99cc2"},{"id":"func/dashboardHandler.serveHealth","name":"dashboardHandler.serveHealth","line":81,"end_line":87,"hash":"93ce4a74aa6688b6d561e724422bc0ae989be1f9d12e3b805850e953a9edbb0c"},{"id":"func/dashboardContentSecurityPolicy","name":"dashboardContentSecurityPolicy","line":89,"end_line":93,"hash":"ca7c443f057c7b5035f43cb1d42c3ee9ff7e4f7f761596bcbbebad1f5b56c7a6"}]}
 // mutate4go-manifest-end

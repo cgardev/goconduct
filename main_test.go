@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"io"
 	"log/slog"
 	"strings"
@@ -10,6 +11,115 @@ import (
 
 	"github.com/spf13/cobra"
 )
+
+func TestRunCommand_ReturnInvalidArgumentError(t *testing.T) {
+	t.Run("Scenario: The process receives an unknown command argument", func(t *testing.T) {
+		var commandContext context.Context
+		var logger *slog.Logger
+		var commandArguments []string
+		var commandError error
+
+		t.Run("Given a command context, logger, and unknown argument", func(*testing.T) {
+			commandContext = t.Context()
+			logger = slog.New(slog.NewTextHandler(io.Discard, nil))
+			commandArguments = []string{"unexpected"}
+		})
+
+		t.Run("When the command runner executes the argument", func(*testing.T) {
+			commandError = runCommand(commandContext, logger, commandArguments)
+		})
+
+		t.Run("Then the command runner returns the argument error", func(t *testing.T) {
+			if commandError == nil || !strings.Contains(commandError.Error(), "unknown command") {
+				t.Fatalf("command error is %v, want an unknown command error", commandError)
+			}
+		})
+	})
+}
+
+func TestRunCommand_UseExecutionContext(t *testing.T) {
+	t.Run("Scenario: The command context ends before dashboard startup", func(t *testing.T) {
+		var commandContext context.Context
+		var commandArguments []string
+		var commandError error
+
+		t.Run("Given valid arguments and a canceled command context", func(*testing.T) {
+			commandArguments = []string{
+				"--root", newAnalyzerFixture(t),
+				"--address", "127.0.0.1:0",
+				"--refresh-interval", minimumRefreshInterval().String(),
+			}
+			var cancel context.CancelFunc
+			commandContext, cancel = context.WithCancel(t.Context())
+			cancel()
+		})
+
+		t.Run("When the command runner executes with the canceled context", func(*testing.T) {
+			logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+			commandError = runCommand(commandContext, logger, commandArguments)
+		})
+
+		t.Run("Then the command runner stops without a process error", func(t *testing.T) {
+			if commandError != nil {
+				t.Fatalf("command runner error is %v, want nil", commandError)
+			}
+		})
+	})
+}
+
+func TestCommandContextError_ClassifyExecutionFailure(t *testing.T) {
+	testError := errors.New("test command failure")
+	testCases := []struct {
+		name           string
+		cancelContext  bool
+		executionError error
+		want           bool
+	}{
+		{
+			name:           "a canceled context returns its cancellation error",
+			cancelContext:  true,
+			executionError: context.Canceled,
+			want:           true,
+		},
+		{
+			name:           "a canceled context returns an unrelated error",
+			cancelContext:  true,
+			executionError: testError,
+			want:           false,
+		},
+		{
+			name:           "an active context receives a cancellation error",
+			cancelContext:  false,
+			executionError: context.Canceled,
+			want:           false,
+		},
+	}
+	for _, testCase := range testCases {
+		t.Run("Scenario: "+testCase.name, func(t *testing.T) {
+			var commandContext context.Context
+			var result bool
+
+			t.Run("Given the command context and execution error", func(*testing.T) {
+				commandContext = t.Context()
+				if testCase.cancelContext {
+					var cancel context.CancelFunc
+					commandContext, cancel = context.WithCancel(commandContext)
+					cancel()
+				}
+			})
+
+			t.Run("When the classifier checks the execution error", func(*testing.T) {
+				result = isCommandContextError(commandContext, testCase.executionError)
+			})
+
+			t.Run("Then the classifier returns the expected result", func(t *testing.T) {
+				if result != testCase.want {
+					t.Errorf("classification is %t, want %t", result, testCase.want)
+				}
+			})
+		})
+	}
+}
 
 func TestRootCommand_DefineSafeDefaults(t *testing.T) {
 	t.Run("Scenario: The test creates the dependency graph command without options", func(t *testing.T) {
@@ -146,11 +256,11 @@ func TestRootCommand_RejectInvalidArguments(t *testing.T) {
 			want: "must be all, warning, or error",
 		},
 		{
-			name: "the filtered component kind is unknown",
+			name: "the filtered component role is unknown",
 			arguments: func(*testing.T) []string {
-				return []string{"components", "--kind", "service"}
+				return []string{"components", "--role", "service"}
 			},
-			want: "component kind",
+			want: "component role",
 		},
 		{
 			name: "the filtered component sort is unknown",

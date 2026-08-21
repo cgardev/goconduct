@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"go/ast"
 	"go/token"
@@ -15,18 +16,26 @@ import (
 )
 
 func (analyzer *analyzer) inspectFunctions(
+	ctx context.Context,
 	modulePath string,
 	sourcePaths []string,
 ) ([]functionDeclaration, []functionReference, error) {
 	fileSet := token.NewFileSet()
 	loadedPackages, err := packages.Load(&packages.Config{
-		Mode:  packages.LoadSyntax | packages.NeedForTest,
-		Dir:   analyzer.repositoryRoot,
-		Fset:  fileSet,
-		Tests: true,
+		Mode:    packages.LoadSyntax | packages.NeedForTest,
+		Dir:     analyzer.repositoryRoot,
+		Fset:    fileSet,
+		Tests:   true,
+		Context: ctx,
 	}, functionPackageQueries(sourcePaths)...)
 	if err != nil {
+		if contextError := ctx.Err(); contextError != nil {
+			return nil, nil, fmt.Errorf("load Go type information: %w", contextError)
+		}
 		return nil, nil, fmt.Errorf("load Go type information: %w", err)
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, nil, err
 	}
 	slices.SortFunc(loadedPackages, func(first, second *packages.Package) int {
 		return strings.Compare(first.ID, second.ID)
@@ -37,6 +46,9 @@ func (analyzer *analyzer) inspectFunctions(
 	var declarations []functionDeclaration
 	var references []functionReference
 	for _, loadedPackage := range loadedPackages {
+		if err := ctx.Err(); err != nil {
+			return nil, nil, err
+		}
 		packageDeclarations, packageReferences, inspectError := analyzer.inspectLoadedPackage(
 			modulePath,
 			loadedPackage,
@@ -492,5 +504,5 @@ func physicalSourcePosition(fileSet *token.FileSet, position token.Pos) token.Po
 }
 
 // mutate4go-manifest-begin
-// {"version":1,"tested_at":"2026-08-21T10:40:04Z","module_hash":"4bf15b4203e5f4914bf8b06993da34fc2131d9f9ed3fc50f6d3ca50f688daf67","functions":[{"id":"func/analyzer.inspectFunctions","name":"analyzer.inspectFunctions","line":17,"end_line":54,"hash":"b920c358367eccf41a365b290d4216b4bb2299c573f7f93b839bbdbcf59dddf7"},{"id":"func/functionPackageQueries","name":"functionPackageQueries","line":56,"end_line":71,"hash":"a5e077580e8cc89a2c8d11318f560e84e4e9605e1692e2515b4ebcd98d35ff82"},{"id":"func/absolutePathSet","name":"absolutePathSet","line":73,"end_line":79,"hash":"b435ed48604e786de8925ffe2bc3a2cd435473c75657266a9679dbe0020c3562"},{"id":"func/analyzer.inspectLoadedPackage","name":"analyzer.inspectLoadedPackage","line":81,"end_line":116,"hash":"d366008304ae01d70f89884108d1b2c1599960b02cc1d50dbcfb67f80384ca3a"},{"id":"func/functionPackageOwnsFile","name":"functionPackageOwnsFile","line":118,"end_line":124,"hash":"8baf30bbd99f9916dba41d589951b282364d5b216c0f30fd32914fd65d6e028b"},{"id":"func/analyzer.inspectFunctionFile","name":"analyzer.inspectFunctionFile","line":126,"end_line":184,"hash":"a71f8a2c0116a0a11c867e69dc46e3c53bb6f8c376290393b6b2ee31b0d7d05d"},{"id":"func/declarationsAtPositions","name":"declarationsAtPositions","line":186,"end_line":192,"hash":"72cc26a02c26f6f509017f78da9358d9cae0eb201b32d364982e8ebcf30c6296"},{"id":"func/analyzer.functionDefinitions","name":"analyzer.functionDefinitions","line":194,"end_line":222,"hash":"31fd1c6dfc2f21e5c15fc25ce20d43c211c151f05876b9033680e69e60c28f17"},{"id":"func/analyzer.callsInNode","name":"analyzer.callsInNode","line":224,"end_line":269,"hash":"95c4517435c35d03b65c584979704f6415072d9d36456ee46a39597f18d4c3fc"},{"id":"func/calledFunction","name":"calledFunction","line":271,"end_line":287,"hash":"aa1a6907c04f3e9d8bac582fa0f10eacf8802b09c89cfa9f3d0150792cfdcf82"},{"id":"func/unwrapFunctionExpression","name":"unwrapFunctionExpression","line":289,"end_line":302,"hash":"c0b6788b63d8de47f7d47d55b4a65262b9572626614aa42c2c6d9bd8d59bd94f"},{"id":"func/analyzer.inspectPackageInitializers","name":"analyzer.inspectPackageInitializers","line":304,"end_line":332,"hash":"9597ecb40da71afd4fa33f2d264a9eab9e27eda9aadf29dce749596a7b9184f8"},{"id":"func/analyzer.packageInitializerDeclaration","name":"analyzer.packageInitializerDeclaration","line":334,"end_line":364,"hash":"2734967e9120fdf911b6c921da4bf4def560bc1daf21ef742a88b28a597a1aae"},{"id":"func/analyzer.functionDeclarationFromObject","name":"analyzer.functionDeclarationFromObject","line":366,"end_line":417,"hash":"dc66a15af5f8ff8ee10babc00ab586e2ace32f28a23837cabbae9c7236d2d973"},{"id":"func/localPackagePath","name":"localPackagePath","line":419,"end_line":428,"hash":"23f0e4b39a37fd495ec4760eb7489a64840108d33326439d68fd828061264c4d"},{"id":"func/functionReceiver","name":"functionReceiver","line":430,"end_line":443,"hash":"c0f4b9b7cbc8c76f5da4d93c6c48d63263959b8146a7bd8d20a596296cef4057"},{"id":"func/packageName","name":"packageName","line":445,"end_line":450,"hash":"c4b4868b0d37a96ecacd72d16c66fd07cee089c3234149b6322b216b42b11d9b"},{"id":"func/functionIdentifier","name":"functionIdentifier","line":452,"end_line":462,"hash":"9006cdce7a6490a864a659c72b02d0c6814552dffe83fbfc48dba713dd22e79c"},{"id":"func/analyzer.relativeSourcePath","name":"analyzer.relativeSourcePath","line":464,"end_line":473,"hash":"ac46a771087acaf040416e5e3f4348ec54c990a6a041d1d66d8516be99b01f75"},{"id":"func/physicalSourcePosition","name":"physicalSourcePosition","line":475,"end_line":492,"hash":"63c57b04c08a73f2dfe3a683ba2656e702fa1f3c2b2c6064546e8e459dd23004"}]}
+// {"version":1,"tested_at":"2026-08-21T15:59:10Z","module_hash":"2e18b5e39d9a8db701a4c2d72883d459fccb027e53ea27d459212adc554e2fdc","functions":[{"id":"func/analyzer.inspectFunctions","name":"analyzer.inspectFunctions","line":18,"end_line":66,"hash":"4f9ba757f9f2e2f9427f6c96fd0c3512594132be3c907d49ff150f6da879f4d6"},{"id":"func/functionPackageQueries","name":"functionPackageQueries","line":68,"end_line":83,"hash":"a5e077580e8cc89a2c8d11318f560e84e4e9605e1692e2515b4ebcd98d35ff82"},{"id":"func/absolutePathSet","name":"absolutePathSet","line":85,"end_line":91,"hash":"b435ed48604e786de8925ffe2bc3a2cd435473c75657266a9679dbe0020c3562"},{"id":"func/analyzer.inspectLoadedPackage","name":"analyzer.inspectLoadedPackage","line":93,"end_line":128,"hash":"d366008304ae01d70f89884108d1b2c1599960b02cc1d50dbcfb67f80384ca3a"},{"id":"func/functionPackageOwnsFile","name":"functionPackageOwnsFile","line":130,"end_line":136,"hash":"8baf30bbd99f9916dba41d589951b282364d5b216c0f30fd32914fd65d6e028b"},{"id":"func/analyzer.inspectFunctionFile","name":"analyzer.inspectFunctionFile","line":138,"end_line":196,"hash":"a71f8a2c0116a0a11c867e69dc46e3c53bb6f8c376290393b6b2ee31b0d7d05d"},{"id":"func/declarationsAtPositions","name":"declarationsAtPositions","line":198,"end_line":204,"hash":"72cc26a02c26f6f509017f78da9358d9cae0eb201b32d364982e8ebcf30c6296"},{"id":"func/analyzer.functionDefinitions","name":"analyzer.functionDefinitions","line":206,"end_line":234,"hash":"31fd1c6dfc2f21e5c15fc25ce20d43c211c151f05876b9033680e69e60c28f17"},{"id":"func/analyzer.callsInNode","name":"analyzer.callsInNode","line":236,"end_line":281,"hash":"95c4517435c35d03b65c584979704f6415072d9d36456ee46a39597f18d4c3fc"},{"id":"func/calledFunction","name":"calledFunction","line":283,"end_line":299,"hash":"aa1a6907c04f3e9d8bac582fa0f10eacf8802b09c89cfa9f3d0150792cfdcf82"},{"id":"func/unwrapFunctionExpression","name":"unwrapFunctionExpression","line":301,"end_line":314,"hash":"c0b6788b63d8de47f7d47d55b4a65262b9572626614aa42c2c6d9bd8d59bd94f"},{"id":"func/analyzer.inspectPackageInitializers","name":"analyzer.inspectPackageInitializers","line":316,"end_line":344,"hash":"9597ecb40da71afd4fa33f2d264a9eab9e27eda9aadf29dce749596a7b9184f8"},{"id":"func/analyzer.packageInitializerDeclaration","name":"analyzer.packageInitializerDeclaration","line":346,"end_line":376,"hash":"2734967e9120fdf911b6c921da4bf4def560bc1daf21ef742a88b28a597a1aae"},{"id":"func/analyzer.functionDeclarationFromObject","name":"analyzer.functionDeclarationFromObject","line":378,"end_line":429,"hash":"dc66a15af5f8ff8ee10babc00ab586e2ace32f28a23837cabbae9c7236d2d973"},{"id":"func/localPackagePath","name":"localPackagePath","line":431,"end_line":440,"hash":"23f0e4b39a37fd495ec4760eb7489a64840108d33326439d68fd828061264c4d"},{"id":"func/functionReceiver","name":"functionReceiver","line":442,"end_line":455,"hash":"c0f4b9b7cbc8c76f5da4d93c6c48d63263959b8146a7bd8d20a596296cef4057"},{"id":"func/packageName","name":"packageName","line":457,"end_line":462,"hash":"c4b4868b0d37a96ecacd72d16c66fd07cee089c3234149b6322b216b42b11d9b"},{"id":"func/functionIdentifier","name":"functionIdentifier","line":464,"end_line":474,"hash":"9006cdce7a6490a864a659c72b02d0c6814552dffe83fbfc48dba713dd22e79c"},{"id":"func/analyzer.relativeSourcePath","name":"analyzer.relativeSourcePath","line":476,"end_line":485,"hash":"ac46a771087acaf040416e5e3f4348ec54c990a6a041d1d66d8516be99b01f75"},{"id":"func/physicalSourcePosition","name":"physicalSourcePosition","line":487,"end_line":504,"hash":"63c57b04c08a73f2dfe3a683ba2656e702fa1f3c2b2c6064546e8e459dd23004"}]}
 // mutate4go-manifest-end

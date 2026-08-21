@@ -3,6 +3,8 @@ package main
 import (
 	"slices"
 	"testing"
+
+	"digginginsights.com/v3/internal/devtool/dependencygraph/internal/architecture"
 )
 
 func TestFindings_DetectArchitectureFindings(t *testing.T) {
@@ -91,54 +93,118 @@ func findingWithRule(t *testing.T, findings []Finding, rule string) Finding {
 	return Finding{}
 }
 
-func TestFindingMessage_ReturnRuleMessage(t *testing.T) {
-	testCases := []struct {
-		rule string
-		want string
-	}{
-		{
-			rule: "cross-application-module-import",
-			want: "An application module imports a module from another application.",
-		},
-		{
-			rule: "library-imports-feature",
-			want: "A shared library imports a feature module.",
-		},
-		{
-			rule: "production-imports-development",
-			want: "Production code imports development code.",
-		},
-		{
-			rule: "shared-component-imports-application",
-			want: "A shared component imports application-specific code.",
-		},
-		{
-			rule: "stable-dependency-principle",
-			want: "The source component imports a less stable target component.",
-		},
-		{
-			rule: "unknown-rule",
-			want: "The dependency violates an architecture rule.",
-		},
-	}
-	for _, testCase := range testCases {
-		t.Run("Scenario: The finding rule is "+testCase.rule, func(t *testing.T) {
-			var rule string
-			var message string
+func TestArchitectureRules_ApplyCustomRule(t *testing.T) {
+	t.Run("Scenario: The composition root adds one architecture rule", func(t *testing.T) {
+		var graph Graph
 
-			t.Run("Given a stable rule identifier", func(t *testing.T) {
-				rule = testCase.rule
-			})
-
-			t.Run("When the function creates the user message", func(t *testing.T) {
-				message = findingMessage(rule)
-			})
-
-			t.Run("Then the message matches the rule", func(t *testing.T) {
-				if message != testCase.want {
-					t.Fatalf("message is %q, want %q", message, testCase.want)
-				}
-			})
+		t.Run("Given a graph and a registry with one custom evaluator", func(t *testing.T) {
+			graph = Graph{
+				Components: []Component{
+					{Identifier: "source", Role: componentRoleLibrary},
+					{Identifier: "target", Role: componentRoleLibrary},
+				},
+				Relationships: []Relationship{{Source: "source", Target: "target"}},
+			}
 		})
+
+		t.Run("When the calculator applies the composed registry", func(t *testing.T) {
+			applyArchitectureRules(
+				&graph,
+				architecture.NewRegistry(customArchitectureRule{}),
+			)
+		})
+
+		t.Run("Then the graph contains the custom finding", func(t *testing.T) {
+			if len(graph.Findings) != 1 || graph.Findings[0].Rule != "custom-dependency" {
+				t.Fatalf("unexpected custom findings: %+v", graph.Findings)
+			}
+		})
+
+		t.Run("And the relationship contains the custom rule identifier", func(t *testing.T) {
+			if !slices.Equal(graph.Relationships[0].RuleViolations, []string{"custom-dependency"}) {
+				t.Errorf("unexpected relationship rules: %v", graph.Relationships[0].RuleViolations)
+			}
+		})
+	})
+}
+
+func TestArchitectureRules_IgnoreFindingsWithoutCompleteRelationship(t *testing.T) {
+	t.Run("Scenario: Custom findings omit one relationship endpoint", func(t *testing.T) {
+		var graph Graph
+
+		t.Run("Given relationships that use one empty endpoint", func(*testing.T) {
+			graph = Graph{Relationships: []Relationship{
+				{Source: "", Target: "target"},
+				{Source: "source", Target: ""},
+			}}
+		})
+
+		t.Run("When the calculator applies findings with the same incomplete endpoints", func(*testing.T) {
+			applyArchitectureRules(
+				&graph,
+				architecture.NewRegistry(incompleteRelationshipRule{}),
+			)
+		})
+
+		t.Run("Then no relationship receives an incomplete finding", func(t *testing.T) {
+			for _, relationship := range graph.Relationships {
+				if len(relationship.RuleViolations) != 0 {
+					t.Fatalf("incomplete relationship rules are %v", relationship.RuleViolations)
+				}
+			}
+		})
+	})
+}
+
+type customArchitectureRule struct{}
+
+func (customArchitectureRule) Evaluate(architecture.Graph) []architecture.Finding {
+	return []architecture.Finding{{
+		Rule:     "custom-dependency",
+		Severity: architecture.SeverityWarning,
+		Subject:  "source -> target",
+		Message:  "A custom policy rejects this dependency.",
+		Source:   "source",
+		Target:   "target",
+	}}
+}
+
+type incompleteRelationshipRule struct{}
+
+func (incompleteRelationshipRule) Evaluate(architecture.Graph) []architecture.Finding {
+	return []architecture.Finding{
+		{Rule: "missing-source", Source: "", Target: "target"},
+		{Rule: "missing-target", Source: "source", Target: ""},
 	}
+}
+
+func TestGraphSummary_CountConfiguredCategories(t *testing.T) {
+	t.Run("Scenario: Multiple presentation categories use one strategic role", func(t *testing.T) {
+		var graph Graph
+		var summary GraphSummary
+
+		t.Run("Given plugin and extension components with the library role", func(*testing.T) {
+			graph = Graph{Components: []Component{
+				{Identifier: "plugins/auth", Role: componentRoleLibrary, Category: "plugin"},
+				{Identifier: "plugins/log", Role: componentRoleLibrary, Category: "plugin"},
+				{Identifier: "extensions/report", Role: componentRoleLibrary, Category: "extension"},
+			}}
+		})
+
+		t.Run("When the calculator creates the graph summary", func(*testing.T) {
+			summary = summarizeGraph(graph)
+		})
+
+		t.Run("Then the summary counts each configured category", func(t *testing.T) {
+			if summary.Categories["plugin"] != 2 || summary.Categories["extension"] != 1 {
+				t.Fatalf("unexpected category counts: %v", summary.Categories)
+			}
+		})
+
+		t.Run("And the compatible role count includes all three components", func(t *testing.T) {
+			if summary.Libraries != 3 {
+				t.Errorf("library role count is %d", summary.Libraries)
+			}
+		})
+	})
 }

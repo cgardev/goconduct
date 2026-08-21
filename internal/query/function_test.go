@@ -1,4 +1,4 @@
-package main
+package query
 
 import (
 	"errors"
@@ -9,9 +9,10 @@ import (
 func TestFunctionQueries_ReturnDirectFunctionResources(t *testing.T) {
 	t.Run("Scenario: Native queries filter functions and exact calls without output pipes", func(t *testing.T) {
 		var graph Graph
-		var functions functionsQueryResult
-		var selected functionQueryResult
-		var calls functionCallsQueryResult
+		var functions FunctionsResult
+		var selected FunctionResult
+		var sourceSelected FunctionResult
+		var calls FunctionCallsResult
 		var queryError error
 
 		t.Run("Given production and test calls between two components", func(*testing.T) {
@@ -19,24 +20,27 @@ func TestFunctionQueries_ReturnDirectFunctionResources(t *testing.T) {
 		})
 
 		t.Run("When each focused function query executes", func(*testing.T) {
-			functions = queryFunctions(graph, functionsQuery{
-				component:    "component/target",
-				sort:         functionSortIncomingCalls,
-				includeTests: true,
-				limit:        1,
+			functions = Functions(graph, FunctionsParams{
+				Component:    "component/target",
+				Sort:         FunctionSortIncomingCallSites,
+				IncludeTests: true,
+				Limit:        1,
 			})
-			selected, queryError = queryFunction(graph, "component/target.Read", true)
-			calls = queryFunctionCalls(graph, functionCallsQuery{
-				sourceComponent: "component/source",
-				targetComponent: "component/target",
-				includeTests:    false,
-				limit:           10,
+			selected, queryError = GetFunction(graph, "component/target.Read", true)
+			if queryError == nil {
+				sourceSelected, queryError = GetFunction(graph, "component/source.Execute", true)
+			}
+			calls = FunctionCalls(graph, FunctionCallsParams{
+				SourceComponent: "component/source",
+				TargetComponent: "component/target",
+				IncludeTests:    false,
+				Limit:           10,
 			})
 		})
 
 		if !t.Run("Then each query returns its direct resource", func(t *testing.T) {
 			if queryError != nil {
-				t.Fatalf("queryFunction fails: %v", queryError)
+				t.Fatalf("Function fails: %v", queryError)
 			}
 			if functions.Matched != 1 || functions.Returned != 1 ||
 				functions.Functions[0].Identifier != "component/target.Read" {
@@ -44,6 +48,9 @@ func TestFunctionQueries_ReturnDirectFunctionResources(t *testing.T) {
 			}
 			if selected.Function.Identifier != "component/target.Read" {
 				t.Fatalf("unexpected selected function: %+v", selected)
+			}
+			if sourceSelected.Function.Identifier != "component/source.Execute" {
+				t.Fatalf("unexpected selected source function: %+v", sourceSelected)
 			}
 		}) {
 			return
@@ -53,8 +60,11 @@ func TestFunctionQueries_ReturnDirectFunctionResources(t *testing.T) {
 			if calls.Matched != 1 || calls.Returned != 1 || calls.CallSites != 2 {
 				t.Errorf("unexpected call query: %+v", calls)
 			}
-			if len(selected.Callers) != 2 || len(selected.Callees) != 0 {
-				t.Errorf("unexpected caller and callee lists: %+v", selected)
+			if len(selected.IncomingCalls) != 2 || len(selected.OutgoingCalls) != 0 {
+				t.Errorf("unexpected incoming and outgoing call lists: %+v", selected)
+			}
+			if len(sourceSelected.IncomingCalls) != 0 || len(sourceSelected.OutgoingCalls) != 1 {
+				t.Errorf("unexpected source call lists: %+v", sourceSelected)
 			}
 			if !slices.Equal(
 				calls.Calls[0].CallSites,
@@ -79,12 +89,12 @@ func TestFunctionQuery_RejectUnknownFunction(t *testing.T) {
 		})
 
 		t.Run("When the exact function query executes", func(*testing.T) {
-			_, queryError = queryFunction(graph, "absent.Function", false)
+			_, queryError = GetFunction(graph, "absent.Function", false)
 		})
 
 		t.Run("Then the query returns the typed not-found error", func(t *testing.T) {
-			if !errors.Is(queryError, errFunctionNotFound) {
-				t.Fatalf("error is %v, want errFunctionNotFound", queryError)
+			if !errors.Is(queryError, ErrFunctionNotFound) {
+				t.Fatalf("error is %v, want ErrFunctionNotFound", queryError)
 			}
 		})
 	})
@@ -96,8 +106,8 @@ func TestFunctionSort_ParseClosedVocabulary(t *testing.T) {
 		valid bool
 	}{
 		{value: "identifier", valid: true},
-		{value: "incoming-calls", valid: true},
-		{value: "outgoing-calls", valid: true},
+		{value: "incoming-call-sites", valid: true},
+		{value: "outgoing-call-sites", valid: true},
 		{value: "afferent", valid: true},
 		{value: "efferent", valid: true},
 		{value: "transitive-callers", valid: true},
@@ -112,7 +122,7 @@ func TestFunctionSort_ParseClosedVocabulary(t *testing.T) {
 			t.Run("Given one function sort value", func(*testing.T) {})
 
 			t.Run("When the parser checks the closed vocabulary", func(*testing.T) {
-				_, parseError = parseFunctionSort(testCase.value)
+				_, parseError = ParseFunctionSort(testCase.value)
 			})
 
 			t.Run("Then the parser returns the expected validity", func(t *testing.T) {
@@ -124,24 +134,44 @@ func TestFunctionSort_ParseClosedVocabulary(t *testing.T) {
 	}
 }
 
+func TestFunctionSort_DescribeClosedVocabulary(t *testing.T) {
+	t.Run("Scenario: The CLI documents every function sort", func(t *testing.T) {
+		var description string
+
+		t.Run("Given the ordered function sort registry", func(*testing.T) {})
+
+		t.Run("When the query layer creates the vocabulary description", func(*testing.T) {
+			description = describeFunctionSorts()
+		})
+
+		t.Run("Then each sort occurs once in registry order", func(t *testing.T) {
+			want := "identifier, incoming-call-sites, outgoing-call-sites, afferent, efferent, " +
+				"transitive-callers, transitive-callees, or instability"
+			if description != want {
+				t.Fatalf("function sort description is %q, want %q", description, want)
+			}
+		})
+	})
+}
+
 func TestFunctionComparison_OrderEveryMetric(t *testing.T) {
 	testCases := []struct {
 		name         string
-		sort         functionSort
-		includeTests bool
+		Sort         FunctionSort
+		IncludeTests bool
 		want         string
 	}{
-		{name: "identifier", sort: functionSortIdentifier, want: "a"},
-		{name: "production incoming calls", sort: functionSortIncomingCalls, want: "b"},
-		{name: "all outgoing calls", sort: functionSortOutgoingCalls, includeTests: true, want: "b"},
-		{name: "production outgoing calls", sort: functionSortOutgoingCalls, want: "b"},
-		{name: "all afferent coupling", sort: functionSortAfferent, includeTests: true, want: "b"},
-		{name: "production afferent coupling", sort: functionSortAfferent, want: "b"},
-		{name: "all efferent coupling", sort: functionSortEfferent, includeTests: true, want: "b"},
-		{name: "production efferent coupling", sort: functionSortEfferent, want: "b"},
-		{name: "transitive callers", sort: functionSortTransitiveCallers, want: "b"},
-		{name: "transitive callees", sort: functionSortTransitiveCallees, want: "b"},
-		{name: "instability", sort: functionSortInstability, want: "b"},
+		{name: "identifier", Sort: FunctionSortIdentifier, want: "a"},
+		{name: "production incoming calls", Sort: FunctionSortIncomingCallSites, want: "b"},
+		{name: "all outgoing calls", Sort: FunctionSortOutgoingCallSites, IncludeTests: true, want: "b"},
+		{name: "production outgoing calls", Sort: FunctionSortOutgoingCallSites, want: "b"},
+		{name: "all afferent coupling", Sort: FunctionSortAfferent, IncludeTests: true, want: "b"},
+		{name: "production afferent coupling", Sort: FunctionSortAfferent, want: "b"},
+		{name: "all efferent coupling", Sort: FunctionSortEfferent, IncludeTests: true, want: "b"},
+		{name: "production efferent coupling", Sort: FunctionSortEfferent, want: "b"},
+		{name: "transitive callers", Sort: FunctionSortTransitiveCallers, want: "b"},
+		{name: "transitive callees", Sort: FunctionSortTransitiveCallees, want: "b"},
+		{name: "instability", Sort: FunctionSortInstability, want: "b"},
 	}
 	for _, testCase := range testCases {
 		t.Run("Scenario: Functions sort by "+testCase.name, func(t *testing.T) {
@@ -160,7 +190,7 @@ func TestFunctionComparison_OrderEveryMetric(t *testing.T) {
 						EfferentCoupling:          1,
 						TestEfferentCoupling:      1,
 						TransitiveCallerFunctions: 1,
-						TransitiveCalledFunctions: 1,
+						TransitiveCalleeFunctions: 1,
 						Instability:               1,
 					},
 				}
@@ -169,7 +199,7 @@ func TestFunctionComparison_OrderEveryMetric(t *testing.T) {
 			t.Run("When the selected metric comparison sorts the functions", func(*testing.T) {
 				slices.SortFunc(
 					functions,
-					functionComparison(testCase.sort, testCase.includeTests),
+					functionComparison(testCase.Sort, testCase.IncludeTests),
 				)
 			})
 
@@ -186,7 +216,7 @@ func TestFunctionQuery_MatchEveryFilter(t *testing.T) {
 	testCases := []struct {
 		name     string
 		function Function
-		query    functionsQuery
+		query    FunctionsParams
 		want     bool
 	}{
 		{
@@ -202,31 +232,31 @@ func TestFunctionQuery_MatchEveryFilter(t *testing.T) {
 		{
 			name:     "test inclusion accepts a test function",
 			function: Function{Component: "component", Package: "package", Test: true},
-			query:    functionsQuery{includeTests: true},
+			query:    FunctionsParams{IncludeTests: true},
 			want:     true,
 		},
 		{
 			name:     "an exact component accepts a function",
 			function: Function{Component: "component", Package: "package"},
-			query:    functionsQuery{component: "component"},
+			query:    FunctionsParams{Component: "component"},
 			want:     true,
 		},
 		{
 			name:     "a different component rejects a function",
 			function: Function{Component: "component", Package: "package"},
-			query:    functionsQuery{component: "different"},
+			query:    FunctionsParams{Component: "different"},
 			want:     false,
 		},
 		{
 			name:     "an exact package accepts a function",
 			function: Function{Component: "component", Package: "package"},
-			query:    functionsQuery{packagePath: "package"},
+			query:    FunctionsParams{PackagePath: "package"},
 			want:     true,
 		},
 		{
 			name:     "a different package rejects a function",
 			function: Function{Component: "component", Package: "package"},
-			query:    functionsQuery{packagePath: "different"},
+			query:    FunctionsParams{PackagePath: "different"},
 			want:     false,
 		},
 	}
@@ -259,55 +289,55 @@ func TestFunctionCallQuery_MatchEveryFilter(t *testing.T) {
 	testCases := []struct {
 		name  string
 		call  FunctionCall
-		query functionCallsQuery
+		query FunctionCallsParams
 		want  bool
 	}{
 		{name: "empty filters accept a production call", call: call, want: true},
 		{
 			name:  "test exclusion rejects a test call",
 			call:  FunctionCall{TestOnly: true},
-			query: functionCallsQuery{},
+			query: FunctionCallsParams{},
 			want:  false,
 		},
 		{
 			name:  "test inclusion accepts a test call",
 			call:  FunctionCall{TestOnly: true},
-			query: functionCallsQuery{includeTests: true},
+			query: FunctionCallsParams{IncludeTests: true},
 			want:  true,
 		},
 		{
 			name: "exact filters accept the call",
 			call: call,
-			query: functionCallsQuery{
-				sourceComponent: "source/component",
-				targetComponent: "target/component",
-				sourceFunction:  "source.Function",
-				targetFunction:  "target.Function",
+			query: FunctionCallsParams{
+				SourceComponent: "source/component",
+				TargetComponent: "target/component",
+				SourceFunction:  "source.Function",
+				TargetFunction:  "target.Function",
 			},
 			want: true,
 		},
 		{
 			name:  "a different source component rejects the call",
 			call:  call,
-			query: functionCallsQuery{sourceComponent: "different"},
+			query: FunctionCallsParams{SourceComponent: "different"},
 			want:  false,
 		},
 		{
 			name:  "a different target component rejects the call",
 			call:  call,
-			query: functionCallsQuery{targetComponent: "different"},
+			query: FunctionCallsParams{TargetComponent: "different"},
 			want:  false,
 		},
 		{
 			name:  "a different source function rejects the call",
 			call:  call,
-			query: functionCallsQuery{sourceFunction: "different"},
+			query: FunctionCallsParams{SourceFunction: "different"},
 			want:  false,
 		},
 		{
 			name:  "a different target function rejects the call",
 			call:  call,
-			query: functionCallsQuery{targetFunction: "different"},
+			query: FunctionCallsParams{TargetFunction: "different"},
 			want:  false,
 		},
 	}
@@ -351,14 +381,14 @@ func TestFunctionMetrics_IncludeTestValuesOnRequest(t *testing.T) {
 
 		t.Run("When the metric functions calculate both scopes", func(*testing.T) {
 			production = []int{
-				functionIncomingCalls(function, false),
-				functionOutgoingCalls(function, false),
+				functionIncomingCallSites(function, false),
+				functionOutgoingCallSites(function, false),
 				functionAfferentCoupling(function, false),
 				functionEfferentCoupling(function, false),
 			}
 			all = []int{
-				functionIncomingCalls(function, true),
-				functionOutgoingCalls(function, true),
+				functionIncomingCallSites(function, true),
+				functionOutgoingCallSites(function, true),
 				functionAfferentCoupling(function, true),
 				functionEfferentCoupling(function, true),
 			}

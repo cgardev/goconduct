@@ -90,7 +90,10 @@ func TestApplicationConfiguration_ApplyDocument(t *testing.T) {
       "sharedModules": [],
       "libraries": ["packages/{component}"],
       "infrastructure": [],
-      "developmentTools": []
+      "developmentTools": [],
+      "taxonomy": [
+        {"id": "plugin", "role": "library", "paths": ["plugins/{component}"]}
+      ]
     }
   }
 }`)
@@ -124,7 +127,10 @@ func TestApplicationConfiguration_ApplyDocument(t *testing.T) {
 					configuration.Analysis.Components.Libraries,
 					[]string{"packages/{component}"},
 				) ||
-				len(configuration.Analysis.Components.SharedModules) != 0 {
+				len(configuration.Analysis.Components.SharedModules) != 0 ||
+				len(configuration.Analysis.Components.Taxonomy) != 1 ||
+				configuration.Analysis.Components.Taxonomy[0].Identifier != "plugin" ||
+				configuration.Analysis.Components.Taxonomy[0].Role != componentRoleLibrary {
 				t.Errorf("the loader does not apply document arrays exactly: %+v", configuration.Analysis)
 			}
 		})
@@ -249,7 +255,7 @@ func TestCacheConfiguration_ValidateModeAndTimeout(t *testing.T) {
 			},
 		},
 		{
-			name: "the minimum positive timeout is accepted",
+			name: "the validator accepts the minimum positive timeout",
 			configuration: CacheConfiguration{
 				Mode:           CacheModeAuto,
 				RequestTimeout: time.Nanosecond,
@@ -288,4 +294,37 @@ func TestCacheConfiguration_ValidateModeAndTimeout(t *testing.T) {
 			})
 		})
 	}
+}
+
+func TestComponentRulesConfiguration_MapCustomTaxonomy(t *testing.T) {
+	t.Run("Scenario: External configuration contains one custom component category", func(t *testing.T) {
+		var configuration ComponentRulesConfiguration
+		var rules ComponentRules
+
+		t.Run("Given one category with a strategic role and a path template", func(*testing.T) {
+			configuration = ComponentRulesConfiguration{Taxonomy: []ComponentCategoryConfiguration{{
+				Identifier: "plugin",
+				Role:       componentRoleLibrary,
+				Paths:      []string{"plugins/{component}"},
+			}}}
+		})
+
+		t.Run("When the configuration maps to analysis rules", func(*testing.T) {
+			rules = configuration.domainRules()
+		})
+
+		t.Run("Then the analysis receives exactly one custom category", func(t *testing.T) {
+			if len(rules.Taxonomy) != 1 || rules.Taxonomy[0].Identifier != "plugin" {
+				t.Fatalf("mapped taxonomy is %+v", rules.Taxonomy)
+			}
+		})
+
+		t.Run("And the category keeps its role and path template", func(t *testing.T) {
+			category := rules.Taxonomy[0]
+			if category.Role != componentRoleLibrary ||
+				!slices.Equal(category.Paths, []string{"plugins/{component}"}) {
+				t.Errorf("mapped category is %+v", category)
+			}
+		})
+	})
 }

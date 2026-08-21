@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"go/parser"
@@ -19,6 +20,61 @@ func fixtureAnalysisConfiguration(repositoryRoot string) AnalysisConfiguration {
 	return configuration
 }
 
+func TestAnalyzer_StopCanceledAnalysis(t *testing.T) {
+	t.Run("Scenario: The analysis context ends before repository inspection", func(t *testing.T) {
+		var sourceAnalyzer *analyzer
+		var analysisContext context.Context
+		var analysisError error
+
+		t.Run("Given an analyzer with a canceled context", func(*testing.T) {
+			sourceAnalyzer = &analyzer{}
+			var cancel context.CancelFunc
+			analysisContext, cancel = context.WithCancel(t.Context())
+			cancel()
+		})
+
+		t.Run("When the analyzer starts the repository analysis", func(*testing.T) {
+			_, analysisError = sourceAnalyzer.analyze(analysisContext)
+		})
+
+		t.Run("Then the analyzer returns the context cancellation", func(t *testing.T) {
+			if !errors.Is(analysisError, context.Canceled) {
+				t.Fatalf("analysis error is %v, want context.Canceled", analysisError)
+			}
+		})
+	})
+}
+
+func TestSourcePaths_StopCanceledDiscovery(t *testing.T) {
+	t.Run("Scenario: The source discovery context ends before the repository walk", func(t *testing.T) {
+		var sourceAnalyzer *analyzer
+		var discoveryContext context.Context
+		var discoveryError error
+
+		t.Run("Given an analyzer with a canceled source discovery context", func(step *testing.T) {
+			repositoryRoot := newAnalyzerFixture(t)
+			var err error
+			sourceAnalyzer, err = newAnalyzer(fixtureAnalysisConfiguration(repositoryRoot))
+			if err != nil {
+				step.Fatalf("newAnalyzer fails: %v", err)
+			}
+			var cancel context.CancelFunc
+			discoveryContext, cancel = context.WithCancel(t.Context())
+			cancel()
+		})
+
+		t.Run("When the analyzer starts the repository walk", func(*testing.T) {
+			_, discoveryError = sourceAnalyzer.sourcePaths(discoveryContext)
+		})
+
+		t.Run("Then source discovery returns the context cancellation", func(t *testing.T) {
+			if !errors.Is(discoveryError, context.Canceled) {
+				t.Fatalf("source discovery error is %v, want context.Canceled", discoveryError)
+			}
+		})
+	})
+}
+
 func TestAnalyzer_DetectFunctionData(t *testing.T) {
 	t.Run("Scenario: Go files contain different callable syntax", func(t *testing.T) {
 		var sources []string
@@ -34,7 +90,7 @@ func TestAnalyzer_DetectFunctionData(t *testing.T) {
 			}
 		})
 
-		t.Run("When each syntax tree is inspected", func(*testing.T) {
+		t.Run("When the analyzer inspects each syntax tree", func(*testing.T) {
 			for _, source := range sources {
 				file, err := parser.ParseFile(token.NewFileSet(), "sample.go", source, 0)
 				if err != nil {
@@ -80,8 +136,8 @@ func TestAnalyzer_AnalyzeSingleFunctionFile(t *testing.T) {
 			}
 		})
 
-		t.Run("When the repository is analyzed", func(*testing.T) {
-			graph, analysisError = sourceAnalyzer.analyze()
+		t.Run("When the analyzer analyzes the repository", func(*testing.T) {
+			graph, analysisError = sourceAnalyzer.analyze(t.Context())
 		})
 
 		t.Run("Then the only function is present in the graph", func(t *testing.T) {
@@ -114,11 +170,11 @@ func TestAnalyzer_ReturnDeterministicDependencyMetrics(t *testing.T) {
 		}
 
 		if !t.Run("When the analyzer analyzes the repository twice without source changes", func(t *testing.T) {
-			first, err = sourceAnalyzer.analyze()
+			first, err = sourceAnalyzer.analyze(t.Context())
 			if err != nil {
 				t.Fatalf("the first analysis fails: %v", err)
 			}
-			second, err = sourceAnalyzer.analyze()
+			second, err = sourceAnalyzer.analyze(t.Context())
 			if err != nil {
 				t.Fatalf("the second analysis fails: %v", err)
 			}
@@ -144,7 +200,7 @@ func TestAnalyzer_ReturnDeterministicDependencyMetrics(t *testing.T) {
 			if first.SchemaVersion != graphSchemaVersion {
 				t.Fatalf("schema version %d does not match the configured version", first.SchemaVersion)
 			}
-			if first.SchemaVersion != 6 {
+			if first.SchemaVersion != 8 {
 				t.Fatalf("unexpected graph schema version %d", first.SchemaVersion)
 			}
 		}) {
@@ -333,7 +389,7 @@ func TestAnalyzer_AnalyzeInvalidImportBlock(t *testing.T) {
 		}
 
 		if !t.Run("When the analyzer analyzes the repository", func(t *testing.T) {
-			graph, err = sourceAnalyzer.analyze()
+			graph, err = sourceAnalyzer.analyze(t.Context())
 		}) {
 			return
 		}
@@ -429,7 +485,7 @@ import (
 		}
 
 		t.Run("When the analyzer analyzes the configured repository scope", func(t *testing.T) {
-			graph, analysisError = sourceAnalyzer.analyze()
+			graph, analysisError = sourceAnalyzer.analyze(t.Context())
 		})
 
 		if !t.Run(
@@ -586,7 +642,7 @@ func TestAnalyzer_RejectInvalidConfiguredScope(t *testing.T) {
 				sourceAnalyzer, err := newAnalyzer(configuration)
 				startupError = err
 				if err == nil {
-					_, startupError = sourceAnalyzer.sourcePaths()
+					_, startupError = sourceAnalyzer.sourcePaths(t.Context())
 				}
 			})
 
@@ -691,7 +747,7 @@ func TestSourcePaths_FindIncludedGoFiles(t *testing.T) {
 		}
 
 		t.Run("When the analyzer collects Go source paths", func(t *testing.T) {
-			paths, err = sourceAnalyzer.sourcePaths()
+			paths, err = sourceAnalyzer.sourcePaths(t.Context())
 		})
 
 		if !t.Run("Then source discovery succeeds", func(t *testing.T) {
@@ -763,7 +819,7 @@ func TestComponent_ClassifyPaths(t *testing.T) {
 		classified  bool
 		identifier  string
 		component   string
-		kind        componentKind
+		role        componentRole
 		application string
 	}{
 		{
@@ -772,7 +828,7 @@ func TestComponent_ClassifyPaths(t *testing.T) {
 			classified:  true,
 			identifier:  "cmd/control/internal/module/orders",
 			component:   "orders",
-			kind:        componentKindApplicationModule,
+			role:        componentRoleApplicationModule,
 			application: "control",
 		},
 		{
@@ -781,7 +837,7 @@ func TestComponent_ClassifyPaths(t *testing.T) {
 			classified:  true,
 			identifier:  "cmd/control",
 			component:   "control",
-			kind:        componentKindApplication,
+			role:        componentRoleApplication,
 			application: "control",
 		},
 		{
@@ -790,7 +846,7 @@ func TestComponent_ClassifyPaths(t *testing.T) {
 			classified:  true,
 			identifier:  "cmd/control",
 			component:   "control",
-			kind:        componentKindApplication,
+			role:        componentRoleApplication,
 			application: "control",
 		},
 		{
@@ -799,7 +855,7 @@ func TestComponent_ClassifyPaths(t *testing.T) {
 			classified:  true,
 			identifier:  "cmd/control",
 			component:   "control",
-			kind:        componentKindApplication,
+			role:        componentRoleApplication,
 			application: "control",
 		},
 		{
@@ -808,7 +864,7 @@ func TestComponent_ClassifyPaths(t *testing.T) {
 			classified: true,
 			identifier: "internal/library/authorization",
 			component:  "authorization",
-			kind:       componentKindLibrary,
+			role:       componentRoleLibrary,
 		},
 		{
 			name:       "a shared module",
@@ -816,7 +872,7 @@ func TestComponent_ClassifyPaths(t *testing.T) {
 			classified: true,
 			identifier: "internal/module/audit",
 			component:  "audit",
-			kind:       componentKindSharedModule,
+			role:       componentRoleSharedModule,
 		},
 		{
 			name:       "a development tool",
@@ -824,7 +880,7 @@ func TestComponent_ClassifyPaths(t *testing.T) {
 			classified: true,
 			identifier: "internal/devtool/generator",
 			component:  "generator",
-			kind:       componentKindDevelopment,
+			role:       componentRoleDevelopment,
 		},
 		{
 			name:       "a development tool package import",
@@ -832,7 +888,7 @@ func TestComponent_ClassifyPaths(t *testing.T) {
 			classified: true,
 			identifier: "internal/devtool/generator",
 			component:  "generator",
-			kind:       componentKindDevelopment,
+			role:       componentRoleDevelopment,
 		},
 		{
 			name:       "shared infrastructure",
@@ -840,7 +896,7 @@ func TestComponent_ClassifyPaths(t *testing.T) {
 			classified: true,
 			identifier: "internal/kernel",
 			component:  "kernel",
-			kind:       componentKindInfrastructure,
+			role:       componentRoleInfrastructure,
 		},
 		{
 			name:       "a shared infrastructure package import",
@@ -848,7 +904,7 @@ func TestComponent_ClassifyPaths(t *testing.T) {
 			classified: true,
 			identifier: "internal/kernel",
 			component:  "kernel",
-			kind:       componentKindInfrastructure,
+			role:       componentRoleInfrastructure,
 		},
 		{name: "a path without an architecture root", path: "main.go", classified: false},
 		{name: "an incomplete module root", path: "internal/module", classified: false},
@@ -892,7 +948,7 @@ func TestComponent_ClassifyPaths(t *testing.T) {
 					return
 				}
 				if descriptor.identifier != testCase.identifier || descriptor.name != testCase.component ||
-					descriptor.kind != testCase.kind || descriptor.application != testCase.application {
+					descriptor.role != testCase.role || descriptor.application != testCase.application {
 					t.Errorf("unexpected descriptor: %+v", descriptor)
 				}
 			})
@@ -1036,10 +1092,10 @@ func TestRelationships_CollectClassifiedImports(t *testing.T) {
 			source = componentDescriptor{
 				identifier: "internal/library/logging",
 				name:       "logging",
-				kind:       componentKindLibrary,
+				role:       componentRoleLibrary,
 			}
 			components = make(map[string]*componentAccumulator)
-			ensureComponent(components, source)
+			getOrCreateComponent(components, source)
 			relationships = make(map[relationshipKey]*relationshipAccumulator)
 			file = sourceFile{
 				relativePath: "internal/library/logging/logging.go",
@@ -1055,7 +1111,7 @@ func TestRelationships_CollectClassifiedImports(t *testing.T) {
 						component: componentDescriptor{
 							identifier: "internal/module/audit",
 							name:       "audit",
-							kind:       componentKindSharedModule,
+							role:       componentRoleSharedModule,
 						},
 					},
 				},
@@ -1087,8 +1143,8 @@ func TestRelationships_CollectClassifiedImports(t *testing.T) {
 	})
 }
 func TestRelationshipRuleViolations_ClassifyImport(t *testing.T) {
-	descriptor := func(kind componentKind, application string) componentDescriptor {
-		return componentDescriptor{kind: kind, application: application}
+	descriptor := func(role componentRole, application string) componentDescriptor {
+		return componentDescriptor{role: role, application: application}
 	}
 	testCases := []struct {
 		name     string
@@ -1099,50 +1155,50 @@ func TestRelationshipRuleViolations_ClassifyImport(t *testing.T) {
 	}{
 		{
 			name:   "production code depends on a development tool",
-			source: descriptor(componentKindApplication, "control"),
-			target: descriptor(componentKindDevelopment, ""),
+			source: descriptor(componentRoleApplication, "control"),
+			target: descriptor(componentRoleDevelopment, ""),
 			want:   []string{"production-imports-development"},
 		},
 		{
 			name:   "a library depends on an application",
-			source: descriptor(componentKindLibrary, ""),
-			target: descriptor(componentKindApplication, "control"),
+			source: descriptor(componentRoleLibrary, ""),
+			target: descriptor(componentRoleApplication, "control"),
 			want:   []string{"library-imports-feature"},
 		},
 		{
 			name:   "a library depends on an application module",
-			source: descriptor(componentKindLibrary, ""),
-			target: descriptor(componentKindApplicationModule, "control"),
+			source: descriptor(componentRoleLibrary, ""),
+			target: descriptor(componentRoleApplicationModule, "control"),
 			want:   []string{"library-imports-feature"},
 		},
 		{
 			name:   "shared infrastructure depends on an application module",
-			source: descriptor(componentKindInfrastructure, ""),
-			target: descriptor(componentKindApplicationModule, "control"),
+			source: descriptor(componentRoleInfrastructure, ""),
+			target: descriptor(componentRoleApplicationModule, "control"),
 			want:   []string{"shared-component-imports-application"},
 		},
 		{
 			name:   "a shared module depends on an application",
-			source: descriptor(componentKindSharedModule, ""),
-			target: descriptor(componentKindApplication, "control"),
+			source: descriptor(componentRoleSharedModule, ""),
+			target: descriptor(componentRoleApplication, "control"),
 			want:   []string{"shared-component-imports-application"},
 		},
 		{
 			name:   "one application module depends on another application",
-			source: descriptor(componentKindApplicationModule, "control"),
-			target: descriptor(componentKindApplicationModule, "portal"),
+			source: descriptor(componentRoleApplicationModule, "control"),
+			target: descriptor(componentRoleApplicationModule, "portal"),
 			want:   []string{"cross-application-module-import"},
 		},
 		{
 			name:   "modules from the same application can depend on each other",
-			source: descriptor(componentKindApplicationModule, "control"),
-			target: descriptor(componentKindApplicationModule, "control"),
+			source: descriptor(componentRoleApplicationModule, "control"),
+			target: descriptor(componentRoleApplicationModule, "control"),
 			want:   []string{},
 		},
 		{
 			name:     "test imports do not create component rule violations",
-			source:   descriptor(componentKindLibrary, ""),
-			target:   descriptor(componentKindApplication, "control"),
+			source:   descriptor(componentRoleLibrary, ""),
+			target:   descriptor(componentRoleApplication, "control"),
 			testOnly: true,
 			want:     []string{},
 		},

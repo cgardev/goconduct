@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"log/slog"
 	"os"
@@ -11,6 +12,105 @@ import (
 	"testing"
 	"time"
 )
+
+func TestMonitor_StopCanceledInitialAnalysis(t *testing.T) {
+	t.Run("Scenario: The monitor context ends before the initial graph analysis", func(t *testing.T) {
+		var sourceAnalyzer *analyzer
+		var monitorContext context.Context
+		var monitorError error
+
+		t.Run("Given a repository analyzer and a canceled monitor context", func(step *testing.T) {
+			repositoryRoot := newAnalyzerFixture(t)
+			configuration := fixtureAnalysisConfiguration(repositoryRoot)
+			configuration.Paths = []string{"absent"}
+			var err error
+			sourceAnalyzer, err = newAnalyzer(configuration)
+			if err != nil {
+				step.Fatalf("newAnalyzer fails: %v", err)
+			}
+			var cancel context.CancelFunc
+			monitorContext, cancel = context.WithCancel(t.Context())
+			cancel()
+		})
+
+		t.Run("When the graph monitor starts its initial analysis", func(*testing.T) {
+			logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+			_, monitorError = newGraphMonitor(monitorContext, sourceAnalyzer, time.Second, logger)
+		})
+
+		t.Run("Then the monitor returns the context cancellation", func(t *testing.T) {
+			if !errors.Is(monitorError, context.Canceled) {
+				t.Fatalf("monitor error is %v, want context.Canceled", monitorError)
+			}
+		})
+	})
+}
+
+func TestMonitor_StopCanceledRefreshPermitWait(t *testing.T) {
+	t.Run("Scenario: A graph refresh waits for another active refresh", func(t *testing.T) {
+		var monitor *graphMonitor
+		var refreshContext context.Context
+		var cancelRefresh context.CancelFunc
+		var refreshResult <-chan error
+		var waiting bool
+
+		if !t.Run("Given a monitor with an occupied refresh permit", func(step *testing.T) {
+			repositoryRoot := newAnalyzerFixture(t)
+			sourceAnalyzer, err := newAnalyzer(fixtureAnalysisConfiguration(repositoryRoot))
+			if err != nil {
+				step.Fatalf("newAnalyzer fails: %v", err)
+			}
+			logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+			monitor, err = newGraphMonitor(t.Context(), sourceAnalyzer, time.Second, logger)
+			if err != nil {
+				step.Fatalf("newGraphMonitor fails: %v", err)
+			}
+			monitor.refreshPermit <- struct{}{}
+			t.Cleanup(func() { <-monitor.refreshPermit })
+			refreshContext, cancelRefresh = context.WithCancel(t.Context())
+			t.Cleanup(cancelRefresh)
+		}) {
+			return
+		}
+
+		t.Run("When the waiting refresh context ends", func(*testing.T) {
+			result := make(chan error, 1)
+			refreshResult = result
+			go func() {
+				_, err := monitor.freshGraph(refreshContext)
+				result <- err
+			}()
+			select {
+			case <-result:
+			case <-time.After(20 * time.Millisecond):
+				waiting = true
+			}
+			cancelRefresh()
+		})
+
+		if !t.Run("Then the refresh stops waiting for the permit", func(t *testing.T) {
+			if !waiting {
+				t.Fatal("the refresh does not wait for the occupied permit")
+			}
+			select {
+			case refreshError := <-refreshResult:
+				if !errors.Is(refreshError, context.Canceled) {
+					t.Fatalf("refresh error is %v, want context.Canceled", refreshError)
+				}
+			case <-time.After(time.Second):
+				t.Fatal("the refresh does not stop after context cancellation")
+			}
+		}) {
+			return
+		}
+
+		t.Run("And the active refresh keeps its permit", func(t *testing.T) {
+			if len(monitor.refreshPermit) != 1 {
+				t.Fatalf("refresh permit count is %d, want 1", len(monitor.refreshPermit))
+			}
+		})
+	})
+}
 
 func TestMonitor_ReportRefreshFailure(t *testing.T) {
 	t.Run("Scenario: The repository module file disappears before a refresh", func(t *testing.T) {
@@ -25,7 +125,7 @@ func TestMonitor_ReportRefreshFailure(t *testing.T) {
 				step.Fatalf("newAnalyzer fails: %v", err)
 			}
 			logger := slog.New(slog.NewTextHandler(&logs, nil))
-			monitor, err = newGraphMonitor(sourceAnalyzer, time.Second, logger)
+			monitor, err = newGraphMonitor(t.Context(), sourceAnalyzer, time.Second, logger)
 			if err != nil {
 				step.Fatalf("newGraphMonitor fails: %v", err)
 			}
@@ -37,11 +137,11 @@ func TestMonitor_ReportRefreshFailure(t *testing.T) {
 		}
 
 		t.Run("When the monitor refreshes the graph", func(*testing.T) {
-			monitor.refresh()
+			monitor.refresh(t.Context())
 		})
 
 		t.Run("Then the structured log reports the refresh failure", func(t *testing.T) {
-			if !strings.Contains(logs.String(), "Cannot refresh dependency graph") {
+			if !strings.Contains(logs.String(), "The graph monitor cannot refresh the dependency graph.") {
 				t.Fatalf("refresh log does not contain the failure: %q", logs.String())
 			}
 		})
@@ -74,7 +174,7 @@ func TestMonitor_PublishChangedRevision(t *testing.T) {
 				step.Fatalf("newAnalyzer fails: %v", analyzerError)
 			}
 			logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-			monitor, err = newGraphMonitor(sourceAnalyzer, 10*time.Millisecond, logger)
+			monitor, err = newGraphMonitor(t.Context(), sourceAnalyzer, 10*time.Millisecond, logger)
 			if err != nil {
 				step.Fatalf("newGraphMonitor fails: %v", err)
 			}
@@ -147,7 +247,7 @@ func TestMonitor_ManageSubscriptionDelivery(t *testing.T) {
 				step.Fatalf("newAnalyzer fails: %v", err)
 			}
 			logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-			monitor, err = newGraphMonitor(sourceAnalyzer, time.Second, logger)
+			monitor, err = newGraphMonitor(t.Context(), sourceAnalyzer, time.Second, logger)
 			if err != nil {
 				step.Fatalf("newGraphMonitor fails: %v", err)
 			}
@@ -165,7 +265,7 @@ func TestMonitor_ManageSubscriptionDelivery(t *testing.T) {
 		}
 
 		t.Run("When the monitor refreshes before the subscriber reads", func(t *testing.T) {
-			monitor.refresh()
+			monitor.refresh(t.Context())
 			select {
 			case revision = <-updates:
 				received = true
@@ -207,7 +307,7 @@ func TestMonitor_ManageSubscriptionDelivery(t *testing.T) {
 				step.Fatalf("newAnalyzer fails: %v", err)
 			}
 			logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-			monitor, err = newGraphMonitor(sourceAnalyzer, time.Second, logger)
+			monitor, err = newGraphMonitor(t.Context(), sourceAnalyzer, time.Second, logger)
 			if err != nil {
 				step.Fatalf("newGraphMonitor fails: %v", err)
 			}
@@ -225,7 +325,7 @@ func TestMonitor_ManageSubscriptionDelivery(t *testing.T) {
 		}
 
 		t.Run("When the monitor refreshes after unsubscription", func(t *testing.T) {
-			monitor.refresh()
+			monitor.refresh(t.Context())
 			select {
 			case revision = <-updates:
 				received = true

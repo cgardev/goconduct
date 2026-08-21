@@ -8,7 +8,7 @@ func TestComponentClassifier_ClassifyCustomLayout(t *testing.T) {
 		path        string
 		identifier  string
 		component   string
-		kind        componentKind
+		role        componentRole
 		application string
 	}{
 		{
@@ -16,7 +16,7 @@ func TestComponentClassifier_ClassifyCustomLayout(t *testing.T) {
 			path:        "services/control/features/orders/usecase.go",
 			identifier:  "services/control/features/orders",
 			component:   "orders",
-			kind:        componentKindApplicationModule,
+			role:        componentRoleApplicationModule,
 			application: "control",
 		},
 		{
@@ -24,7 +24,15 @@ func TestComponentClassifier_ClassifyCustomLayout(t *testing.T) {
 			path:        "services/control/main.go",
 			identifier:  "services/control",
 			component:   "control",
-			kind:        componentKindApplication,
+			role:        componentRoleApplication,
+			application: "control",
+		},
+		{
+			name:        "an application root directory in a services layout",
+			path:        "services/control",
+			identifier:  "services/control",
+			component:   "control",
+			role:        componentRoleApplication,
 			application: "control",
 		},
 		{
@@ -32,7 +40,7 @@ func TestComponentClassifier_ClassifyCustomLayout(t *testing.T) {
 			path:       "packages/telemetry/codec/codec.go",
 			identifier: "packages/telemetry",
 			component:  "telemetry",
-			kind:       componentKindLibrary,
+			role:       componentRoleLibrary,
 		},
 	}
 	for _, testCase := range testCases {
@@ -68,13 +76,42 @@ func TestComponentClassifier_ClassifyCustomLayout(t *testing.T) {
 			t.Run("And placeholders define its generic component identity", func(t *testing.T) {
 				if descriptor.identifier != testCase.identifier ||
 					descriptor.name != testCase.component ||
-					descriptor.kind != testCase.kind ||
+					descriptor.role != testCase.role ||
 					descriptor.application != testCase.application {
 					t.Errorf("unexpected descriptor: %+v", descriptor)
 				}
 			})
 		})
 	}
+}
+
+func TestComponentRuleSets_PreserveConfiguredTaxonomy(t *testing.T) {
+	t.Run("Scenario: One custom category extends the six compatible roles", func(t *testing.T) {
+		var configuration ComponentRules
+		var sets []componentRuleSet
+		var setError error
+
+		t.Run("Given one custom category rule", func(*testing.T) {
+			configuration = ComponentRules{Taxonomy: []ComponentCategoryRule{{
+				Identifier: "plugin",
+				Role:       componentRoleLibrary,
+				Paths:      []string{"plugins/{component}"},
+			}}}
+		})
+
+		t.Run("When the classifier creates the ordered rule sets", func(*testing.T) {
+			sets, setError = componentRuleSets(configuration)
+		})
+
+		t.Run("Then the custom category precedes exactly six compatible role sets", func(t *testing.T) {
+			if setError != nil {
+				t.Fatalf("componentRuleSets fails: %v", setError)
+			}
+			if len(sets) != 7 || sets[0].category != "plugin" {
+				t.Fatalf("component rule sets are %+v", sets)
+			}
+		})
+	})
 }
 
 func TestComponentClassifier_RejectInvalidTemplates(t *testing.T) {
@@ -122,7 +159,7 @@ func TestComponentClassifier_RejectInvalidTemplates(t *testing.T) {
 			rules: ComponentRules{Libraries: []string{"packages/component}"}},
 		},
 		{
-			name: "one template is assigned to two roles",
+			name: "the configuration assigns one template to two roles",
 			rules: ComponentRules{
 				Libraries:        []string{"packages/{component}"},
 				DevelopmentTools: []string{"packages/{component}"},
@@ -162,7 +199,7 @@ func TestComponentPathRule_MatchStrictPrefix(t *testing.T) {
 
 		t.Run("Given a component rule and an exact path that matches", func(t *testing.T) {
 			rule = componentPathRule{
-				kind: componentKindLibrary,
+				role: componentRoleLibrary,
 				segments: []componentPathSegment{
 					{literal: "packages"},
 					{placeholder: "component"},
@@ -180,4 +217,208 @@ func TestComponentPathRule_MatchStrictPrefix(t *testing.T) {
 			}
 		})
 	})
+
+	t.Run("Scenario: A shorter path matches the literal part of a component template", func(t *testing.T) {
+		var rule componentPathRule
+		var matches bool
+
+		t.Run("Given a component rule with one literal segment and one placeholder", func(*testing.T) {
+			rule = componentPathRule{
+				role: componentRoleLibrary,
+				segments: []componentPathSegment{
+					{literal: "packages"},
+					{placeholder: "component"},
+				},
+			}
+		})
+
+		t.Run("When the rule checks the matching shorter path", func(*testing.T) {
+			matches = rule.matchesStrictPrefix([]string{"packages"})
+		})
+
+		t.Run("Then the rule accepts the path as a strict prefix", func(t *testing.T) {
+			if !matches {
+				t.Error("the rule rejects a matching strict prefix")
+			}
+		})
+	})
+
+	t.Run("Scenario: A shorter path differs from the literal part of a component template", func(t *testing.T) {
+		var rule componentPathRule
+		var matches bool
+
+		t.Run("Given a component rule with one literal segment and one placeholder", func(*testing.T) {
+			rule = componentPathRule{
+				role: componentRoleLibrary,
+				segments: []componentPathSegment{
+					{literal: "packages"},
+					{placeholder: "component"},
+				},
+			}
+		})
+
+		t.Run("When the rule checks a different shorter path", func(*testing.T) {
+			matches = rule.matchesStrictPrefix([]string{"modules"})
+		})
+
+		t.Run("Then the rule rejects the path as a strict prefix", func(t *testing.T) {
+			if matches {
+				t.Error("the rule accepts a different strict prefix")
+			}
+		})
+	})
+}
+
+func TestComponentClassifier_RejectUnclassifiedPaths(t *testing.T) {
+	testCases := []struct {
+		name string
+		path string
+	}{
+		{name: "a path stops before the component placeholder", path: "packages"},
+		{name: "a path does not match a configured rule", path: "unknown/telemetry"},
+	}
+	for _, testCase := range testCases {
+		t.Run("Scenario: "+testCase.name, func(t *testing.T) {
+			var classifier componentClassifier
+			var classified bool
+
+			t.Run("Given one library component rule", func(*testing.T) {
+				classifier = componentClassifier{rules: []componentPathRule{{
+					role:     componentRoleLibrary,
+					category: "library",
+					segments: []componentPathSegment{
+						{literal: "packages"},
+						{placeholder: "component"},
+					},
+				}}}
+			})
+
+			t.Run("When the classifier inspects the path", func(*testing.T) {
+				_, classified = classifier.classify(testCase.path)
+			})
+
+			t.Run("Then the classifier rejects the path", func(t *testing.T) {
+				if classified {
+					t.Error("the classifier accepts an unclassified path")
+				}
+			})
+		})
+	}
+}
+
+func TestComponentClassifier_RejectEmptyPath(t *testing.T) {
+	t.Run("Scenario: A path contains separators only", func(t *testing.T) {
+		var classifier componentClassifier
+		var classified bool
+
+		t.Run("Given the default component path rules", func(t *testing.T) {
+			var err error
+			classifier, err = newComponentClassifier(
+				defaultComponentRulesConfiguration().domainRules(),
+			)
+			if err != nil {
+				t.Fatalf("newComponentClassifier fails: %v", err)
+			}
+		})
+
+		t.Run("When the classifier receives a path without segments", func(*testing.T) {
+			_, classified = classifier.classify("///")
+		})
+
+		t.Run("Then the classifier rejects the path", func(t *testing.T) {
+			if classified {
+				t.Fatal("the classifier accepts a path without segments")
+			}
+		})
+	})
+}
+
+func TestComponentClassifier_ClassifyCustomCategory(t *testing.T) {
+	t.Run("Scenario: A repository defines a plugin category", func(t *testing.T) {
+		var classifier componentClassifier
+		var descriptor componentDescriptor
+		var classified bool
+
+		t.Run("Given a plugin category with the closed library role", func(t *testing.T) {
+			var err error
+			classifier, err = newComponentClassifier(ComponentRules{
+				Infrastructure: []string{"internal/{component}"},
+				Taxonomy: []ComponentCategoryRule{{
+					Identifier: "plugin",
+					Role:       componentRoleLibrary,
+					Paths:      []string{"internal/plugin/{component}"},
+				}},
+			})
+			if err != nil {
+				t.Fatalf("build component classifier: %v", err)
+			}
+		})
+
+		t.Run("When the classifier inspects a plugin source path", func(*testing.T) {
+			descriptor, classified = classifier.classify("internal/plugin/codec/codec.go")
+		})
+
+		t.Run("Then the configurable category has priority over the broad fallback", func(t *testing.T) {
+			if !classified || descriptor.category != "plugin" {
+				t.Fatalf("unexpected custom category descriptor: %+v", descriptor)
+			}
+		})
+
+		t.Run("And architecture policies receive the closed library role", func(t *testing.T) {
+			if descriptor.role != componentRoleLibrary {
+				t.Errorf("custom category role is %q", descriptor.role)
+			}
+		})
+	})
+}
+
+func TestComponentClassifier_RejectInvalidTaxonomy(t *testing.T) {
+	testCases := []struct {
+		name     string
+		taxonomy []ComponentCategoryRule
+	}{
+		{
+			name: "a category identifier is empty",
+			taxonomy: []ComponentCategoryRule{{
+				Role:  componentRoleLibrary,
+				Paths: []string{"plugins/{component}"},
+			}},
+		},
+		{
+			name: "the taxonomy repeats a category identifier",
+			taxonomy: []ComponentCategoryRule{
+				{Identifier: "plugin", Role: componentRoleLibrary, Paths: []string{"plugins/{component}"}},
+				{Identifier: "plugin", Role: componentRoleLibrary, Paths: []string{"extensions/{component}"}},
+			},
+		},
+		{
+			name: "a category role is not in the closed set",
+			taxonomy: []ComponentCategoryRule{{
+				Identifier: "plugin",
+				Role:       componentRole("plugin"),
+				Paths:      []string{"plugins/{component}"},
+			}},
+		},
+		{
+			name:     "a category has no path template",
+			taxonomy: []ComponentCategoryRule{{Identifier: "plugin", Role: componentRoleLibrary}},
+		},
+	}
+	for _, testCase := range testCases {
+		t.Run("Scenario: "+testCase.name, func(t *testing.T) {
+			var classifierError error
+
+			t.Run("Given an invalid configurable component taxonomy", func(*testing.T) {})
+
+			t.Run("When the constructor builds the classifier", func(*testing.T) {
+				_, classifierError = newComponentClassifier(ComponentRules{Taxonomy: testCase.taxonomy})
+			})
+
+			t.Run("Then startup rejects the taxonomy", func(t *testing.T) {
+				if classifierError == nil {
+					t.Error("the classifier accepts the invalid taxonomy")
+				}
+			})
+		})
+	}
 }

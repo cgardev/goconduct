@@ -70,7 +70,7 @@ func TestFunctionCalculation_DetectCyclesAndUsingApplications(t *testing.T) {
 				!slices.Equal(read.UsingApplications, []string{"control"}) {
 				t.Errorf("unexpected function application metrics: %+v", read)
 			}
-			if read.TransitiveCallerFunctions != 2 || read.TransitiveCalledFunctions != 1 {
+			if read.TransitiveCallerFunctions != 2 || read.TransitiveCalleeFunctions != 1 {
 				t.Errorf("unexpected transitive function coupling: %+v", read)
 			}
 		})
@@ -104,7 +104,7 @@ func TestFunctionCalculation_MergeDeclarations(t *testing.T) {
 			}
 		})
 
-		t.Run("When duplicate declarations are merged", func(*testing.T) {
+		t.Run("When the calculator merges duplicate declarations", func(*testing.T) {
 			selected = mergeFunctionDeclarations(selected, completed)
 			completed = mergeFunctionDeclarations(
 				functionDeclaration{
@@ -124,14 +124,14 @@ func TestFunctionCalculation_MergeDeclarations(t *testing.T) {
 			)
 		})
 
-		t.Run("Then the declaration in the analysis scope is selected", func(t *testing.T) {
+		t.Run("Then the calculator selects the declaration in the analysis scope", func(t *testing.T) {
 			if !selected.inAnalysisScope || selected.relativePath != "internal/library/data/read.go" ||
 				selected.line != 12 {
 				t.Errorf("selected declaration is incorrect: %+v", selected)
 			}
 		})
 
-		t.Run("And missing source data is completed without replacing existing data", func(t *testing.T) {
+		t.Run("And the calculator adds missing source data and retains existing source data", func(t *testing.T) {
 			if completed.relativePath != "internal/library/data/read.go" || completed.line != 12 {
 				t.Errorf("completed declaration is incorrect: %+v", completed)
 			}
@@ -302,7 +302,7 @@ func TestFunctionCalculation_SeparateProductionAndTestCalls(t *testing.T) {
 			read := functionWithIdentifier(t, graph, "internal/library/data.Read")
 			if read.AfferentCoupling != 0 || read.EfferentCoupling != 0 ||
 				read.TestAfferentCoupling != 1 || read.TransitiveCallerFunctions != 0 ||
-				read.TransitiveCalledFunctions != 0 || read.InCycle {
+				read.TransitiveCalleeFunctions != 0 || read.InCycle {
 				t.Errorf("test or self-call changed production coupling: %+v", read)
 			}
 			if read.UsingApplicationCount != 0 || len(read.UsingApplications) != 0 {
@@ -337,7 +337,7 @@ func TestFunctionCalculation_CompareCallKeys(t *testing.T) {
 			comparisons = nil
 		})
 
-		t.Run("When each key pair is compared", func(*testing.T) {
+		t.Run("When the comparator compares each key pair", func(*testing.T) {
 			comparisons = []int{
 				compareFunctionCallKeys(
 					functionCallKey{source: "a", target: "z"},

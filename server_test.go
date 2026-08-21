@@ -21,6 +21,7 @@ type notifyingResponseRecorder struct {
 }
 
 var errResponseWrite = errors.New("response write failure")
+var errGraphRefresh = errors.New("graph refresh failure")
 
 type failingResponseWriter struct {
 	header http.Header
@@ -47,6 +48,31 @@ type plainResponseWriter struct {
 
 type dashboardContextKey string
 
+type dashboardTransportSourceStub struct {
+	graph        Graph
+	freshCalls   int
+	freshContext context.Context
+	freshError   error
+}
+
+func (stub *dashboardTransportSourceStub) currentGraph() Graph {
+	return stub.graph
+}
+
+func (stub *dashboardTransportSourceStub) freshGraph(ctx context.Context) (Graph, error) {
+	stub.freshCalls++
+	stub.freshContext = ctx
+	return stub.graph, stub.freshError
+}
+
+func (*dashboardTransportSourceStub) subscribe() (<-chan string, func()) {
+	return make(chan string), func() {}
+}
+
+func (*dashboardTransportSourceStub) graphCacheKey() (string, error) {
+	return "transport-cache-key", nil
+}
+
 func (writer *plainResponseWriter) Header() http.Header {
 	return writer.header
 }
@@ -67,6 +93,143 @@ func (recorder *notifyingResponseRecorder) Flush() {
 	}
 }
 
+func TestDashboard_UseGraphSourcePort(t *testing.T) {
+	t.Run("Scenario: The HTTP transport receives a graph source without an analyzer", func(t *testing.T) {
+		var handler *dashboardHandler
+		var source *dashboardTransportSourceStub
+		var response *httptest.ResponseRecorder
+		var result Graph
+		var decodeError error
+
+		t.Run("Given a graph source that implements only the transport port", func(*testing.T) {
+			source = &dashboardTransportSourceStub{graph: Graph{
+				SchemaVersion: graphSchemaVersion,
+				Revision:      "port-revision",
+			}}
+			logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+			handler = newDashboardHandler(source, logger)
+			response = httptest.NewRecorder()
+		})
+
+		t.Run("When the client requests the graph", func(*testing.T) {
+			request := httptest.NewRequest(http.MethodGet, "/api/graph", nil)
+			handler.ServeHTTP(response, request)
+			decodeError = json.Unmarshal(response.Body.Bytes(), &result)
+		})
+
+		if !t.Run("Then the transport returns the graph from the port", func(t *testing.T) {
+			if decodeError != nil {
+				t.Fatalf("decode graph response: %v", decodeError)
+			}
+			if response.Code != http.StatusOK {
+				t.Fatalf("graph endpoint returns status %d", response.Code)
+			}
+		}) {
+			return
+		}
+
+		t.Run("And the response contains the source revision", func(t *testing.T) {
+			if result.Revision != "port-revision" {
+				t.Errorf("graph revision is %q, want port-revision", result.Revision)
+			}
+			if source.freshCalls != 0 {
+				t.Errorf("fresh graph calls are %d, want 0", source.freshCalls)
+			}
+		})
+	})
+}
+
+func TestGraphEndpoint_ValidateCacheRequest(t *testing.T) {
+	testCases := []struct {
+		name       string
+		hasRequest bool
+		cacheKey   string
+		protocol   string
+		wantReject bool
+	}{
+		{name: "the request is absent"},
+		{name: "the cache key is absent", hasRequest: true},
+		{
+			name: "the protocol is different", hasRequest: true, cacheKey: "expected", protocol: "different",
+			wantReject: true,
+		},
+		{
+			name: "the cache key is different", hasRequest: true, cacheKey: "different", protocol: "1",
+			wantReject: true,
+		},
+		{name: "the cache contract matches", hasRequest: true, cacheKey: "expected", protocol: "1"},
+	}
+	for _, testCase := range testCases {
+		t.Run("Scenario: "+testCase.name, func(t *testing.T) {
+			var request *http.Request
+			var validationError error
+
+			t.Run("Given an optional cache request", func(*testing.T) {
+				if testCase.hasRequest {
+					request = cacheRequestWithHeaders(testCase.cacheKey, testCase.protocol)
+				}
+			})
+
+			t.Run("When the endpoint validates the cache contract", func(*testing.T) {
+				validationError = validateGraphCacheRequest(request, "expected")
+			})
+
+			t.Run("Then the endpoint returns the selected validation result", func(t *testing.T) {
+				if errors.Is(validationError, errGraphCacheRejected) != testCase.wantReject {
+					t.Fatalf("cache rejection is %v, want %t", validationError, testCase.wantReject)
+				}
+				if !testCase.wantReject && validationError != nil {
+					t.Fatalf("cache validation fails: %v", validationError)
+				}
+			})
+		})
+	}
+}
+
+func TestGraphEndpoint_ReportRefreshFailure(t *testing.T) {
+	t.Run("Scenario: The active graph cannot refresh for a cache request", func(t *testing.T) {
+		var source *dashboardTransportSourceStub
+		var handler *dashboardHandler
+		var response *httptest.ResponseRecorder
+		var requestContext context.Context
+
+		t.Run("Given a graph source that returns a refresh error", func(*testing.T) {
+			source = &dashboardTransportSourceStub{freshError: errGraphRefresh}
+			logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+			handler = newDashboardHandler(source, logger)
+			response = httptest.NewRecorder()
+		})
+
+		t.Run("When a compatible cache client requests a fresh graph", func(*testing.T) {
+			requestContext = context.WithValue(t.Context(), dashboardContextKey("refresh"), "value")
+			request := cacheRequestWithHeaders("transport-cache-key", "1").WithContext(requestContext)
+			handler.ServeHTTP(response, request)
+		})
+
+		t.Run("Then the endpoint reports that the graph is unavailable", func(t *testing.T) {
+			if response.Code != http.StatusServiceUnavailable {
+				t.Fatalf("graph endpoint status is %d, want %d", response.Code, http.StatusServiceUnavailable)
+			}
+		})
+
+		t.Run("And the endpoint requests one fresh graph", func(t *testing.T) {
+			if source.freshCalls != 1 {
+				t.Errorf("fresh graph calls are %d, want 1", source.freshCalls)
+			}
+			if source.freshContext != requestContext {
+				t.Error("the graph refresh does not receive the request context")
+			}
+		})
+	})
+}
+
+func cacheRequestWithHeaders(cacheKey, protocol string) *http.Request {
+	request := httptest.NewRequest(http.MethodGet, "/api/graph", nil)
+	request.Header.Set(graphCacheKeyHeader, cacheKey)
+	request.Header.Set(graphCacheProtocolHeader, protocol)
+	return request
+}
+
 func TestDashboard_ServeHTTPResources(t *testing.T) {
 	t.Run("Scenario: A client requests the dashboard document", func(t *testing.T) {
 		var server *httptest.Server
@@ -80,7 +243,7 @@ func TestDashboard_ServeHTTPResources(t *testing.T) {
 				step.Fatalf("newAnalyzer fails: %v", err)
 			}
 			logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-			monitor, err := newGraphMonitor(sourceAnalyzer, time.Second, logger)
+			monitor, err := newGraphMonitor(t.Context(), sourceAnalyzer, time.Second, logger)
 			if err != nil {
 				step.Fatalf("newGraphMonitor fails: %v", err)
 			}
@@ -147,14 +310,20 @@ func TestDashboard_ServeHTTPResources(t *testing.T) {
 				}
 			}
 		})
+
+		t.Run("And the document loads each separated presentation resource", func(t *testing.T) {
+			for _, asset := range dashboardAssetDefinitions() {
+				if !strings.Contains(string(document), asset.requestPath) {
+					t.Errorf("the dashboard document does not load %q", asset.requestPath)
+				}
+			}
+		})
 	})
 
-	t.Run("Scenario: A client requests both embedded dashboard assets", func(t *testing.T) {
+	t.Run("Scenario: A client requests all embedded dashboard assets", func(t *testing.T) {
 		var server *httptest.Server
-		var styleResponse *http.Response
-		var scriptResponse *http.Response
-		var style []byte
-		var script []byte
+		var responses map[string]*http.Response
+		var payloads map[string][]byte
 
 		if !t.Run("Given a dashboard server with embedded assets", func(step *testing.T) {
 			repositoryRoot := newAnalyzerFixture(t)
@@ -163,7 +332,7 @@ func TestDashboard_ServeHTTPResources(t *testing.T) {
 				step.Fatalf("newAnalyzer fails: %v", err)
 			}
 			logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-			monitor, err := newGraphMonitor(sourceAnalyzer, time.Second, logger)
+			monitor, err := newGraphMonitor(t.Context(), sourceAnalyzer, time.Second, logger)
 			if err != nil {
 				step.Fatalf("newGraphMonitor fails: %v", err)
 			}
@@ -173,37 +342,36 @@ func TestDashboard_ServeHTTPResources(t *testing.T) {
 			return
 		}
 
-		t.Run("When the client requests the stylesheet and script", func(step *testing.T) {
-			styleResponse, style = requestDashboardAsset(
-				step,
-				server.Client(),
-				server.URL+"/assets/dashboard.css",
-			)
-			scriptResponse, script = requestDashboardAsset(
-				step,
-				server.Client(),
-				server.URL+"/assets/dashboard.js",
-			)
-		})
-
-		t.Run("Then the server returns both non-empty dashboard assets", func(t *testing.T) {
-			if styleResponse.StatusCode != http.StatusOK || len(style) == 0 {
-				t.Errorf(
-					"style response is status %d with %d bytes",
-					styleResponse.StatusCode,
-					len(style),
+		t.Run("When the client requests every stylesheet and script", func(step *testing.T) {
+			responses = make(map[string]*http.Response)
+			payloads = make(map[string][]byte)
+			for _, asset := range dashboardAssetDefinitions() {
+				responses[asset.requestPath], payloads[asset.requestPath] = requestDashboardAsset(
+					step,
+					server.Client(),
+					server.URL+asset.requestPath,
 				)
 			}
-			if scriptResponse.StatusCode != http.StatusOK || len(script) == 0 {
-				t.Errorf(
-					"script response is status %d with %d bytes",
-					scriptResponse.StatusCode,
-					len(script),
-				)
+		})
+
+		t.Run("Then the server returns every non-empty dashboard asset", func(t *testing.T) {
+			for _, asset := range dashboardAssetDefinitions() {
+				response := responses[asset.requestPath]
+				payload := payloads[asset.requestPath]
+				if response.StatusCode != http.StatusOK || len(payload) == 0 {
+					t.Errorf(
+						"asset %s response is status %d with %d bytes",
+						asset.requestPath,
+						response.StatusCode,
+						len(payload),
+					)
+				}
 			}
 		})
 
 		t.Run("And the assets support persistent light and dark themes", func(t *testing.T) {
+			style := payloads["/assets/dashboard.css"]
+			script := payloads["/assets/dashboard.js"]
 			for _, marker := range []string{
 				`:root[data-theme="light"]`,
 				`--color-background: #ffffff`,
@@ -239,7 +407,7 @@ func TestDashboard_ServeHTTPResources(t *testing.T) {
 				step.Fatalf("newAnalyzer fails: %v", err)
 			}
 			logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-			monitor, err = newGraphMonitor(sourceAnalyzer, time.Second, logger)
+			monitor, err = newGraphMonitor(t.Context(), sourceAnalyzer, time.Second, logger)
 			if err != nil {
 				step.Fatalf("newGraphMonitor fails: %v", err)
 			}
@@ -295,7 +463,7 @@ func TestDashboard_ServeHTTPResources(t *testing.T) {
 				step.Fatalf("newAnalyzer fails: %v", err)
 			}
 			logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-			monitor, err := newGraphMonitor(sourceAnalyzer, time.Second, logger)
+			monitor, err := newGraphMonitor(t.Context(), sourceAnalyzer, time.Second, logger)
 			if err != nil {
 				step.Fatalf("newGraphMonitor fails: %v", err)
 			}
@@ -367,7 +535,7 @@ func TestDashboardEventStream_PublishGraphChanges(t *testing.T) {
 				step.Fatalf("newAnalyzer fails: %v", err)
 			}
 			logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-			monitor, err = newGraphMonitor(sourceAnalyzer, time.Second, logger)
+			monitor, err = newGraphMonitor(t.Context(), sourceAnalyzer, time.Second, logger)
 			if err != nil {
 				step.Fatalf("newGraphMonitor fails: %v", err)
 			}
@@ -405,7 +573,7 @@ func TestDashboardEventStream_PublishGraphChanges(t *testing.T) {
 				"cmd/control/main.go",
 				"package main\n\nimport _ \"example.com/repository/internal/library/logging\"\n",
 			)
-			monitor.refresh()
+			monitor.refresh(t.Context())
 			select {
 			case <-recorder.flushed:
 				firstGraphFlushed = true
@@ -417,7 +585,7 @@ func TestDashboardEventStream_PublishGraphChanges(t *testing.T) {
 				"internal/library/second/second.go",
 				"package second\n",
 			)
-			monitor.refresh()
+			monitor.refresh(t.Context())
 			select {
 			case <-recorder.flushed:
 				secondGraphFlushed = true
@@ -481,7 +649,7 @@ func TestDashboardEventStream_PublishKeepAlive(t *testing.T) {
 				step.Fatalf("newAnalyzer fails: %v", err)
 			}
 			logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-			monitor, err := newGraphMonitor(sourceAnalyzer, time.Second, logger)
+			monitor, err := newGraphMonitor(t.Context(), sourceAnalyzer, time.Second, logger)
 			if err != nil {
 				step.Fatalf("newGraphMonitor fails: %v", err)
 			}
@@ -562,7 +730,7 @@ func TestDashboardEventStream_RejectWriterWithoutFlush(t *testing.T) {
 				step.Fatalf("newAnalyzer fails: %v", err)
 			}
 			logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-			monitor, err := newGraphMonitor(sourceAnalyzer, time.Second, logger)
+			monitor, err := newGraphMonitor(t.Context(), sourceAnalyzer, time.Second, logger)
 			if err != nil {
 				step.Fatalf("newGraphMonitor fails: %v", err)
 			}
@@ -595,21 +763,21 @@ func TestDashboard_LogResponseWriteFailure(t *testing.T) {
 			run: func(handler *dashboardHandler, writer http.ResponseWriter) {
 				handler.serveDashboard(writer, nil)
 			},
-			want: "Cannot write dashboard asset",
+			want: "The dashboard asset handler cannot write the asset.",
 		},
 		{
 			name: "the writer rejects the dependency graph",
 			run: func(handler *dashboardHandler, writer http.ResponseWriter) {
 				handler.serveGraph(writer, nil)
 			},
-			want: "Cannot write dependency graph",
+			want: "The graph endpoint cannot write the dependency graph.",
 		},
 		{
 			name: "the writer rejects the health response",
 			run: func(handler *dashboardHandler, writer http.ResponseWriter) {
 				handler.serveHealth(writer, nil)
 			},
-			want: "Cannot write health response",
+			want: "The dashboard handler cannot write the health response.",
 		},
 	}
 	for _, testCase := range testCases {
@@ -628,7 +796,7 @@ func TestDashboard_LogResponseWriteFailure(t *testing.T) {
 					&logs,
 					&slog.HandlerOptions{Level: slog.LevelDebug},
 				))
-				monitor, err := newGraphMonitor(sourceAnalyzer, time.Second, logger)
+				monitor, err := newGraphMonitor(t.Context(), sourceAnalyzer, time.Second, logger)
 				if err != nil {
 					step.Fatalf("newGraphMonitor fails: %v", err)
 				}
@@ -659,7 +827,11 @@ func TestGraphResponse_SelectCompression(t *testing.T) {
 		wantCompression bool
 	}{
 		{name: "the client accepts gzip", acceptEncoding: "gzip", wantCompression: true},
-		{name: "the client accepts gzip after another coding", acceptEncoding: "br, gzip; q=0.5", wantCompression: true},
+		{
+			name:            "the client accepts gzip after another coding",
+			acceptEncoding:  "br, gzip; q=0.5",
+			wantCompression: true,
+		},
 		{name: "the client refuses gzip", acceptEncoding: "gzip; q=0"},
 		{name: "the client requests another coding", acceptEncoding: "br"},
 		{name: "the client sends no coding"},
@@ -759,17 +931,17 @@ func TestGraphCompression_ParseQuality(t *testing.T) {
 func TestDashboard_ReportUnavailableAsset(t *testing.T) {
 	t.Run("Scenario: A client requests an embedded dashboard asset that does not exist", func(t *testing.T) {
 		var logs bytes.Buffer
-		var handler *dashboardHandler
+		var handler *dashboardAssetHandler
 		var recorder *httptest.ResponseRecorder
 
 		t.Run("Given a dashboard handler and an absent asset path", func(t *testing.T) {
 			logger := slog.New(slog.NewTextHandler(&logs, nil))
-			handler = &dashboardHandler{logger: logger}
+			handler = newDashboardAssetHandler(logger)
 			recorder = httptest.NewRecorder()
 		})
 
 		t.Run("When the handler serves the embedded dashboard asset", func(t *testing.T) {
-			handler.serveEmbeddedAsset(recorder, "_resources/web/missing.txt", "text/plain")
+			handler.serveAsset(recorder, "_resources/web/missing.txt", "text/plain")
 		})
 
 		t.Run("Then the response reports an internal server error", func(t *testing.T) {
@@ -779,7 +951,7 @@ func TestDashboard_ReportUnavailableAsset(t *testing.T) {
 		})
 
 		t.Run("And the structured log records the absent dashboard asset", func(t *testing.T) {
-			if !strings.Contains(logs.String(), "Cannot read embedded dashboard asset") {
+			if !strings.Contains(logs.String(), "The dashboard asset handler cannot read the embedded asset.") {
 				t.Errorf("the structured log omits the missing dashboard asset: %q", logs.String())
 			}
 		})
@@ -835,7 +1007,7 @@ func TestDashboard_RunWithCanceledContext(t *testing.T) {
 				step.Fatalf("newAnalyzer fails: %v", err)
 			}
 			logger = slog.New(slog.NewTextHandler(io.Discard, nil))
-			monitor, err = newGraphMonitor(sourceAnalyzer, time.Second, logger)
+			monitor, err = newGraphMonitor(t.Context(), sourceAnalyzer, time.Second, logger)
 			if err != nil {
 				step.Fatalf("newGraphMonitor fails: %v", err)
 			}

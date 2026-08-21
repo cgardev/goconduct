@@ -1,23 +1,25 @@
-package main
+package query
 
 import (
 	"errors"
 	"testing"
+
+	"digginginsights.com/v3/internal/devtool/dependencygraph/internal/architecture"
 )
 
 func TestFindingsQuery_FilterWithoutExternalTools(t *testing.T) {
 	t.Run("Scenario: An agent requests only errors related to one component", func(t *testing.T) {
 		var graph Graph
-		var result findingsQueryResult
+		var result FindingsResult
 
 		t.Run("Given deterministic findings with different severities and subjects", func(t *testing.T) {
 			graph = queryFixtureGraph()
 		})
 
 		t.Run("When the query filters findings by error severity and component", func(t *testing.T) {
-			result = queryFindings(graph, findingsQuery{
-				severity:  findingSeverityErrorFilter,
-				component: "packages/beta",
+			result = Findings(graph, FindingsParams{
+				Severity:  FindingSeverityError,
+				Component: "packages/beta",
 			})
 		})
 
@@ -41,17 +43,17 @@ func TestFindingsQuery_FilterWithoutExternalTools(t *testing.T) {
 func TestComponentsQuery_RankWithoutExternalTools(t *testing.T) {
 	t.Run("Scenario: An agent requests the most imported library", func(t *testing.T) {
 		var graph Graph
-		var result componentsQueryResult
+		var result ComponentsResult
 
 		t.Run("Given components from several kinds with tied coupling values", func(t *testing.T) {
 			graph = queryFixtureGraph()
 		})
 
 		t.Run("When the query sorts libraries by afferent coupling and applies a limit", func(t *testing.T) {
-			result = queryComponents(graph, componentsQuery{
-				kind:  string(componentKindLibrary),
-				sort:  componentSortAfferent,
-				limit: 1,
+			result = Components(graph, ComponentsParams{
+				Role:  string(componentRoleLibrary),
+				Sort:  ComponentSortAfferent,
+				Limit: 1,
 			})
 		})
 
@@ -71,35 +73,65 @@ func TestComponentsQuery_RankWithoutExternalTools(t *testing.T) {
 	})
 }
 
+func TestComponentsQuery_FilterConfiguredCategory(t *testing.T) {
+	t.Run("Scenario: An agent requests one configured component category", func(t *testing.T) {
+		var graph Graph
+		var result ComponentsResult
+
+		t.Run("Given two libraries in different presentation categories", func(t *testing.T) {
+			graph = queryFixtureGraph()
+			graph.Components[0].Category = "plugin"
+			graph.Components[1].Category = "library"
+		})
+
+		t.Run("When the query selects the custom plugin category", func(t *testing.T) {
+			result = Components(graph, ComponentsParams{
+				Role:     "all",
+				Category: "plugin",
+				Sort:     ComponentSortIdentifier,
+			})
+		})
+
+		t.Run("Then the result contains only the component in that category", func(t *testing.T) {
+			if result.Matched != 1 || len(result.Components) != 1 {
+				t.Fatalf("component query matches %d and returns %d", result.Matched, len(result.Components))
+			}
+			if result.Components[0].Identifier != "packages/alpha" {
+				t.Errorf("component is %q, want packages/alpha", result.Components[0].Identifier)
+			}
+		})
+	})
+}
+
 func TestComponentsQuery_SortByEveryDocumentedField(t *testing.T) {
 	testCases := []struct {
 		name      string
-		sort      componentSort
+		Sort      ComponentSort
 		wantFirst string
 	}{
-		{name: "identifier order", sort: componentSortIdentifier, wantFirst: "packages/alpha"},
-		{name: "afferent coupling", sort: componentSortAfferent, wantFirst: "packages/alpha"},
-		{name: "efferent coupling", sort: componentSortEfferent, wantFirst: "packages/beta"},
-		{name: "transitive importers", sort: componentSortImporters, wantFirst: "packages/alpha"},
-		{name: "transitive dependencies", sort: componentSortDependencies, wantFirst: "packages/beta"},
-		{name: "instability", sort: componentSortInstability, wantFirst: "packages/beta"},
-		{name: "abstractness", sort: componentSortAbstractness, wantFirst: "packages/alpha"},
-		{name: "main sequence distance", sort: componentSortDistance, wantFirst: "packages/beta"},
-		{name: "source files", sort: componentSortFiles, wantFirst: "packages/alpha"},
+		{name: "identifier order", Sort: ComponentSortIdentifier, wantFirst: "packages/alpha"},
+		{name: "afferent coupling", Sort: ComponentSortAfferent, wantFirst: "packages/alpha"},
+		{name: "efferent coupling", Sort: ComponentSortEfferent, wantFirst: "packages/beta"},
+		{name: "transitive importers", Sort: ComponentSortImporters, wantFirst: "packages/alpha"},
+		{name: "transitive dependencies", Sort: ComponentSortDependencies, wantFirst: "packages/beta"},
+		{name: "instability", Sort: ComponentSortInstability, wantFirst: "packages/beta"},
+		{name: "abstractness", Sort: ComponentSortAbstractness, wantFirst: "packages/alpha"},
+		{name: "main sequence distance", Sort: ComponentSortDistance, wantFirst: "packages/beta"},
+		{name: "source files", Sort: ComponentSortFiles, wantFirst: "packages/alpha"},
 	}
 	for _, testCase := range testCases {
 		t.Run("Scenario: The query sorts libraries by "+testCase.name, func(t *testing.T) {
 			var graph Graph
-			var result componentsQueryResult
+			var result ComponentsResult
 
 			t.Run("Given components with distinct deterministic metrics", func(t *testing.T) {
 				graph = queryFixtureGraph()
 			})
 
 			t.Run("When the query applies the documented sort order", func(t *testing.T) {
-				result = queryComponents(graph, componentsQuery{
-					kind: "library",
-					sort: testCase.sort,
+				result = Components(graph, ComponentsParams{
+					Role: "library",
+					Sort: testCase.Sort,
 				})
 			})
 
@@ -115,17 +147,17 @@ func TestComponentsQuery_SortByEveryDocumentedField(t *testing.T) {
 func TestFindingsQuery_ApplyRuleAndLimit(t *testing.T) {
 	t.Run("Scenario: An agent requests one finding from a named rule", func(t *testing.T) {
 		var graph Graph
-		var result findingsQueryResult
+		var result FindingsResult
 
 		t.Run("Given several warnings from different architecture rules", func(t *testing.T) {
 			graph = queryFixtureGraph()
 		})
 
 		t.Run("When the query filters warning findings by rule and applies a limit", func(t *testing.T) {
-			result = queryFindings(graph, findingsQuery{
-				severity: findingSeverityWarningFilter,
-				rule:     "stable-component-low-abstraction",
-				limit:    1,
+			result = Findings(graph, FindingsParams{
+				Severity: FindingSeverityWarning,
+				Rule:     "stable-component-low-abstraction",
+				Limit:    1,
 			})
 		})
 
@@ -203,7 +235,7 @@ func TestFinding_MatchComponent(t *testing.T) {
 func TestComponentQuery_ReturnDependenciesAndImporters(t *testing.T) {
 	t.Run("Scenario: An agent requests one exact component", func(t *testing.T) {
 		var graph Graph
-		var result componentQueryResult
+		var result ComponentResult
 		var queryError error
 
 		t.Run("Given a component with imports, functions, calls, and findings", func(t *testing.T) {
@@ -211,15 +243,15 @@ func TestComponentQuery_ReturnDependenciesAndImporters(t *testing.T) {
 		})
 
 		t.Run("When the agent queries the exact identifier", func(t *testing.T) {
-			result, queryError = queryComponent(graph, "packages/beta")
+			result, queryError = GetComponent(graph, "packages/beta")
 		})
 
 		if !t.Run("Then the result contains the component", func(t *testing.T) {
 			if queryError != nil {
-				t.Fatalf("queryComponent fails: %v", queryError)
+				t.Fatalf("Component fails: %v", queryError)
 			}
 			if result.Component.Identifier != "packages/beta" {
-				t.Fatalf("unexpected component: %+v", result.Component)
+				t.Fatalf("unexpected Component: %+v", result.Component)
 			}
 		}) {
 			return
@@ -254,12 +286,12 @@ func TestComponentQuery_ReturnDependenciesAndImporters(t *testing.T) {
 		})
 
 		t.Run("When the agent queries the missing identifier", func(t *testing.T) {
-			_, queryError = queryComponent(graph, "packages/missing")
+			_, queryError = GetComponent(graph, "packages/missing")
 		})
 
 		t.Run("Then the function returns a typed not-found error", func(t *testing.T) {
-			if !errors.Is(queryError, errComponentNotFound) {
-				t.Fatalf("component query error is %v, want errComponentNotFound", queryError)
+			if !errors.Is(queryError, ErrComponentNotFound) {
+				t.Fatalf("component query error is %v, want ErrComponentNotFound", queryError)
 			}
 		})
 	})
@@ -273,21 +305,21 @@ func TestQueryOptions_ParseClosedVocabulary(t *testing.T) {
 		{
 			name: "finding severity is unknown",
 			parse: func() error {
-				_, err := parseFindingSeverityFilter("critical")
+				_, err := ParseFindingSeverity("critical")
 				return err
 			},
 		},
 		{
-			name: "component kind is unknown",
+			name: "component role is unknown",
 			parse: func() error {
-				_, err := parseComponentKindFilter("service")
+				_, err := ParseComponentRole("service")
 				return err
 			},
 		},
 		{
 			name: "component sort is unknown",
 			parse: func() error {
-				_, err := parseComponentSort("weight")
+				_, err := ParseComponentSort("weight")
 				return err
 			},
 		},
@@ -314,6 +346,51 @@ func TestQueryOptions_ParseClosedVocabulary(t *testing.T) {
 	}
 }
 
+func TestComponentRole_AcceptAllAndStrategicRole(t *testing.T) {
+	testCases := []string{"all", string(architecture.RoleLibrary)}
+	for _, value := range testCases {
+		t.Run("Scenario: The component role filter is "+value, func(t *testing.T) {
+			var result string
+			var parseError error
+
+			t.Run("Given a documented component role filter", func(*testing.T) {})
+
+			t.Run("When the query parses the component role", func(*testing.T) {
+				result, parseError = ParseComponentRole(value)
+			})
+
+			t.Run("Then the query accepts and retains the filter", func(t *testing.T) {
+				if parseError != nil {
+					t.Fatalf("parse component role: %v", parseError)
+				}
+				if result != value {
+					t.Fatalf("component role is %q, want %q", result, value)
+				}
+			})
+		})
+	}
+}
+
+func TestComponentSort_DescribeClosedVocabulary(t *testing.T) {
+	t.Run("Scenario: The CLI documents every component sort", func(t *testing.T) {
+		var description string
+
+		t.Run("Given the ordered component sort registry", func(*testing.T) {})
+
+		t.Run("When the query layer creates the vocabulary description", func(*testing.T) {
+			description = describeComponentSorts()
+		})
+
+		t.Run("Then each sort occurs once in registry order", func(t *testing.T) {
+			want := "identifier, afferent, efferent, importers, dependencies, instability, " +
+				"abstractness, distance, or files"
+			if description != want {
+				t.Fatalf("component sort description is %q, want %q", description, want)
+			}
+		})
+	})
+}
+
 func queryFixtureGraph() Graph {
 	return Graph{
 		SchemaVersion: graphSchemaVersion,
@@ -322,7 +399,7 @@ func queryFixtureGraph() Graph {
 		Components: []Component{
 			{
 				Identifier:                    "packages/alpha",
-				Kind:                          componentKindLibrary,
+				Role:                          componentRoleLibrary,
 				SourceFiles:                   10,
 				AfferentCoupling:              5,
 				EfferentCoupling:              1,
@@ -333,7 +410,7 @@ func queryFixtureGraph() Graph {
 			},
 			{
 				Identifier:                    "packages/beta",
-				Kind:                          componentKindLibrary,
+				Role:                          componentRoleLibrary,
 				SourceFiles:                   2,
 				AfferentCoupling:              5,
 				EfferentCoupling:              2,
@@ -345,7 +422,7 @@ func queryFixtureGraph() Graph {
 			},
 			{
 				Identifier:       "services/control",
-				Kind:             componentKindApplication,
+				Role:             componentRoleApplication,
 				AfferentCoupling: 10,
 			},
 		},

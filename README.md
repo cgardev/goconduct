@@ -1,9 +1,25 @@
 # Dependency Graph
 
-This development tool analyzes Go components, imports, resolved function calls, coupling, and
-architecture findings.
+This development tool analyzes Go components, imports, resolved function calls, and coupling. The
+tool reports architecture findings.
 
 Run all commands from the repository root. Use the Go version declared in the root `go.mod` file.
+
+## Architecture
+
+The tool has these explicit layers and adapters:
+
+- `internal/report` contains the transport-neutral analysis report.
+- `internal/calculation` contains pure deterministic graph calculations and formulas.
+- `internal/query` selects deterministic report views for CLI consumers.
+- `internal/architecture` contains strategic roles and independent architecture rules.
+- `internal/application` selects a local source or a compatible graph cache.
+- The root Go package provides the Go analyzer, Cobra adapter, HTTP adapter, and composition root.
+- `_resources/web` contains the embedded presentation resources.
+
+The pure packages do not import Cobra, HTTP, or presentation code. The HTTP adapter depends on graph
+reader, refresh, subscription, and cache identity ports. The analyzer passes the request context to
+`packages.Load`.
 
 ## Start the dashboard
 
@@ -13,7 +29,7 @@ Run the tool without a subcommand:
 go run ./internal/devtool/dependencygraph
 ```
 
-Open <http://127.0.0.1:6062> in a web browser. Keep the command active while the dashboard is in use.
+Open <http://127.0.0.1:6062> in a web browser. Keep the command active while you use the dashboard.
 
 Use `Ctrl+C` to stop the server.
 
@@ -30,20 +46,30 @@ List the components with the highest afferent coupling:
 ```sh
 go run ./internal/devtool/dependencygraph components \
   --cache server \
+  --role library \
   --sort afferent \
   --limit 10
 ```
 
-List the most used functions:
+Select one configured presentation category:
+
+```sh
+go run ./internal/devtool/dependencygraph components \
+  --cache server \
+  --category plugin \
+  --sort afferent
+```
+
+List the functions with the most incoming call sites:
 
 ```sh
 go run ./internal/devtool/dependencygraph functions \
   --cache server \
-  --sort incoming-calls \
+  --sort incoming-call-sites \
   --limit 10
 ```
 
-Inspect one function and its direct callers and callees:
+Inspect one function and its direct caller functions and callee functions:
 
 ```sh
 go run ./internal/devtool/dependencygraph function \
@@ -61,7 +87,8 @@ go run ./internal/devtool/dependencygraph calls \
   --limit 20
 ```
 
-These commands return filtered JSON. No external JSON filtering tool is necessary.
+These commands return JSON. The query options filter the applicable results. No external JSON
+filtering tool is necessary.
 
 ## Select the analysis scope
 
@@ -86,7 +113,7 @@ Use local mode for an independent analysis:
 go run ./internal/devtool/dependencygraph functions \
   --analysis-path internal/devtool/dependencygraph \
   --cache local \
-  --sort outgoing-calls \
+  --sort outgoing-call-sites \
   --limit 10
 ```
 
@@ -107,10 +134,32 @@ The default configuration path is `configuration.json` in the current directory.
   "analysis": {
     "repositoryRoot": ".",
     "paths": ["cmd", "internal"],
-    "ignoredPaths": ["vendor", "generated"]
+    "ignoredPaths": ["vendor", "generated"],
+    "components": {
+      "taxonomy": [
+        {
+          "id": "plugin",
+          "role": "library",
+          "paths": ["plugins/{component}"]
+        }
+      ]
+    }
   }
 }
 ```
+
+Each taxonomy entry has a presentation category and a strategic role. The category can be any
+non-empty identifier. The role must use one of these values:
+
+- `application`
+- `application-module`
+- `shared-module`
+- `library`
+- `infrastructure`
+- `development`
+
+Architecture rules use the role. The web presentation uses the category for filters, labels, groups,
+and deterministic colors.
 
 Select another document with `--configuration`:
 
@@ -134,5 +183,5 @@ go run ./internal/devtool/dependencygraph configuration-schema
 ## Run the module tests
 
 ```sh
-go test ./internal/devtool/dependencygraph
+go test ./internal/devtool/dependencygraph/...
 ```

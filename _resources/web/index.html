@@ -6,7 +6,13 @@
   <meta name="color-scheme" content="dark light">
   <title>Go component dependency analysis</title>
   <link rel="stylesheet" href="/assets/dashboard.css">
+  <link rel="stylesheet" href="/assets/graph.css">
+  <link rel="stylesheet" href="/assets/insights.css">
+  <link rel="stylesheet" href="/assets/responsive.css">
   <script src="/assets/dashboard.js" defer></script>
+  <script src="/assets/maps.js" defer></script>
+  <script src="/assets/insights.js" defer></script>
+  <script src="/assets/runtime.js" defer></script>
 </head>
 <body>
   <main class="dashboard">
@@ -16,7 +22,7 @@
         <div class="brand__copy">
           <p class="brand__eyebrow">Dependency analysis / System 01</p>
           <h1 class="brand__title">Go component dependency map</h1>
-          <p class="brand__module" id="modulePath">The module loads…</p>
+          <p class="brand__module" id="modulePath">The client loads the dependency graph…</p>
         </div>
       </div>
       <div class="dashboard__status">
@@ -50,7 +56,7 @@
       <article class="summary__card">
         <span class="summary__label">Components</span>
         <strong class="summary__value" id="summaryComponents">—</strong>
-        <span class="summary__note" id="summaryKinds">The analyzer checks components</span>
+        <span class="summary__note" id="summaryCategories">The analyzer checks components</span>
       </article>
       <article class="summary__card">
         <span class="summary__label">Relationships</span>
@@ -60,10 +66,10 @@
       <article class="summary__card">
         <span class="summary__label">Functions</span>
         <strong class="summary__value" id="summaryFunctions">—</strong>
-        <span class="summary__note" id="summaryFunctionCalls">Resolved static calls</span>
+        <span class="summary__note" id="summaryFunctionMetrics">Resolved static calls</span>
       </article>
       <article class="summary__card">
-        <span class="summary__label">Most applications</span>
+        <span class="summary__label">Component used by most applications</span>
         <strong class="summary__value summary__value--name" id="summaryUsingApplications">—</strong>
         <span class="summary__note" id="summaryUsingApplicationsNote">
           Applications that use this component
@@ -72,7 +78,7 @@
       <article class="summary__card">
         <span class="summary__label">Findings</span>
         <strong class="summary__value" id="summaryFindings">—</strong>
-        <span class="summary__note" id="summaryCycles">Errors and warnings</span>
+        <span class="summary__note" id="summaryFindingBreakdown">Errors and warnings</span>
       </article>
     </section>
 
@@ -88,7 +94,7 @@
         >
         <span class="toolbar__shortcut" aria-hidden="true">/</span>
       </label>
-      <div class="toolbar__kinds" id="kindFilters" aria-label="Component kinds"></div>
+      <div class="toolbar__categories" id="categoryFilters" aria-label="Component categories"></div>
       <label class="toolbar__toggle">
         <input class="toolbar__toggle-input" id="testToggle" type="checkbox" checked>
         <span class="toolbar__toggle-control" aria-hidden="true"></span>
@@ -103,8 +109,8 @@
             <p class="graph-panel__eyebrow" id="graphEyebrow">Component import count</p>
             <h2 class="graph-panel__title" id="graphTitle">Component usage map</h2>
             <p class="graph-panel__description" id="graphDescription">
-              The tile area represents direct production importing components.
-              A larger area means a larger count.
+              The tile area represents the number of direct production importing components.
+              A larger tile represents more direct production importing components.
             </p>
           </div>
           <div class="graph-panel__actions">
@@ -132,10 +138,10 @@
             <label class="component-metric" id="functionMetricControl" hidden>
               <span class="component-metric__label">Area by</span>
               <select class="component-metric__select" id="functionMetric">
-                <option value="incomingCalls">Incoming call sites</option>
+                <option value="incomingCallSites">Incoming call sites</option>
                 <option value="afferent">Afferent coupling (Cₐ)</option>
                 <option value="efferent">Efferent coupling (Cₑ)</option>
-                <option value="outgoingCalls">Outgoing call sites</option>
+                <option value="outgoingCallSites">Outgoing call sites</option>
                 <option value="transitiveCallers">Transitive caller functions</option>
               </select>
             </label>
@@ -146,7 +152,11 @@
                 type="button"
                 aria-label="Zoom out"
               >−</button>
-              <button class="graph-controls__button" id="showAllComponents" type="button">Show all</button>
+              <button
+                class="graph-controls__button"
+                id="fitVisibleComponents"
+                type="button"
+              >Fit visible components</button>
               <button class="graph-controls__button" id="zoomIn" type="button" aria-label="Zoom in">+</button>
             </div>
           </div>
@@ -156,7 +166,7 @@
           id="graphViewport"
           tabindex="0"
           data-view="metrics"
-          aria-label="Component count map. A larger area means a larger value."
+          aria-label="Component metric map. A larger tile represents a higher metric value."
         >
           <svg
             class="component-metric-map"
@@ -187,9 +197,11 @@
           <div class="component-metric-legend" id="componentMetricLegend" aria-label="Area scale">
             <span class="component-metric-legend__area" aria-hidden="true"></span>
             <span id="componentMetricLegendText">
-              A larger area means more direct production importing components.
+              A larger area represents a higher count of direct production importing components.
             </span>
-            <span class="component-metric-legend__minimum">Zero values keep a minimum tile.</span>
+            <span class="component-metric-legend__minimum">
+              The map uses the minimum tile area for zero values.
+            </span>
           </div>
           <div class="edge-legend" id="edgeLegend" aria-label="Relationship types" hidden>
             <span class="edge-legend__item">
@@ -230,17 +242,21 @@
         <section class="ranking" aria-labelledby="functionRankingTitle">
           <header class="ranking__header">
             <p class="ranking__eyebrow">Resolved static calls</p>
-            <h2 class="ranking__title" id="functionRankingTitle">Most called functions</h2>
+            <h2 class="ranking__title" id="functionRankingTitle">
+              Functions with the most incoming call sites
+            </h2>
           </header>
           <ol class="ranking__list" id="functionUsageRanking"></ol>
         </section>
 
-        <section class="ranking" aria-labelledby="unusedTitle">
+        <section class="ranking" aria-labelledby="componentsWithoutProductionImportersTitle">
           <header class="ranking__header">
             <p class="ranking__eyebrow">Review</p>
-            <h2 class="ranking__title" id="unusedTitle">No production importing components</h2>
+            <h2 class="ranking__title" id="componentsWithoutProductionImportersTitle">
+              No production importing components
+            </h2>
           </header>
-          <ul class="ranking__list" id="unusedRanking"></ul>
+          <ul class="ranking__list" id="componentsWithoutProductionImportersRanking"></ul>
         </section>
 
         <section class="ranking" aria-labelledby="stableLowAbstractionTitle">

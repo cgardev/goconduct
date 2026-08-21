@@ -7,15 +7,17 @@ import (
 	"log/slog"
 	"testing"
 
+	querymodel "digginginsights.com/v3/internal/devtool/dependencygraph/internal/query"
+
 	"github.com/spf13/cobra"
 )
 
 func TestFunctionCommands_EmitFocusedJSONWithoutPipes(t *testing.T) {
 	t.Run("Scenario: An automated client requests function data through native CLI filters", func(t *testing.T) {
 		var repositoryRoot string
-		var functions functionsQueryResult
-		var function functionQueryResult
-		var calls functionCallsQueryResult
+		var functions querymodel.FunctionsResult
+		var function querymodel.FunctionResult
+		var calls querymodel.FunctionCallsResult
 		var commandError error
 
 		t.Run("Given a repository with resolved calls between two components", func(*testing.T) {
@@ -31,7 +33,7 @@ func TestFunctionCommands_EmitFocusedJSONWithoutPipes(t *testing.T) {
 					arguments: []string{
 						"functions", "--root", repositoryRoot,
 						"--component", "internal/library/telemetry",
-						"--sort", "incoming-calls", "--include-tests", "--limit", "3",
+						"--sort", "incoming-call-sites", "--include-tests", "--limit", "3",
 					},
 					result: &functions,
 				},
@@ -84,8 +86,8 @@ func TestFunctionCommands_EmitFocusedJSONWithoutPipes(t *testing.T) {
 			if calls.CallSites != 8 {
 				t.Errorf("call sites are %d, want 8", calls.CallSites)
 			}
-			if len(function.Callers) != 2 || len(function.Callers[0].CallSites) == 0 {
-				t.Errorf("unexpected exact function callers: %+v", function.Callers)
+			if len(function.IncomingCalls) != 2 || len(function.IncomingCalls[0].CallSites) == 0 {
+				t.Errorf("unexpected exact function callers: %+v", function.IncomingCalls)
 			}
 		})
 	})

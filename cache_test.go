@@ -8,13 +8,30 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	application "digginginsights.com/v3/internal/devtool/dependencygraph/internal/application"
+	querymodel "digginginsights.com/v3/internal/devtool/dependencygraph/internal/query"
 )
 
 var errGraphCacheClose = errors.New("graph cache close failure")
+
+var errGraphCacheIdentity = errors.New("graph cache identity failure")
+
+type graphCacheIdentityStub struct {
+	cacheKey string
+	err      error
+}
+
+var _ application.GraphCacheIdentity = graphCacheIdentityStub{}
+
+func (stub graphCacheIdentityStub) CacheKey() (string, error) {
+	return stub.cacheKey, stub.err
+}
 
 type graphCacheRoundTripper func(*http.Request) (*http.Response, error)
 
@@ -33,6 +50,8 @@ func (graphCacheCloseErrorBody) Close() error {
 func TestGraphCache_LoadCompatibleGraph(t *testing.T) {
 	t.Run("Scenario: The active server has the graph for the requested analysis scope", func(t *testing.T) {
 		var sourceAnalyzer *analyzer
+		var identity application.GraphCacheIdentity
+		var cache application.GraphCache[Graph]
 		var monitor *graphMonitor
 		var server *httptest.Server
 		var requests atomic.Int64
@@ -47,7 +66,7 @@ func TestGraphCache_LoadCompatibleGraph(t *testing.T) {
 				step.Fatalf("newAnalyzer fails: %v", err)
 			}
 			logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-			monitor, err = newGraphMonitor(sourceAnalyzer, time.Second, logger)
+			monitor, err = newGraphMonitor(t.Context(), sourceAnalyzer, time.Second, logger)
 			if err != nil {
 				step.Fatalf("newGraphMonitor fails: %v", err)
 			}
@@ -57,22 +76,19 @@ func TestGraphCache_LoadCompatibleGraph(t *testing.T) {
 				dashboard.ServeHTTP(response, request)
 			}))
 			t.Cleanup(server.Close)
+			identity = &analyzerGraphSource{analyzer: sourceAnalyzer}
+			cache = newHTTPGraphCache(strings.TrimPrefix(server.URL, "http://"), time.Second)
 		}) {
 			return
 		}
 
 		t.Run("When the CLI cache client requests the active graph", func(*testing.T) {
-			graph, loadError = loadGraphFromCache(
-				t.Context(),
-				sourceAnalyzer,
-				strings.TrimPrefix(server.URL, "http://"),
-				time.Second,
-			)
+			graph, loadError = cache.Load(t.Context(), identity)
 		})
 
 		if !t.Run("Then the cache returns the graph without an error", func(t *testing.T) {
 			if loadError != nil {
-				t.Fatalf("loadGraphFromCache fails: %v", loadError)
+				t.Fatalf("load graph from cache: %v", loadError)
 			}
 			if graph.Revision != monitor.currentGraph().Revision {
 				t.Fatalf("cached revision is %q, want %q", graph.Revision, monitor.currentGraph().Revision)
@@ -89,9 +105,34 @@ func TestGraphCache_LoadCompatibleGraph(t *testing.T) {
 	})
 }
 
+func TestGraphCache_RejectInvalidIdentity(t *testing.T) {
+	t.Run("Scenario: The analysis identity cannot create its cache key", func(t *testing.T) {
+		var identity application.GraphCacheIdentity
+		var cache application.GraphCache[Graph]
+		var loadError error
+
+		t.Run("Given a cache identity that returns an error", func(*testing.T) {
+			identity = graphCacheIdentityStub{err: errGraphCacheIdentity}
+			cache = newHTTPGraphCache("127.0.0.1:6062", time.Second)
+		})
+
+		t.Run("When the cache loads the graph", func(*testing.T) {
+			_, loadError = cache.Load(t.Context(), identity)
+		})
+
+		t.Run("Then the cache returns the identity error", func(t *testing.T) {
+			if !errors.Is(loadError, errGraphCacheIdentity) {
+				t.Fatalf("cache error is %v, want errGraphCacheIdentity", loadError)
+			}
+		})
+	})
+}
+
 func TestGraphCache_RejectDifferentScope(t *testing.T) {
 	t.Run("Scenario: The active server analyzes a different repository scope", func(t *testing.T) {
 		var clientAnalyzer *analyzer
+		var identity application.GraphCacheIdentity
+		var cache application.GraphCache[Graph]
 		var server *httptest.Server
 		var loadError error
 
@@ -108,23 +149,20 @@ func TestGraphCache_RejectDifferentScope(t *testing.T) {
 				step.Fatalf("build client analyzer: %v", err)
 			}
 			logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-			monitor, err := newGraphMonitor(serverAnalyzer, time.Second, logger)
+			monitor, err := newGraphMonitor(t.Context(), serverAnalyzer, time.Second, logger)
 			if err != nil {
 				step.Fatalf("newGraphMonitor fails: %v", err)
 			}
 			server = httptest.NewServer(newDashboardHandler(monitor, logger))
 			t.Cleanup(server.Close)
+			identity = &analyzerGraphSource{analyzer: clientAnalyzer}
+			cache = newHTTPGraphCache(strings.TrimPrefix(server.URL, "http://"), time.Second)
 		}) {
 			return
 		}
 
 		t.Run("When the client requests the graph with its scope key", func(*testing.T) {
-			_, loadError = loadGraphFromCache(
-				t.Context(),
-				clientAnalyzer,
-				strings.TrimPrefix(server.URL, "http://"),
-				time.Second,
-			)
+			_, loadError = cache.Load(t.Context(), identity)
 		})
 
 		t.Run("Then the server rejects the incompatible cache", func(t *testing.T) {
@@ -139,6 +177,8 @@ func TestGraphCache_RefreshChangedRepository(t *testing.T) {
 	t.Run("Scenario: A source file changes before the next CLI query", func(t *testing.T) {
 		var repositoryRoot string
 		var sourceAnalyzer *analyzer
+		var identity application.GraphCacheIdentity
+		var cache application.GraphCache[Graph]
 		var monitor *graphMonitor
 		var server *httptest.Server
 		var initialRevision string
@@ -155,30 +195,27 @@ func TestGraphCache_RefreshChangedRepository(t *testing.T) {
 				step.Fatalf("newAnalyzer fails: %v", err)
 			}
 			logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-			monitor, err = newGraphMonitor(sourceAnalyzer, time.Second, logger)
+			monitor, err = newGraphMonitor(t.Context(), sourceAnalyzer, time.Second, logger)
 			if err != nil {
 				step.Fatalf("newGraphMonitor fails: %v", err)
 			}
 			initialRevision = monitor.currentGraph().Revision
 			server = httptest.NewServer(newDashboardHandler(monitor, logger))
 			t.Cleanup(server.Close)
+			identity = &analyzerGraphSource{analyzer: sourceAnalyzer}
+			cache = newHTTPGraphCache(strings.TrimPrefix(server.URL, "http://"), time.Second)
 		}) {
 			return
 		}
 
 		t.Run("When a second component is added and the CLI reads the cache", func(step *testing.T) {
 			writeFixtureFile(step, repositoryRoot, "internal/library/second/second.go", "package second\n")
-			graph, loadError = loadGraphFromCache(
-				t.Context(),
-				sourceAnalyzer,
-				strings.TrimPrefix(server.URL, "http://"),
-				time.Second,
-			)
+			graph, loadError = cache.Load(t.Context(), identity)
 		})
 
 		if !t.Run("Then the cache refresh succeeds", func(t *testing.T) {
 			if loadError != nil {
-				t.Fatalf("loadGraphFromCache fails: %v", loadError)
+				t.Fatalf("load graph from cache: %v", loadError)
 			}
 			if graph.Revision == initialRevision {
 				t.Fatal("the cache returns the revision from before the source change")
@@ -203,7 +240,7 @@ func TestCLIQuery_UseActiveGraphCache(t *testing.T) {
 		var expectedRevision string
 		var output bytes.Buffer
 		var commandError error
-		var result summaryQueryResult
+		var result querymodel.SummaryResult
 
 		if !t.Run("Given a compatible active graph server", func(step *testing.T) {
 			repositoryRoot = newAnalyzerFixture(t)
@@ -212,7 +249,7 @@ func TestCLIQuery_UseActiveGraphCache(t *testing.T) {
 				step.Fatalf("newAnalyzer fails: %v", err)
 			}
 			logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-			monitor, err := newGraphMonitor(sourceAnalyzer, time.Second, logger)
+			monitor, err := newGraphMonitor(t.Context(), sourceAnalyzer, time.Second, logger)
 			if err != nil {
 				step.Fatalf("newGraphMonitor fails: %v", err)
 			}
@@ -340,14 +377,20 @@ func TestGraphCache_ValidateResponseContract(t *testing.T) {
 	}{
 		{name: "the server status is not successful", status: http.StatusConflict, wantReject: true},
 		{name: "the protocol header is absent", status: http.StatusOK, wantReject: true},
-		{name: "the cache key does not match", status: http.StatusOK, protocol: "1", key: "other", wantReject: true},
-		{name: "the schema header does not match", status: http.StatusOK, protocol: "1", key: "expected", schema: "5", wantReject: true},
+		{
+			name: "the cache key does not match", status: http.StatusOK,
+			protocol: "1", key: "other", wantReject: true,
+		},
+		{
+			name: "the schema header does not match", status: http.StatusOK,
+			protocol: "1", key: "expected", schema: "5", wantReject: true,
+		},
 		{
 			name:     "the response body is not JSON",
 			status:   http.StatusOK,
 			protocol: "1",
 			key:      "expected",
-			schema:   "6",
+			schema:   strconv.Itoa(graphSchemaVersion),
 			body:     "not-json",
 		},
 	}
@@ -449,26 +492,19 @@ func TestGraphCache_DetectInvalidPayload(t *testing.T) {
 			name:     "the body ends with incomplete JSON",
 			graph:    Graph{SchemaVersion: graphSchemaVersion, Revision: "revision"},
 			suffix:   `{`,
-			wantText: "decode active graph end",
+			wantText: "check active graph response for another JSON value",
 		},
 	}
 	for _, testCase := range testCases {
 		t.Run("Scenario: "+testCase.name, func(t *testing.T) {
-			var sourceAnalyzer *analyzer
+			var identity application.GraphCacheIdentity
+			var cache application.GraphCache[Graph]
 			var server *httptest.Server
 			var loadError error
 
 			if !t.Run("Given a cache server with the selected response body", func(step *testing.T) {
-				repositoryRoot := newAnalyzerFixture(t)
-				var err error
-				sourceAnalyzer, err = newAnalyzer(fixtureAnalysisConfiguration(repositoryRoot))
-				if err != nil {
-					step.Fatalf("newAnalyzer fails: %v", err)
-				}
-				cacheKey, err := sourceAnalyzer.graphCacheKey()
-				if err != nil {
-					step.Fatalf("graphCacheKey fails: %v", err)
-				}
+				const cacheKey = "analysis-scope"
+				identity = graphCacheIdentityStub{cacheKey: cacheKey}
 				body := testCase.body
 				if body == "" {
 					payload, encodeError := json.Marshal(testCase.graph)
@@ -480,23 +516,19 @@ func TestGraphCache_DetectInvalidPayload(t *testing.T) {
 				server = httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, _ *http.Request) {
 					response.Header().Set(graphCacheProtocolHeader, "1")
 					response.Header().Set(graphCacheKeyHeader, cacheKey)
-					response.Header().Set(graphCacheSchemaHeader, "6")
+					response.Header().Set(graphCacheSchemaHeader, strconv.Itoa(graphSchemaVersion))
 					if _, writeError := io.WriteString(response, body); writeError != nil {
 						t.Errorf("write cache response: %v", writeError)
 					}
 				}))
 				t.Cleanup(server.Close)
+				cache = newHTTPGraphCache(strings.TrimPrefix(server.URL, "http://"), time.Second)
 			}) {
 				return
 			}
 
 			t.Run("When the client loads the graph", func(*testing.T) {
-				_, loadError = loadGraphFromCache(
-					t.Context(),
-					sourceAnalyzer,
-					strings.TrimPrefix(server.URL, "http://"),
-					time.Second,
-				)
+				_, loadError = cache.Load(t.Context(), identity)
 			})
 
 			t.Run("Then the client reports the selected invalid payload", func(t *testing.T) {
@@ -549,7 +581,7 @@ func TestGraphCacheURL_NormalizeListenerAddress(t *testing.T) {
 
 func TestGraphCacheKey_IncludeGoExecutionContext(t *testing.T) {
 	t.Run("Scenario: The Go build flags change for the same analysis scope", func(t *testing.T) {
-		var sourceAnalyzer *analyzer
+		var identity application.GraphCacheIdentity
 		var initialKey string
 		var changedKey string
 		var keyError error
@@ -557,22 +589,23 @@ func TestGraphCacheKey_IncludeGoExecutionContext(t *testing.T) {
 		if !t.Run("Given one analyzer and no Go build flags", func(step *testing.T) {
 			repositoryRoot := newAnalyzerFixture(t)
 			var err error
-			sourceAnalyzer, err = newAnalyzer(fixtureAnalysisConfiguration(repositoryRoot))
+			sourceAnalyzer, err := newAnalyzer(fixtureAnalysisConfiguration(repositoryRoot))
 			if err != nil {
 				step.Fatalf("newAnalyzer fails: %v", err)
 			}
+			identity = &analyzerGraphSource{analyzer: sourceAnalyzer}
 			t.Setenv("GOFLAGS", "")
 		}) {
 			return
 		}
 
 		t.Run("When the key is calculated before and after a build tag change", func(*testing.T) {
-			initialKey, keyError = sourceAnalyzer.graphCacheKey()
+			initialKey, keyError = identity.CacheKey()
 			if keyError != nil {
 				return
 			}
 			t.Setenv("GOFLAGS", "-tags=cachetest")
-			changedKey, keyError = sourceAnalyzer.graphCacheKey()
+			changedKey, keyError = identity.CacheKey()
 		})
 
 		if !t.Run("Then both key calculations succeed", func(t *testing.T) {
@@ -593,21 +626,14 @@ func TestGraphCacheKey_IncludeGoExecutionContext(t *testing.T) {
 
 func TestGraphCache_ReportResponseCloseFailure(t *testing.T) {
 	t.Run("Scenario: The cache response closes with an error after valid JSON is read", func(t *testing.T) {
-		var sourceAnalyzer *analyzer
+		var identity application.GraphCacheIdentity
+		var cache application.GraphCache[Graph]
 		var client *http.Client
 		var loadError error
 
 		if !t.Run("Given a valid cache response body that fails during close", func(step *testing.T) {
-			repositoryRoot := newAnalyzerFixture(t)
-			var err error
-			sourceAnalyzer, err = newAnalyzer(fixtureAnalysisConfiguration(repositoryRoot))
-			if err != nil {
-				step.Fatalf("newAnalyzer fails: %v", err)
-			}
-			cacheKey, err := sourceAnalyzer.graphCacheKey()
-			if err != nil {
-				step.Fatalf("graphCacheKey fails: %v", err)
-			}
+			const cacheKey = "analysis-scope"
+			identity = graphCacheIdentityStub{cacheKey: cacheKey}
 			payload, err := json.Marshal(Graph{
 				SchemaVersion: graphSchemaVersion,
 				Revision:      "revision",
@@ -619,7 +645,7 @@ func TestGraphCache_ReportResponseCloseFailure(t *testing.T) {
 				header := make(http.Header)
 				header.Set(graphCacheProtocolHeader, "1")
 				header.Set(graphCacheKeyHeader, cacheKey)
-				header.Set(graphCacheSchemaHeader, "6")
+				header.Set(graphCacheSchemaHeader, strconv.Itoa(graphSchemaVersion))
 				return &http.Response{
 					StatusCode: http.StatusOK,
 					Status:     "200 OK",
@@ -627,17 +653,13 @@ func TestGraphCache_ReportResponseCloseFailure(t *testing.T) {
 					Body:       graphCacheCloseErrorBody{Reader: bytes.NewReader(payload)},
 				}, nil
 			})}
+			cache = &httpGraphCache{address: "127.0.0.1:6062", client: client}
 		}) {
 			return
 		}
 
 		t.Run("When the client loads and closes the graph response", func(*testing.T) {
-			_, loadError = loadGraphFromCacheWithClient(
-				t.Context(),
-				sourceAnalyzer,
-				"127.0.0.1:6062",
-				client,
-			)
+			_, loadError = cache.Load(t.Context(), identity)
 		})
 
 		t.Run("Then the client returns the close error", func(t *testing.T) {
