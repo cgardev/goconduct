@@ -87,14 +87,29 @@ func newFunctionAccumulators(declarations []functionDeclaration) map[string]*fun
 }
 
 func mergeFunctionDeclarations(first, second functionDeclaration) functionDeclaration {
-	if !first.inAnalysisScope && second.inAnalysisScope {
+	if first.inAnalysisScope != second.inAnalysisScope {
+		if second.inAnalysisScope {
+			return second
+		}
+		return first
+	}
+	if compareFunctionDeclarationSource(second, first) == -1 {
 		return second
 	}
-	if first.relativePath == "" && second.relativePath != "" {
-		first.relativePath = second.relativePath
-		first.line = second.line
-	}
 	return first
+}
+
+func compareFunctionDeclarationSource(first, second functionDeclaration) int {
+	if first.relativePath == second.relativePath {
+		return cmp.Compare(first.line, second.line)
+	}
+	if first.relativePath == "" {
+		return 1
+	}
+	if second.relativePath == "" {
+		return -1
+	}
+	return strings.Compare(first.relativePath, second.relativePath)
 }
 
 func collectFunctionReferences(
@@ -402,5 +417,5 @@ func attachCallToComponents(components map[string]*Component, call FunctionCall)
 }
 
 // mutate4go-manifest-begin
-// {"version":1,"tested_at":"2026-08-21T10:28:59Z","module_hash":"9f3f1d5f4b6a8e670d886f6cf2ac3a0c8fdb1f5e9cccfbf2b7c65032176dc929","functions":[{"id":"func/calculateFunctionGraph","name":"calculateFunctionGraph","line":57,"end_line":66,"hash":"a72f3dae7165acda271bdf26da1eaeb7841876447ad7a7f675b9de8d5c43678c"},{"id":"func/newFunctionAccumulators","name":"newFunctionAccumulators","line":68,"end_line":87,"hash":"03542aceab7ce5cc9fcb65e3d006f8c950bf55d98dd4e7d955c07f83eb9999c6"},{"id":"func/mergeFunctionDeclarations","name":"mergeFunctionDeclarations","line":89,"end_line":98,"hash":"0785d9c03694ea7a5700bdba145de7271c2bebe1b7f5d866b1986c7178e76a23"},{"id":"func/collectFunctionReferences","name":"collectFunctionReferences","line":100,"end_line":117,"hash":"ef61db8381c387a08009f1778b9da8cbb3d1f5433a3566fa3c7874b58fe4c0fc"},{"id":"func/collectFunctionCallSite","name":"collectFunctionCallSite","line":119,"end_line":131,"hash":"3f405d3e9373f9cef7d23acf2efb5f5e395b66f2baf104fef58ea2cf3e70539b"},{"id":"func/collectFunctionCoupling","name":"collectFunctionCoupling","line":133,"end_line":150,"hash":"1ebab62852773dd37dd9cb77b72c2cefa7a35b14824e064bd0bc6c80891ed71b"},{"id":"func/collectFunctionCall","name":"collectFunctionCall","line":152,"end_line":165,"hash":"d48ee773d1b8794700c4677cb0f707d950f82465b774559020ff01ec93604a14"},{"id":"func/buildFunctions","name":"buildFunctions","line":167,"end_line":213,"hash":"1046f6473c4297f7bca9dda2fbba91a6d610038ba639be8e105740ba59ebdd97"},{"id":"func/functionAdjacency","name":"functionAdjacency","line":215,"end_line":228,"hash":"ae84aaba78b449c9ab47fbc2c51f661dc1626c17d4742110cd455007c8cde374"},{"id":"func/reverseFunctionAdjacency","name":"reverseFunctionAdjacency","line":230,"end_line":241,"hash":"f1d79214ba8f5fe9daef69de70e87895441dc9f763ce694aca52d4a56f4a8f50"},{"id":"func/buildFunctionCalls","name":"buildFunctionCalls","line":243,"end_line":269,"hash":"fbe5c29e12bb4c3a82552b4536f2f15dfb060fc017aea8ae1d1864166f0b9c29"},{"id":"func/compareFunctionCallKeys","name":"compareFunctionCallKeys","line":271,"end_line":283,"hash":"52616209dd2fa52b8ac7af050b6ab2097c240e03cb50c6b8a7840dcd4aff5e12"},{"id":"func/sortedCallSites","name":"sortedCallSites","line":285,"end_line":298,"hash":"a82ad55f41f29f8ffe5e10ce7441b7229864a73c7cc85b41dd0ec3b3c2eb262e"},{"id":"func/attachFunctionMetrics","name":"attachFunctionMetrics","line":300,"end_line":312,"hash":"a674e3a5225dadc70af61eb1930fa861327262a5e5d66800aa11b8ecf87d3282"},{"id":"func/attachFunctionApplicationUsage","name":"attachFunctionApplicationUsage","line":314,"end_line":341,"hash":"3e3fdef9fa3b358fca10f4d888088c6768c87c79881c2b6a52bf423d3b5567ad"},{"id":"func/attachFunctionToComponent","name":"attachFunctionToComponent","line":343,"end_line":352,"hash":"fe8bc0b651c20ac25a0235625a82f646430bd3bf602cbbce2ba13039a7dc8347"},{"id":"func/attachFunctionCalls","name":"attachFunctionCalls","line":354,"end_line":387,"hash":"ce180a02b7798adfc1c8ae020a9b76aadd4001ea413caacf8c164b7e19befdf4"},{"id":"func/attachCallToComponents","name":"attachCallToComponents","line":389,"end_line":402,"hash":"3f96a3995699a1bda7a0d5962aa6c1676834dec4b648a369069e7a92dbc7417c"}]}
+// {"version":1,"tested_at":"2026-08-21T14:18:05Z","module_hash":"06ba306c542996bf65dba4d46d9859abccc0a51c92098db5f28a6b28373e6bd7","functions":[{"id":"func/calculateFunctionGraph","name":"calculateFunctionGraph","line":57,"end_line":66,"hash":"a72f3dae7165acda271bdf26da1eaeb7841876447ad7a7f675b9de8d5c43678c"},{"id":"func/newFunctionAccumulators","name":"newFunctionAccumulators","line":68,"end_line":87,"hash":"03542aceab7ce5cc9fcb65e3d006f8c950bf55d98dd4e7d955c07f83eb9999c6"},{"id":"func/mergeFunctionDeclarations","name":"mergeFunctionDeclarations","line":89,"end_line":100,"hash":"42a3df86f7f28027ad9db03cf1369f3b91f2bd5055ed8d32a78763f03ee69805"},{"id":"func/compareFunctionDeclarationSource","name":"compareFunctionDeclarationSource","line":102,"end_line":113,"hash":"177ea326df01e5c2c3ec1b10ed1c1fe2fb027e4f013390e7209894c5f10eba97"},{"id":"func/collectFunctionReferences","name":"collectFunctionReferences","line":115,"end_line":132,"hash":"ef61db8381c387a08009f1778b9da8cbb3d1f5433a3566fa3c7874b58fe4c0fc"},{"id":"func/collectFunctionCallSite","name":"collectFunctionCallSite","line":134,"end_line":146,"hash":"3f405d3e9373f9cef7d23acf2efb5f5e395b66f2baf104fef58ea2cf3e70539b"},{"id":"func/collectFunctionCoupling","name":"collectFunctionCoupling","line":148,"end_line":165,"hash":"1ebab62852773dd37dd9cb77b72c2cefa7a35b14824e064bd0bc6c80891ed71b"},{"id":"func/collectFunctionCall","name":"collectFunctionCall","line":167,"end_line":180,"hash":"d48ee773d1b8794700c4677cb0f707d950f82465b774559020ff01ec93604a14"},{"id":"func/buildFunctions","name":"buildFunctions","line":182,"end_line":228,"hash":"1046f6473c4297f7bca9dda2fbba91a6d610038ba639be8e105740ba59ebdd97"},{"id":"func/functionAdjacency","name":"functionAdjacency","line":230,"end_line":243,"hash":"ae84aaba78b449c9ab47fbc2c51f661dc1626c17d4742110cd455007c8cde374"},{"id":"func/reverseFunctionAdjacency","name":"reverseFunctionAdjacency","line":245,"end_line":256,"hash":"f1d79214ba8f5fe9daef69de70e87895441dc9f763ce694aca52d4a56f4a8f50"},{"id":"func/buildFunctionCalls","name":"buildFunctionCalls","line":258,"end_line":284,"hash":"fbe5c29e12bb4c3a82552b4536f2f15dfb060fc017aea8ae1d1864166f0b9c29"},{"id":"func/compareFunctionCallKeys","name":"compareFunctionCallKeys","line":286,"end_line":298,"hash":"52616209dd2fa52b8ac7af050b6ab2097c240e03cb50c6b8a7840dcd4aff5e12"},{"id":"func/sortedCallSites","name":"sortedCallSites","line":300,"end_line":313,"hash":"a82ad55f41f29f8ffe5e10ce7441b7229864a73c7cc85b41dd0ec3b3c2eb262e"},{"id":"func/attachFunctionMetrics","name":"attachFunctionMetrics","line":315,"end_line":327,"hash":"a674e3a5225dadc70af61eb1930fa861327262a5e5d66800aa11b8ecf87d3282"},{"id":"func/attachFunctionApplicationUsage","name":"attachFunctionApplicationUsage","line":329,"end_line":356,"hash":"3e3fdef9fa3b358fca10f4d888088c6768c87c79881c2b6a52bf423d3b5567ad"},{"id":"func/attachFunctionToComponent","name":"attachFunctionToComponent","line":358,"end_line":367,"hash":"fe8bc0b651c20ac25a0235625a82f646430bd3bf602cbbce2ba13039a7dc8347"},{"id":"func/attachFunctionCalls","name":"attachFunctionCalls","line":369,"end_line":402,"hash":"ce180a02b7798adfc1c8ae020a9b76aadd4001ea413caacf8c164b7e19befdf4"},{"id":"func/attachCallToComponents","name":"attachCallToComponents","line":404,"end_line":417,"hash":"3f96a3995699a1bda7a0d5962aa6c1676834dec4b648a369069e7a92dbc7417c"}]}
 // mutate4go-manifest-end

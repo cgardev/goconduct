@@ -1,0 +1,138 @@
+# Dependency Graph
+
+This development tool analyzes Go components, imports, resolved function calls, coupling, and
+architecture findings.
+
+Run all commands from the repository root. Use the Go version declared in the root `go.mod` file.
+
+## Start the dashboard
+
+Run the tool without a subcommand:
+
+```sh
+go run ./internal/devtool/dependencygraph
+```
+
+Open <http://127.0.0.1:6062> in a web browser. Keep the command active while the dashboard is in use.
+
+Use `Ctrl+C` to stop the server.
+
+## Query the active graph
+
+Open a second terminal while the server is active. The following command reads the cached graph:
+
+```sh
+go run ./internal/devtool/dependencygraph summary --cache server
+```
+
+List the components with the highest afferent coupling:
+
+```sh
+go run ./internal/devtool/dependencygraph components \
+  --cache server \
+  --sort afferent \
+  --limit 10
+```
+
+List the most used functions:
+
+```sh
+go run ./internal/devtool/dependencygraph functions \
+  --cache server \
+  --sort incoming-calls \
+  --limit 10
+```
+
+Inspect one function and its direct callers and callees:
+
+```sh
+go run ./internal/devtool/dependencygraph function \
+  internal/library/foundationdomain.NewError \
+  --cache server
+```
+
+List exact calls between two components:
+
+```sh
+go run ./internal/devtool/dependencygraph calls \
+  --cache server \
+  --source-component cmd/cloudcontrol \
+  --target-component internal/library/foundationdomain \
+  --limit 20
+```
+
+These commands return filtered JSON. No external JSON filtering tool is necessary.
+
+## Select the analysis scope
+
+Repeat `--analysis-path` to replace the default paths. Repeat `--ignore-path` to replace the
+default exclusions.
+
+```sh
+go run ./internal/devtool/dependencygraph \
+  --analysis-path cmd \
+  --analysis-path internal/module \
+  --analysis-path internal/library \
+  --ignore-path vendor \
+  --ignore-path generated
+```
+
+Use the same scope parameters for the server and each cached query. A different scope makes the
+cache incompatible.
+
+Use local mode for an independent analysis:
+
+```sh
+go run ./internal/devtool/dependencygraph functions \
+  --analysis-path internal/devtool/dependencygraph \
+  --cache local \
+  --sort outgoing-calls \
+  --limit 10
+```
+
+## Use a configuration document
+
+The default configuration path is `configuration.json` in the current directory.
+
+```json
+{
+  "server": {
+    "address": "127.0.0.1:6062",
+    "refreshInterval": "750ms"
+  },
+  "cache": {
+    "mode": "auto",
+    "requestTimeout": "2s"
+  },
+  "analysis": {
+    "repositoryRoot": ".",
+    "paths": ["cmd", "internal"],
+    "ignoredPaths": ["vendor", "generated"]
+  }
+}
+```
+
+Select another document with `--configuration`:
+
+```sh
+go run ./internal/devtool/dependencygraph \
+  --configuration dependencygraph.json
+```
+
+Use `configuration-schema` to print the complete configuration schema:
+
+```sh
+go run ./internal/devtool/dependencygraph configuration-schema
+```
+
+## Cache modes
+
+- `auto` reads a compatible server cache and uses local analysis when the cache is unavailable.
+- `server` requires a compatible server cache and returns an error when the cache is unavailable.
+- `local` always calculates the graph in the current process.
+
+## Run the module tests
+
+```sh
+go test ./internal/devtool/dependencygraph
+```

@@ -142,6 +142,46 @@ func TestFunctionCalculation_MergeDeclarations(t *testing.T) {
 	})
 }
 
+func TestFunctionCalculation_MergeDeclarationsDeterministically(t *testing.T) {
+	t.Run("Scenario: Two anonymous interface methods have the same function identifier", func(t *testing.T) {
+		var earlier functionDeclaration
+		var later functionDeclaration
+		var forward functionDeclaration
+		var reverse functionDeclaration
+
+		t.Run("Given two declarations at different lines in the same source file", func(*testing.T) {
+			earlier = functionDeclaration{
+				identifier:      "internal/devtool/dependencygraph.interface{ExecuteContext() error}.ExecuteContext",
+				relativePath:    "internal/devtool/dependencygraph/main_test.go",
+				line:            183,
+				test:            true,
+				inAnalysisScope: true,
+			}
+			later = earlier
+			later.line = 216
+		})
+
+		t.Run("When the calculator merges the declarations in both orders", func(*testing.T) {
+			forward = mergeFunctionDeclarations(earlier, later)
+			reverse = mergeFunctionDeclarations(later, earlier)
+		})
+
+		if !t.Run("Then both orders select the same declaration", func(t *testing.T) {
+			if !reflect.DeepEqual(forward, reverse) {
+				t.Fatalf("merged declarations differ: %+v and %+v", forward, reverse)
+			}
+		}) {
+			return
+		}
+
+		t.Run("And the selected declaration has the first source position", func(t *testing.T) {
+			if forward.relativePath != earlier.relativePath || forward.line != earlier.line {
+				t.Errorf("selected declaration is %+v, want %+v", forward, earlier)
+			}
+		})
+	})
+}
+
 func TestFunctionCalculation_RejectUnknownReferences(t *testing.T) {
 	t.Run("Scenario: A type result refers to a function outside the loaded graph", func(t *testing.T) {
 		var functions []Function
