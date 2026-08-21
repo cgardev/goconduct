@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>Strategic design map</title>
+  <link rel="stylesheet" href="/assets/app.css">
+  <script src="/assets/app.js" defer></script>
+</head>
+<body>
+  <main class="dashboard">
+    <header class="dashboard__header">
+      <div class="brand">
+        <span class="brand__mark" aria-hidden="true">01</span>
+        <div class="brand__copy">
+          <p class="brand__eyebrow">Architecture observatory / System 01</p>
+          <h1 class="brand__title">Strategic design map</h1>
+          <p class="brand__module" id="modulePath">Loading module…</p>
+        </div>
+      </div>
+      <div class="connection-status" id="connectionStatus" data-state="connecting">
+        <span class="connection-status__indicator" aria-hidden="true"></span>
+        <span class="connection-status__label" id="connectionLabel">Connecting</span>
+        <span class="connection-status__revision" id="revisionLabel"></span>
+      </div>
+    </header>
+
+    <section class="summary" id="summary" aria-label="Design summary">
+      <article class="summary__card">
+        <span class="summary__label">Components</span>
+        <strong class="summary__value" id="summaryComponents">—</strong>
+        <span class="summary__note" id="summaryKinds">Analyzing components</span>
+      </article>
+      <article class="summary__card">
+        <span class="summary__label">Relationships</span>
+        <strong class="summary__value" id="summaryRelationships">—</strong>
+        <span class="summary__note" id="summaryTests">Production and test code</span>
+      </article>
+      <article class="summary__card">
+        <span class="summary__label">Largest reach</span>
+        <strong class="summary__value summary__value--name" id="summaryReach">—</strong>
+        <span class="summary__note" id="summaryReachNote">Applications reached</span>
+      </article>
+      <article class="summary__card">
+        <span class="summary__label">Design alerts</span>
+        <strong class="summary__value" id="summaryConcerns">—</strong>
+        <span class="summary__note" id="summaryCycles">Cycles and layer alerts</span>
+      </article>
+    </section>
+
+    <section class="toolbar" aria-label="Map filters">
+      <label class="toolbar__search">
+        <span class="toolbar__search-label">Search</span>
+        <input
+          class="toolbar__search-input"
+          id="searchInput"
+          type="search"
+          placeholder="Name, path, or application"
+          autocomplete="off"
+        >
+        <span class="toolbar__shortcut" aria-hidden="true">/</span>
+      </label>
+      <div class="toolbar__kinds" id="kindFilters" aria-label="Component types"></div>
+      <label class="toolbar__toggle">
+        <input class="toolbar__toggle-input" id="testToggle" type="checkbox" checked>
+        <span class="toolbar__toggle-control" aria-hidden="true"></span>
+        <span class="toolbar__toggle-label">Include test relationships</span>
+      </label>
+    </section>
+
+    <section class="dashboard__workspace">
+      <section class="graph-panel" aria-labelledby="graphTitle">
+        <header class="graph-panel__header">
+          <div>
+            <p class="graph-panel__eyebrow">Dependency flow</p>
+            <h2 class="graph-panel__title" id="graphTitle">Component import map</h2>
+          </div>
+          <div class="graph-controls" aria-label="Map controls">
+            <button class="graph-controls__button" id="zoomOut" type="button" aria-label="Zoom out">−</button>
+            <button class="graph-controls__button" id="fitGraph" type="button">Fit</button>
+            <button class="graph-controls__button" id="zoomIn" type="button" aria-label="Zoom in">+</button>
+          </div>
+        </header>
+        <div
+          class="graph-panel__viewport"
+          id="graphViewport"
+          tabindex="0"
+          aria-label="Dependency graph. Drag to move. Use the wheel to zoom."
+        >
+          <svg class="dependency-map" id="dependencyMap" role="img" aria-labelledby="graphTitle"></svg>
+          <div class="graph-panel__empty" id="graphEmpty" hidden>
+            No component matches these filters.
+          </div>
+        </div>
+        <footer class="graph-panel__footer">
+          <div class="legend" id="legend" aria-label="Legend"></div>
+          <div class="edge-legend" aria-label="Relationship types">
+            <span class="edge-legend__item">
+              <span class="edge-legend__line" aria-hidden="true"></span>
+              Production
+            </span>
+            <span class="edge-legend__item">
+              <span class="edge-legend__line edge-legend__line--test" aria-hidden="true"></span>
+              Test only
+            </span>
+            <span class="edge-legend__item">
+              <span class="edge-legend__line edge-legend__line--concern" aria-hidden="true"></span>
+              Design alert
+            </span>
+          </div>
+        </footer>
+      </section>
+
+      <aside class="insight-panel" aria-label="Component analysis">
+        <section class="detail" id="detailPanel">
+          <div class="detail__empty">
+            <span class="detail__empty-mark" aria-hidden="true">↗</span>
+            <h2 class="detail__empty-title">Select a component</h2>
+            <p class="detail__empty-copy">
+              Review its dependencies, consumers, and application impact.
+            </p>
+          </div>
+        </section>
+
+        <section class="ranking" aria-labelledby="rankingTitle">
+          <header class="ranking__header">
+            <p class="ranking__eyebrow">Reuse</p>
+            <h2 class="ranking__title" id="rankingTitle">Most used components</h2>
+          </header>
+          <ol class="ranking__list" id="usageRanking"></ol>
+        </section>
+
+        <section class="ranking" aria-labelledby="unusedTitle">
+          <header class="ranking__header">
+            <p class="ranking__eyebrow">Review</p>
+            <h2 class="ranking__title" id="unusedTitle">No production consumers</h2>
+          </header>
+          <ul class="ranking__list" id="unusedRanking"></ul>
+        </section>
+      </aside>
+    </section>
+
+    <section class="diagnostics" id="diagnostics" hidden>
+      <details class="diagnostics__details">
+        <summary class="diagnostics__summary" id="diagnosticsSummary"></summary>
+        <ul class="diagnostics__list" id="diagnosticsList"></ul>
+      </details>
+    </section>
+
+    <footer class="dashboard__footer">
+      <span>Local analysis · Deterministic revision</span>
+      <span>The arrow points to the imported component</span>
+    </footer>
+  </main>
+</body>
+</html>
