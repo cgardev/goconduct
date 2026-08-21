@@ -59,7 +59,7 @@ func TestAnalyzer_AnalyzeStableStrategicMetrics(t *testing.T) {
 			if first.SchemaVersion != graphSchemaVersion {
 				t.Fatalf("schema version %d does not match the configured version", first.SchemaVersion)
 			}
-			if first.SchemaVersion != 2 {
+			if first.SchemaVersion != 3 {
 				t.Fatalf("unexpected graph schema version %d", first.SchemaVersion)
 			}
 		}) {
@@ -85,6 +85,14 @@ func TestAnalyzer_AnalyzeStableStrategicMetrics(t *testing.T) {
 					"stability risks are %d SDP violations and %d pain zones, want 0 and 1",
 					first.Summary.StableDependencyViolations,
 					first.Summary.ZonesOfPain,
+				)
+			}
+			if first.Summary.Findings != 3 || first.Summary.Errors != 1 || first.Summary.Warnings != 2 {
+				t.Errorf(
+					"findings are %d total, %d errors, and %d warnings; want 3, 1, and 2",
+					first.Summary.Findings,
+					first.Summary.Errors,
+					first.Summary.Warnings,
 				)
 			}
 			if first.Summary.Applications != 1 || first.Summary.ApplicationModules != 1 ||
@@ -171,6 +179,31 @@ func TestAnalyzer_AnalyzeStableStrategicMetrics(t *testing.T) {
 			)
 			if !slices.Equal(layerConcern.Concerns, []string{"library-depends-on-feature"}) {
 				t.Errorf("unexpected layer concern: %v", layerConcern.Concerns)
+			}
+		})
+
+		t.Run("And findings provide stable machine-readable rule identifiers", func(t *testing.T) {
+			rules := make([]string, 0, len(first.Findings))
+			for _, finding := range first.Findings {
+				rules = append(rules, finding.Rule)
+			}
+			want := []string{"dependency-cycle", "library-depends-on-feature", "zone-of-pain"}
+			if !slices.Equal(rules, want) {
+				t.Errorf("finding rules are %v, want %v", rules, want)
+			}
+		})
+
+		t.Run("And the graph declares its exact mathematical policy", func(t *testing.T) {
+			if first.Policy.InstabilityFormula != "Ce/(Ca+Ce)" ||
+				first.Policy.IsolatedInstability != 0 ||
+				first.Policy.MainSequenceDistanceFormula != "abs(A+I-1)" ||
+				first.Policy.UntypedAbstractness != 0 ||
+				first.Policy.ZoneOfPain.MaximumInstability != 0.2 ||
+				first.Policy.ZoneOfPain.MaximumAbstractness != 0.2 ||
+				!first.Policy.StableDependency.ProductionOnly ||
+				first.Policy.StableDependency.RequiredRelation !=
+					"targetInstability <= sourceInstability" {
+				t.Errorf("unexpected mathematical policy: %+v", first.Policy)
 			}
 		})
 	})

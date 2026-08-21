@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="color-scheme" content="dark">
+  <meta name="color-scheme" content="dark light">
   <title>Strategic design map</title>
   <link rel="stylesheet" href="/assets/app.css">
   <script src="/assets/app.js" defer></script>
@@ -19,10 +19,30 @@
           <p class="brand__module" id="modulePath">Loading module…</p>
         </div>
       </div>
-      <div class="connection-status" id="connectionStatus" data-state="connecting">
-        <span class="connection-status__indicator" aria-hidden="true"></span>
-        <span class="connection-status__label" id="connectionLabel">Connecting</span>
-        <span class="connection-status__revision" id="revisionLabel"></span>
+      <div class="dashboard__status">
+        <div class="theme-switch" role="group" aria-label="Colour theme">
+          <button
+            class="theme-switch__button"
+            id="lightTheme"
+            type="button"
+            aria-pressed="false"
+          >
+            Light
+          </button>
+          <button
+            class="theme-switch__button"
+            id="darkTheme"
+            type="button"
+            aria-pressed="true"
+          >
+            Dark
+          </button>
+        </div>
+        <div class="connection-status" id="connectionStatus" data-state="connecting">
+          <span class="connection-status__indicator" aria-hidden="true"></span>
+          <span class="connection-status__label" id="connectionLabel">Connecting</span>
+          <span class="connection-status__revision" id="revisionLabel"></span>
+        </div>
       </div>
     </header>
 

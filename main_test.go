@@ -105,6 +105,20 @@ func TestRootCommand_RejectInvalidArguments(t *testing.T) {
 			},
 			want: "unknown command",
 		},
+		{
+			name: "the analysis view is unknown",
+			args: func(*testing.T) []string {
+				return []string{"analyze", "--view", "unknown"}
+			},
+			want: "must be report or graph",
+		},
+		{
+			name: "the finding threshold is unknown",
+			args: func(*testing.T) []string {
+				return []string{"analyze", "--fail-on", "unknown"}
+			},
+			want: "must be none, warning, or error",
+		},
 	}
 	for _, testCase := range testCases {
 		t.Run("Scenario: "+testCase.name, func(t *testing.T) {

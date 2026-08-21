@@ -129,6 +129,19 @@ func TestDashboard_ServeHTTPResources(t *testing.T) {
 				}
 			}
 		})
+
+		t.Run("And both colour theme controls are present", func(t *testing.T) {
+			for _, marker := range []string{
+				`data-theme="dark"`,
+				`id="lightTheme"`,
+				`id="darkTheme"`,
+				`aria-label="Colour theme"`,
+			} {
+				if !strings.Contains(string(document), marker) {
+					t.Errorf("the dashboard document does not contain %q", marker)
+				}
+			}
+		})
 	})
 
 	t.Run("Scenario: A client requests both embedded static assets", func(t *testing.T) {
@@ -184,6 +197,27 @@ func TestDashboard_ServeHTTPResources(t *testing.T) {
 				)
 			}
 		})
+
+		t.Run("And the assets support persistent light and dark themes", func(t *testing.T) {
+			for _, marker := range []string{
+				`:root[data-theme="light"]`,
+				`--color-background: #ffffff`,
+				`--color-background: #000000`,
+			} {
+				if !strings.Contains(string(style), marker) {
+					t.Errorf("the dashboard stylesheet does not contain %q", marker)
+				}
+			}
+			for _, marker := range []string{
+				`dependencygraph-theme`,
+				`window.localStorage.getItem`,
+				`window.localStorage.setItem`,
+			} {
+				if !strings.Contains(string(script), marker) {
+					t.Errorf("the dashboard script does not contain %q", marker)
+				}
+			}
+		})
 	})
 
 	t.Run("Scenario: A client requests the current dependency graph", func(t *testing.T) {
@@ -230,6 +264,16 @@ func TestDashboard_ServeHTTPResources(t *testing.T) {
 		t.Run("And the response revision matches the monitor", func(t *testing.T) {
 			if graph.Revision != monitor.currentGraph().Revision {
 				t.Errorf("graph response revision %q does not match the monitor", graph.Revision)
+			}
+		})
+
+		t.Run("And the HTTP transport exposes the same machine findings", func(t *testing.T) {
+			if graph.Summary.Findings != 3 || len(graph.Findings) != 3 {
+				t.Errorf(
+					"HTTP graph has %d summary findings and %d details, want 3 and 3",
+					graph.Summary.Findings,
+					len(graph.Findings),
+				)
 			}
 		})
 	})

@@ -1,4 +1,5 @@
 :root {
+  color-scheme: dark;
   --color-background: #000000;
   --color-surface: #090909;
   --color-surface-raised: #111111;
@@ -9,6 +10,7 @@
   --color-text-muted: #a6a6a6;
   --color-text-soft: #707070;
   --color-accent: #f2f2f2;
+  --color-accent-contrast: #000000;
   --color-accent-soft: #171717;
   --color-live: #9ae6b4;
   --color-warning: #e8ca8a;
@@ -39,6 +41,34 @@
   --panel-min-height: 42rem;
   --sidebar-width: 21rem;
   --control-height: 2.5rem;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --color-background: #ffffff;
+  --color-surface: #fafaf8;
+  --color-surface-raised: #f3f3f0;
+  --color-surface-soft: #eaeae6;
+  --color-border: #deded9;
+  --color-border-strong: #969691;
+  --color-text: #111111;
+  --color-text-muted: #50504d;
+  --color-text-soft: #6b6b67;
+  --color-accent: #111111;
+  --color-accent-contrast: #ffffff;
+  --color-accent-soft: #ededeb;
+  --color-live: #18794e;
+  --color-warning: #815500;
+  --color-danger: #b42335;
+  --color-test: #70706c;
+  --color-shadow: rgba(17, 17, 17, 0.16);
+  --color-grid: rgba(17, 17, 17, 0.065);
+  --color-application: #295e91;
+  --color-application-module: #247340;
+  --color-shared-module: #16756a;
+  --color-library: #6c5292;
+  --color-infrastructure: #895b18;
+  --color-development: #984d3c;
 }
 
 * {
@@ -92,6 +122,39 @@ input:focus-visible,
   margin-bottom: var(--space-8);
   padding-bottom: var(--space-6);
   border-bottom: 0.0625rem solid var(--color-border);
+}
+
+.dashboard__status {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.theme-switch {
+  display: inline-flex;
+  padding: 0.18rem;
+  border: 0.0625rem solid var(--color-border);
+  border-radius: var(--radius-small);
+  background: var(--color-surface);
+}
+
+.theme-switch__button {
+  height: 2rem;
+  padding: 0 var(--space-3);
+  border: 0;
+  border-radius: 0.24rem;
+  color: var(--color-text-soft);
+  background: transparent;
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.04em;
+  transition: color var(--transition-fast), background var(--transition-fast);
+}
+
+.theme-switch__button[aria-pressed="true"] {
+  color: var(--color-accent-contrast);
+  background: var(--color-accent);
 }
 
 .brand {
@@ -1224,6 +1287,12 @@ input:focus-visible,
   .connection-status {
     align-self: stretch;
     justify-content: start;
+  }
+
+  .dashboard__status {
+    width: 100%;
+    flex-wrap: wrap;
+    justify-content: space-between;
   }
 
   .connection-status__revision {

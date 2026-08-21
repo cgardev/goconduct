@@ -2,6 +2,8 @@
 
 const svgNamespace = "http://www.w3.org/2000/svg";
 const numberFormatter = new Intl.NumberFormat("en-GB");
+const themeStorageKey = "dependencygraph-theme";
+const supportedThemes = new Set(["light", "dark"]);
 
 const kindDefinitions = [
   { identifier: "application", label: "Application", plural: "Applications" },
@@ -120,6 +122,8 @@ const elements = {
   diagnostics: document.getElementById("diagnostics"),
   diagnosticsSummary: document.getElementById("diagnosticsSummary"),
   diagnosticsList: document.getElementById("diagnosticsList"),
+  lightTheme: document.getElementById("lightTheme"),
+  darkTheme: document.getElementById("darkTheme"),
 };
 
 const state = {
@@ -157,6 +161,30 @@ function createSvgElement(tagName, className) {
     element.setAttribute("class", className);
   }
   return element;
+}
+
+function storedTheme() {
+  try {
+    const theme = window.localStorage.getItem(themeStorageKey);
+    return supportedThemes.has(theme) ? theme : "dark";
+  } catch {
+    return "dark";
+  }
+}
+
+function setTheme(theme, persist) {
+  const selectedTheme = supportedThemes.has(theme) ? theme : "dark";
+  document.documentElement.dataset.theme = selectedTheme;
+  elements.lightTheme.setAttribute("aria-pressed", String(selectedTheme === "light"));
+  elements.darkTheme.setAttribute("aria-pressed", String(selectedTheme === "dark"));
+  if (!persist) {
+    return;
+  }
+  try {
+    window.localStorage.setItem(themeStorageKey, selectedTheme);
+  } catch {
+    // The selected theme still applies when browser storage is unavailable.
+  }
 }
 
 function kindDefinition(identifier) {
@@ -530,11 +558,11 @@ function renderSummary() {
     : "No shared component";
 
   elements.summaryConcerns.textContent = numberFormatter.format(
-    summary.concerns + summary.cycles + summary.zonesOfPain,
+    summary.findings,
   );
   elements.summaryCycles.textContent =
-    `${summary.stableDependencyViolations} SDP violations · ` +
-    `${summary.zonesOfPain} pain-zone components · ${summary.cycles} cycles`;
+    `${summary.errors} errors · ${summary.warnings} warnings · ` +
+    `${summary.stableDependencyViolations} SDP violations`;
   elements.revisionLabel.textContent = `revision ${state.graph.revision.slice(0, 12)}`;
 }
 
@@ -1322,6 +1350,8 @@ elements.testToggle.addEventListener("change", () => {
 
 elements.impactView.addEventListener("click", () => setViewMode("impact"));
 elements.dependencyView.addEventListener("click", () => setViewMode("dependencies"));
+elements.lightTheme.addEventListener("click", () => setTheme("light", true));
+elements.darkTheme.addEventListener("click", () => setTheme("dark", true));
 
 elements.impactMetric.addEventListener("change", () => {
   if (!impactMetricDefinitions[elements.impactMetric.value]) {
@@ -1420,6 +1450,7 @@ new ResizeObserver(() => {
   }
 }).observe(elements.graphViewport);
 
+setTheme(storedTheme(), false);
 setConnectionState("connecting", "Connecting");
 requestGraph();
 connectEventStream();
