@@ -12,7 +12,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var errArchitectureFindings = errors.New("architecture findings meet the failure threshold")
+var errArchitectureFindings = errors.New("architecture findings exceed the failure threshold")
 
 type analysisView string
 
@@ -53,12 +53,12 @@ func newRootCommand(logger *slog.Logger) *cobra.Command {
 	var refreshIntervalOverride time.Duration
 	command := &cobra.Command{
 		Use:           "dependencygraph",
-		Short:         "Analyze and visualize strategic Go dependencies",
+		Short:         "Analyze Go component imports and resolved function calls.",
 		SilenceErrors: true,
 		SilenceUsage:  true,
 		Args:          cobra.NoArgs,
 		RunE: func(command *cobra.Command, _ []string) error {
-			configuration, err := options.load(command)
+			configuration, err := options.loadConfiguration(command)
 			if err != nil {
 				return err
 			}
@@ -93,37 +93,37 @@ func newRootCommand(logger *slog.Logger) *cobra.Command {
 		&addressOverride,
 		"address",
 		defaults.Server.Address,
-		"local dashboard address, overriding the configuration document",
+		"Use this local dashboard address instead of the configured address.",
 	)
 	command.Flags().DurationVar(
 		&refreshIntervalOverride,
 		"refresh-interval",
 		defaults.Server.RefreshInterval,
-		"source refresh interval, overriding the configuration document",
+		"Use this file check interval instead of the configured interval.",
 	)
 	command.PersistentFlags().StringVar(
 		&options.configurationPath,
 		"configuration",
 		defaultConfigurationPath,
-		"path to the optional JSON configuration document",
+		"Read the optional JavaScript Object Notation (JSON) configuration from this path.",
 	)
 	command.PersistentFlags().StringVar(
 		&options.repositoryRoot,
 		"root",
 		defaults.Analysis.RepositoryRoot,
-		"repository root, overriding the configuration document",
+		"Use this repository root instead of the configured root.",
 	)
 	command.PersistentFlags().StringArrayVar(
 		&options.analysisPaths,
 		"analysis-path",
 		nil,
-		"repository-relative analysis path; repeat to replace configured paths",
+		"Analyze this repository-relative path. Repeat this option to replace all configured paths.",
 	)
 	command.PersistentFlags().StringArrayVar(
 		&options.ignoredPaths,
 		"ignore-path",
 		nil,
-		"ignored path pattern; repeat to replace configured exclusions",
+		"Ignore this path pattern. Repeat this option to replace all configured patterns.",
 	)
 	command.AddCommand(
 		newAnalyzeCommand(options),
@@ -131,12 +131,17 @@ func newRootCommand(logger *slog.Logger) *cobra.Command {
 		newFindingsCommand(options),
 		newComponentsCommand(options),
 		newComponentCommand(options),
+		newFunctionsCommand(options),
+		newFunctionCommand(options),
+		newFunctionCallsCommand(options),
 		newConfigurationSchemaCommand(),
 	)
 	return command
 }
 
-func (options *commandConfigurationOptions) load(command *cobra.Command) (ApplicationConfiguration, error) {
+func (options *commandConfigurationOptions) loadConfiguration(
+	command *cobra.Command,
+) (ApplicationConfiguration, error) {
 	configuration, err := loadApplicationConfiguration(options.configurationPath)
 	if err != nil {
 		return ApplicationConfiguration{}, err
@@ -155,23 +160,23 @@ func (options *commandConfigurationOptions) load(command *cobra.Command) (Applic
 }
 
 func newAnalyzeCommand(options *commandConfigurationOptions) *cobra.Command {
-	var view string
-	var failOn string
-	var pretty bool
+	var requestedView string
+	var failureThreshold string
+	var indentOutput bool
 	command := &cobra.Command{
 		Use:   "analyze",
-		Short: "Emit a deterministic architectural analysis as JSON",
+		Short: "Write a deterministic architecture analysis in JavaScript Object Notation (JSON).",
 		Example: "  dependencygraph analyze --configuration configuration.json\n" +
 			"  dependencygraph analyze --root . --analysis-path cmd --analysis-path internal\n" +
-			"  dependencygraph analyze --root . --view graph --pretty\n" +
+			"  dependencygraph analyze --root . --view graph --indent\n" +
 			"  dependencygraph analyze --root . --fail-on error",
 		Args: cobra.NoArgs,
 		RunE: func(command *cobra.Command, _ []string) error {
-			selectedView, err := parseAnalysisView(view)
+			selectedView, err := parseAnalysisView(requestedView)
 			if err != nil {
 				return err
 			}
-			threshold, err := parseFindingThreshold(failOn)
+			selectedThreshold, err := parseFindingThreshold(failureThreshold)
 			if err != nil {
 				return err
 			}
@@ -179,20 +184,25 @@ func newAnalyzeCommand(options *commandConfigurationOptions) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if err := writeAnalysisJSON(command.OutOrStdout(), graph, selectedView, pretty); err != nil {
+			if err := writeAnalysisJSON(command.OutOrStdout(), graph, selectedView, indentOutput); err != nil {
 				return err
 			}
-			return enforceFindingThreshold(graph.Findings, threshold)
+			return enforceFindingThreshold(graph.Findings, selectedThreshold)
 		},
 	}
-	command.Flags().StringVar(&view, "view", string(analysisViewReport), "JSON view: report or graph")
 	command.Flags().StringVar(
-		&failOn,
+		&requestedView,
+		"view",
+		string(analysisViewReport),
+		"Select the JSON view. Use report or graph.",
+	)
+	command.Flags().StringVar(
+		&failureThreshold,
 		"fail-on",
 		string(findingThresholdNone),
-		"return a failure for findings at this severity: none, warning, or error",
+		"Exit with an error for findings at this severity. Use none, warning, or error.",
 	)
-	command.Flags().BoolVar(&pretty, "pretty", false, "indent JSON output for human inspection")
+	command.Flags().BoolVar(&indentOutput, "indent", false, "Indent the JSON output.")
 	return command
 }
 
@@ -200,7 +210,7 @@ func analyzeConfiguredGraph(
 	command *cobra.Command,
 	options *commandConfigurationOptions,
 ) (Graph, error) {
-	configuration, err := options.load(command)
+	configuration, err := options.loadConfiguration(command)
 	if err != nil {
 		return Graph{}, err
 	}
@@ -214,7 +224,7 @@ func analyzeConfiguredGraph(
 func newSummaryCommand(options *commandConfigurationOptions) *cobra.Command {
 	return &cobra.Command{
 		Use:   "summary",
-		Short: "Emit the configured scope, policy, and aggregate metrics as JSON",
+		Short: "Write the configured scope, policy, and counts in JavaScript Object Notation (JSON).",
 		Args:  cobra.NoArgs,
 		RunE: func(command *cobra.Command, _ []string) error {
 			graph, err := analyzeConfiguredGraph(command, options)
@@ -233,7 +243,7 @@ func newFindingsCommand(options *commandConfigurationOptions) *cobra.Command {
 	var limit int
 	command := &cobra.Command{
 		Use:   "findings",
-		Short: "Emit filtered architectural findings as JSON",
+		Short: "Write filtered architecture findings in JavaScript Object Notation (JSON).",
 		Example: "  dependencygraph findings --severity error\n" +
 			"  dependencygraph findings --rule stable-dependency-principle\n" +
 			"  dependencygraph findings --component internal/library/foundationdomain",
@@ -250,24 +260,29 @@ func newFindingsCommand(options *commandConfigurationOptions) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			result := queryFindings(graph, findingsQuery{
+			findingQueryResult := queryFindings(graph, findingsQuery{
 				severity:  severityFilter,
 				rule:      rule,
 				component: component,
 				limit:     limit,
 			})
-			return writeQueryJSON(command.OutOrStdout(), result)
+			return writeQueryJSON(command.OutOrStdout(), findingQueryResult)
 		},
 	}
 	command.Flags().StringVar(
 		&severity,
 		"severity",
 		string(findingSeverityAllFilter),
-		"finding severity: all, warning, or error",
+		"Select the finding severity. Use all, warning, or error.",
 	)
-	command.Flags().StringVar(&rule, "rule", "", "exact finding rule identifier")
-	command.Flags().StringVar(&component, "component", "", "exact related component identifier")
-	command.Flags().IntVar(&limit, "limit", 0, "maximum findings returned; zero returns all")
+	command.Flags().StringVar(&rule, "rule", "", "Match this exact finding rule identifier.")
+	command.Flags().StringVar(&component, "component", "", "Match this exact component identifier.")
+	command.Flags().IntVar(
+		&limit,
+		"limit",
+		0,
+		"Return at most this number of findings. Zero returns all findings.",
+	)
 	return command
 }
 
@@ -277,9 +292,9 @@ func newComponentsCommand(options *commandConfigurationOptions) *cobra.Command {
 	var limit int
 	command := &cobra.Command{
 		Use:   "components",
-		Short: "Emit filtered and ranked architectural components as JSON",
+		Short: "Write filtered and sorted components in JavaScript Object Notation (JSON).",
 		Example: "  dependencygraph components --sort afferent --limit 10\n" +
-			"  dependencygraph components --kind library --sort dependants --limit 20",
+			"  dependencygraph components --kind library --sort importers --limit 20",
 		Args: cobra.NoArgs,
 		RunE: func(command *cobra.Command, _ []string) error {
 			kindFilter, err := parseComponentKindFilter(kind)
@@ -297,41 +312,53 @@ func newComponentsCommand(options *commandConfigurationOptions) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			result := queryComponents(graph, componentsQuery{
+			componentQueryResult := queryComponents(graph, componentsQuery{
 				kind:  kindFilter,
 				sort:  selectedSort,
 				limit: limit,
 			})
-			return writeQueryJSON(command.OutOrStdout(), result)
+			return writeQueryJSON(command.OutOrStdout(), componentQueryResult)
 		},
 	}
-	command.Flags().StringVar(&kind, "kind", "all", "component kind or all")
+	command.Flags().StringVar(
+		&kind,
+		"kind",
+		"all",
+		"Select this component kind. Use all to select each kind.",
+	)
 	command.Flags().StringVar(
 		&sortOrder,
 		"sort",
 		string(componentSortAfferent),
-		"ranking: identifier, afferent, efferent, dependants, dependencies, instability, abstractness, distance, or files",
+		"Select the sort field. Use identifier, afferent, efferent, importers, dependencies, "+
+			"instability, abstractness, distance, or files.",
 	)
-	command.Flags().IntVar(&limit, "limit", 20, "maximum components returned; zero returns all")
+	command.Flags().IntVar(
+		&limit,
+		"limit",
+		20,
+		"Return at most this number of components. Zero returns all components.",
+	)
 	return command
 }
 
 func newComponentCommand(options *commandConfigurationOptions) *cobra.Command {
 	return &cobra.Command{
-		Use:     "component <identifier>",
-		Short:   "Emit one component with dependencies, dependants, and findings as JSON",
+		Use: "component <identifier>",
+		Short: "Write one component, its imports, its importing components, and its findings " +
+			"in JavaScript Object Notation (JSON).",
 		Example: "  dependencygraph component internal/library/foundationdomain",
 		Args:    cobra.ExactArgs(1),
-		RunE: func(command *cobra.Command, args []string) error {
+		RunE: func(command *cobra.Command, arguments []string) error {
 			graph, err := analyzeConfiguredGraph(command, options)
 			if err != nil {
 				return err
 			}
-			result, err := queryComponent(graph, args[0])
+			componentQueryResult, err := queryComponent(graph, arguments[0])
 			if err != nil {
 				return err
 			}
-			return writeQueryJSON(command.OutOrStdout(), result)
+			return writeQueryJSON(command.OutOrStdout(), componentQueryResult)
 		},
 	}
 }
@@ -343,11 +370,11 @@ func validateQueryLimit(limit int) error {
 	return nil
 }
 
-func writeQueryJSON(output io.Writer, payload any) error {
+func writeQueryJSON(output io.Writer, queryResult any) error {
 	encoder := json.NewEncoder(output)
 	encoder.SetEscapeHTML(false)
 	encoder.SetIndent("", "  ")
-	if err := encoder.Encode(payload); err != nil {
+	if err := encoder.Encode(queryResult); err != nil {
 		return fmt.Errorf("encode query result: %w", err)
 	}
 	return nil
@@ -356,7 +383,7 @@ func writeQueryJSON(output io.Writer, payload any) error {
 func newConfigurationSchemaCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:   "configuration-schema",
-		Short: "Print the JSON Schema of the configuration document",
+		Short: "Write the configuration schema in JavaScript Object Notation (JSON).",
 		Args:  cobra.NoArgs,
 		RunE: func(command *cobra.Command, _ []string) error {
 			schema, err := conf.GenerateSchema(
@@ -398,14 +425,14 @@ func writeAnalysisJSON(
 	output io.Writer,
 	graph Graph,
 	view analysisView,
-	pretty bool,
+	indentOutput bool,
 ) error {
 	encoder := json.NewEncoder(output)
 	encoder.SetEscapeHTML(false)
-	if pretty {
+	if indentOutput {
 		encoder.SetIndent("", "  ")
 	}
-	var payload any = analysisReport{
+	var analysisOutput any = analysisReport{
 		SchemaVersion: graph.SchemaVersion,
 		Revision:      graph.Revision,
 		ModulePath:    graph.ModulePath,
@@ -415,10 +442,10 @@ func writeAnalysisJSON(
 		Findings:      graph.Findings,
 	}
 	if view == analysisViewGraph {
-		payload = graph
+		analysisOutput = graph
 	}
-	if err := encoder.Encode(payload); err != nil {
-		return fmt.Errorf("encode architectural analysis: %w", err)
+	if err := encoder.Encode(analysisOutput); err != nil {
+		return fmt.Errorf("encode architecture analysis: %w", err)
 	}
 	return nil
 }
@@ -445,5 +472,5 @@ func enforceFindingThreshold(findings []Finding, threshold findingThreshold) err
 }
 
 // mutate4go-manifest-begin
-// {"version":1,"tested_at":"2026-08-21T08:01:10Z","module_hash":"6533aa92e1c08fd976a38cea72701b8c704270d89372bd3a90ec71cae0e54273","functions":[{"id":"func/newRootCommand","name":"newRootCommand","line":49,"end_line":137,"hash":"a178ab3d5b4d3b3a0ce41fda352fc3efc0577d5b22ae4736f5d1e4073da38c4e"},{"id":"func/commandConfigurationOptions.load","name":"commandConfigurationOptions.load","line":139,"end_line":155,"hash":"b2b9ce48e6baedb3b5b0d47bf9dada80032b19acc7c56b02d4ca90288a36b5c5"},{"id":"func/newAnalyzeCommand","name":"newAnalyzeCommand","line":157,"end_line":197,"hash":"6d6debaac553e2f19056449e41c6e6e8637ed2c4dd16382f87e166bd70ea0029"},{"id":"func/analyzeConfiguredGraph","name":"analyzeConfiguredGraph","line":199,"end_line":212,"hash":"7ebf67bca0d8907d779d099fa2c584e547847d1caf8a817ce175edf8f41c7811"},{"id":"func/newSummaryCommand","name":"newSummaryCommand","line":214,"end_line":227,"hash":"5b98b0d570bf5da1ed01dd9fe3242cc0c95d260f15d8771bf9b1730fac7a82c5"},{"id":"func/newFindingsCommand","name":"newFindingsCommand","line":229,"end_line":272,"hash":"d5730ceae01df82947bbda241ce11dab771fc887fe6d824c760628289781aeed"},{"id":"func/newComponentsCommand","name":"newComponentsCommand","line":274,"end_line":317,"hash":"cefbd522df307465eb68eec56905f26ddb67e5a4fbef3f1896adae4de1210c7b"},{"id":"func/newComponentCommand","name":"newComponentCommand","line":319,"end_line":337,"hash":"817edb93cf5ba5902dabd855ece8cea384e2a40117460a3470e1962958bc6af3"},{"id":"func/validateQueryLimit","name":"validateQueryLimit","line":339,"end_line":344,"hash":"128deffab20785dcb9652565027ab85ad6baefb5ede20ba2baf393b2f8f0249c"},{"id":"func/writeQueryJSON","name":"writeQueryJSON","line":346,"end_line":354,"hash":"1af2f35a1e4667e2d9ec88d962d527e05757e148e989af9f5411c7b81edd619f"},{"id":"func/newConfigurationSchemaCommand","name":"newConfigurationSchemaCommand","line":356,"end_line":375,"hash":"8995331c5b7d501117c06e1145bca6530860151bc924124ac4ce2f4655ac47c9"},{"id":"func/parseAnalysisView","name":"parseAnalysisView","line":377,"end_line":385,"hash":"2e911c0bcec32108ac0be9988ef64e2daf7e3aebff83847c1116747c0ef4b6f8"},{"id":"func/parseFindingThreshold","name":"parseFindingThreshold","line":387,"end_line":395,"hash":"92e8a1de6869b3365cfabdd1bde963ec1db5877f7f070beceb78fabd2719786d"},{"id":"func/writeAnalysisJSON","name":"writeAnalysisJSON","line":397,"end_line":424,"hash":"ac47518ffcaa0936ca658aa041b0911d8483711e1b57aa79cdc26436aea0f485"},{"id":"func/enforceFindingThreshold","name":"enforceFindingThreshold","line":426,"end_line":445,"hash":"86064b18642dc0d8ce3f55626dc0ab18660bd5d2e93a462a96cacb165e5c4c51"}]}
+// {"version":1,"tested_at":"2026-08-21T10:49:44Z","module_hash":"bcef89c2abc4e53d267557f87b5b2545d718a155c35f688d92180ced8fb2b93f","functions":[{"id":"func/newRootCommand","name":"newRootCommand","line":49,"end_line":140,"hash":"0a3374868b6909ffe9f074a2f3678e10ba5750b71f49c96c0d511795c0167d49"},{"id":"func/commandConfigurationOptions.loadConfiguration","name":"commandConfigurationOptions.loadConfiguration","line":142,"end_line":160,"hash":"2796494987e6be9704583e4b8dc75885e61ce1fe6a56a27cc1068f0d9e26aa35"},{"id":"func/newAnalyzeCommand","name":"newAnalyzeCommand","line":162,"end_line":207,"hash":"ada712f5112c44f13ad437d3c43125220a51b0eb22802eda4079d9e6c912c19e"},{"id":"func/analyzeConfiguredGraph","name":"analyzeConfiguredGraph","line":209,"end_line":222,"hash":"ea7470ad64d5159e6ed063b3c0882df664d699fe00b3285aba442c65bd7c8362"},{"id":"func/newSummaryCommand","name":"newSummaryCommand","line":224,"end_line":237,"hash":"8a9c99f75eed6bf835e4ac30ed2366bd16272c9a9978c37f26813acb7b3f7403"},{"id":"func/newFindingsCommand","name":"newFindingsCommand","line":239,"end_line":287,"hash":"4f8f5270e4f7421ae34872927bc87620c57d2ddb12357b361ecaa9d8708a9a0b"},{"id":"func/newComponentsCommand","name":"newComponentsCommand","line":289,"end_line":343,"hash":"a17ef37cdc3d4a251b79621354c69052fc7d046b2b4d030a51e668c301d24f87"},{"id":"func/newComponentCommand","name":"newComponentCommand","line":345,"end_line":364,"hash":"96ea9420a45aedf7e9ade3b9d01dfa2ac19fefbad7e44f3421f02283a446d20a"},{"id":"func/validateQueryLimit","name":"validateQueryLimit","line":366,"end_line":371,"hash":"128deffab20785dcb9652565027ab85ad6baefb5ede20ba2baf393b2f8f0249c"},{"id":"func/writeQueryJSON","name":"writeQueryJSON","line":373,"end_line":381,"hash":"d47a0e9de8b39efbf32698714a9acc638d95981d4e13326fc140dce0f6e2b353"},{"id":"func/newConfigurationSchemaCommand","name":"newConfigurationSchemaCommand","line":383,"end_line":402,"hash":"28980aafb3906312da958b0d1f01ab0a0d1df7e5cc8aa7693d19cfa4782ca1c3"},{"id":"func/parseAnalysisView","name":"parseAnalysisView","line":404,"end_line":412,"hash":"2e911c0bcec32108ac0be9988ef64e2daf7e3aebff83847c1116747c0ef4b6f8"},{"id":"func/parseFindingThreshold","name":"parseFindingThreshold","line":414,"end_line":422,"hash":"92e8a1de6869b3365cfabdd1bde963ec1db5877f7f070beceb78fabd2719786d"},{"id":"func/writeAnalysisJSON","name":"writeAnalysisJSON","line":424,"end_line":451,"hash":"da7545861aca744e566b083bd56a90ea969f2de68e57204b8ff83526eede8ebc"},{"id":"func/enforceFindingThreshold","name":"enforceFindingThreshold","line":453,"end_line":472,"hash":"86064b18642dc0d8ce3f55626dc0ab18660bd5d2e93a462a96cacb165e5c4c51"}]}
 // mutate4go-manifest-end

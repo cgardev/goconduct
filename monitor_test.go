@@ -9,7 +9,7 @@ import (
 )
 
 func TestMonitor_PublishChangedRevision(t *testing.T) {
-	t.Run("Scenario: A production import is added while the monitor runs", func(t *testing.T) {
+	t.Run("Scenario: A source change adds a production import while the monitor runs", func(t *testing.T) {
 		var repositoryRoot string
 		var monitor *graphMonitor
 		var updates <-chan string
@@ -19,7 +19,7 @@ func TestMonitor_PublishChangedRevision(t *testing.T) {
 		var received bool
 		var err error
 
-		if !t.Run("Given a running monitor with one subscriber", func(step *testing.T) {
+		if !t.Run("Given an active monitor with one subscriber", func(step *testing.T) {
 			repositoryRoot = t.TempDir()
 			writeFixtureFile(step, repositoryRoot, "go.mod", "module example.com/live\n\ngo 1.26\n")
 			writeFixtureFile(step, repositoryRoot, "cmd/control/main.go", "package main\n")
@@ -31,12 +31,12 @@ func TestMonitor_PublishChangedRevision(t *testing.T) {
 			)
 			sourceAnalyzer, analyzerError := newAnalyzer(fixtureAnalysisConfiguration(repositoryRoot))
 			if analyzerError != nil {
-				step.Fatalf("newAnalyzer failed: %v", analyzerError)
+				step.Fatalf("newAnalyzer fails: %v", analyzerError)
 			}
 			logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 			monitor, err = newGraphMonitor(sourceAnalyzer, 10*time.Millisecond, logger)
 			if err != nil {
-				step.Fatalf("newGraphMonitor failed: %v", err)
+				step.Fatalf("newGraphMonitor fails: %v", err)
 			}
 			initialRevision = monitor.currentGraph().Revision
 			var unsubscribe func()
@@ -69,10 +69,10 @@ import _ "example.com/live/internal/library/logging"
 
 		if !t.Run("Then the subscriber receives a new revision", func(t *testing.T) {
 			if !received {
-				t.Fatal("the monitor did not publish the source change")
+				t.Fatal("the monitor does not publish the source change")
 			}
 			if revision == initialRevision {
-				t.Fatal("the monitor published the unchanged revision")
+				t.Fatal("the monitor publishes the unchanged revision")
 			}
 		}) {
 			return
@@ -92,7 +92,7 @@ func TestMonitor_ManageSubscriptionDelivery(t *testing.T) {
 		var revision string
 		var received bool
 
-		if !t.Run("Given a subscribed monitor and a pending source change", func(step *testing.T) {
+		if !t.Run("Given a subscribed monitor and a source change before refresh", func(step *testing.T) {
 			repositoryRoot := t.TempDir()
 			writeFixtureFile(step, repositoryRoot, "go.mod", "module example.com/live\n\ngo 1.26\n")
 			writeFixtureFile(step, repositoryRoot, "cmd/control/main.go", "package main\n")
@@ -104,12 +104,12 @@ func TestMonitor_ManageSubscriptionDelivery(t *testing.T) {
 			)
 			sourceAnalyzer, err := newAnalyzer(fixtureAnalysisConfiguration(repositoryRoot))
 			if err != nil {
-				step.Fatalf("newAnalyzer failed: %v", err)
+				step.Fatalf("newAnalyzer fails: %v", err)
 			}
 			logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 			monitor, err = newGraphMonitor(sourceAnalyzer, time.Second, logger)
 			if err != nil {
-				step.Fatalf("newGraphMonitor failed: %v", err)
+				step.Fatalf("newGraphMonitor fails: %v", err)
 			}
 			var unsubscribe func()
 			updates, unsubscribe = monitor.subscribe()
@@ -135,7 +135,7 @@ func TestMonitor_ManageSubscriptionDelivery(t *testing.T) {
 
 		if !t.Run("Then the update remains buffered for the subscriber", func(t *testing.T) {
 			if !received {
-				t.Fatal("the monitor did not buffer the update")
+				t.Fatal("the monitor does not buffer the update")
 			}
 		}) {
 			return
@@ -152,24 +152,24 @@ func TestMonitor_ManageSubscriptionDelivery(t *testing.T) {
 		})
 	})
 
-	t.Run("Scenario: A subscriber is removed before a source refresh", func(t *testing.T) {
+	t.Run("Scenario: The test removes a subscriber before a source refresh", func(t *testing.T) {
 		var monitor *graphMonitor
 		var updates <-chan string
 		var received bool
 		var revision string
 
-		if !t.Run("Given an unsubscribed monitor and a pending source change", func(step *testing.T) {
+		if !t.Run("Given a monitor with no subscriber and a source change before refresh", func(step *testing.T) {
 			repositoryRoot := t.TempDir()
 			writeFixtureFile(step, repositoryRoot, "go.mod", "module example.com/live\n\ngo 1.26\n")
 			writeFixtureFile(step, repositoryRoot, "cmd/control/main.go", "package main\n")
 			sourceAnalyzer, err := newAnalyzer(fixtureAnalysisConfiguration(repositoryRoot))
 			if err != nil {
-				step.Fatalf("newAnalyzer failed: %v", err)
+				step.Fatalf("newAnalyzer fails: %v", err)
 			}
 			logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 			monitor, err = newGraphMonitor(sourceAnalyzer, time.Second, logger)
 			if err != nil {
-				step.Fatalf("newGraphMonitor failed: %v", err)
+				step.Fatalf("newGraphMonitor fails: %v", err)
 			}
 			var unsubscribe func()
 			updates, unsubscribe = monitor.subscribe()
@@ -193,9 +193,9 @@ func TestMonitor_ManageSubscriptionDelivery(t *testing.T) {
 			}
 		})
 
-		t.Run("Then the removed subscriber receives no revision", func(t *testing.T) {
+		t.Run("Then the former subscriber receives no revision", func(t *testing.T) {
 			if received {
-				t.Fatalf("the removed subscriber received revision %q", revision)
+				t.Fatalf("the former subscriber receives revision %q", revision)
 			}
 		})
 	})

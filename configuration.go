@@ -20,19 +20,19 @@ func minimumRefreshInterval() time.Duration {
 	return 100 * time.Millisecond
 }
 
-// ApplicationConfiguration is the external configuration document of the tool.
+// ApplicationConfiguration defines the external configuration for the tool.
 type ApplicationConfiguration struct {
 	Server   ServerConfiguration   `json:"server,omitzero"`
 	Analysis AnalysisConfiguration `json:"analysis,omitzero"`
 }
 
-// ServerConfiguration controls the optional human dashboard transport.
+// ServerConfiguration defines the dashboard server.
 type ServerConfiguration struct {
 	Address         string        `json:"address,omitzero"`
 	RefreshInterval time.Duration `json:"refreshInterval,omitzero"`
 }
 
-// AnalysisConfiguration controls repository discovery and strategic grouping.
+// AnalysisConfiguration defines which files the tool analyzes and how it classifies components.
 type AnalysisConfiguration struct {
 	RepositoryRoot string                      `json:"repositoryRoot,omitzero"`
 	Paths          []string                    `json:"paths,omitzero"`
@@ -40,7 +40,7 @@ type AnalysisConfiguration struct {
 	Components     ComponentRulesConfiguration `json:"components,omitzero"`
 }
 
-// ComponentRulesConfiguration maps path templates to strategic roles.
+// ComponentRulesConfiguration maps path templates to component kinds.
 type ComponentRulesConfiguration struct {
 	Applications       []string `json:"applications,omitzero"`
 	ApplicationModules []string `json:"applicationModules,omitzero"`
@@ -92,78 +92,80 @@ func (configuration ComponentRulesConfiguration) domainRules() ComponentRules {
 	}
 }
 
-// loadApplicationConfiguration overlays an optional JSON document on the defaults.
-func loadApplicationConfiguration(path string) (ApplicationConfiguration, error) {
+func loadApplicationConfiguration(configurationPath string) (ApplicationConfiguration, error) {
 	configuration := DefaultApplicationConfiguration()
-	if err := conf.NewLoader(conf.WithOptionalFile(path)).Load(&configuration); err != nil {
+	if err := conf.NewLoader(conf.WithOptionalFile(configurationPath)).Load(&configuration); err != nil {
 		return ApplicationConfiguration{}, fmt.Errorf("load application configuration: %w", err)
 	}
 	return configuration, nil
 }
 
-// applicationSchemaDefinition documents the external configuration contract.
 func applicationSchemaDefinition() conf.SchemaDefinition {
 	return conf.SchemaDefinition{
-		Description: "Externalized configuration of the deterministic Go dependency graph tool.",
+		Description: "External configuration for deterministic Go dependency analysis.",
 		Fields: map[string]conf.FieldDefinition{
 			"server": {
-				Description: "Human dashboard transport parameters.",
+				Description: "Parameters for the dashboard server.",
 			},
 			"server.address": {
-				Description: "Local TCP address of the dashboard listener, in host:port form.",
+				Description: "Local network address for the dashboard server, in host:port form.",
 				Default:     defaultAddress,
 			},
 			"server.refreshInterval": {
-				Description: "Interval used to detect changes in the selected Go source paths, in Go duration notation.",
+				Description: "Time between checks for changes in the selected Go files, in Go duration notation.",
 				Default:     defaultRefreshInterval(),
 			},
 			"analysis": {
-				Description: "Repository scope, exclusions, and strategic component layout.",
+				Description: "Repository paths, exclusion patterns, and component classification rules.",
 			},
 			"analysis.repositoryRoot": {
 				Description: "Directory containing go.mod. Relative paths resolve from the process working directory.",
 				Default:     ".",
 			},
 			"analysis.paths": {
-				Description: "Repository-relative directories or Go files inspected as source evidence.",
+				Description: "Repository-relative directories or Go files that the analyzer reads.",
 				Default:     []string{"."},
 				Examples:    []any{"cmd", "internal/module", "internal/library/example"},
 			},
 			"analysis.ignoredPaths": {
-				Description: "Repository-relative path patterns excluded from source discovery and dependency targets. A pattern without a slash matches any path segment; a pattern with a slash matches from the repository root.",
-				Default:     defaultIgnoredPaths(),
-				Examples:    []any{"vendor", "generated", "internal/library/legacy"},
+				Description: "Repository-relative patterns that exclude files. " +
+					"A pattern with no slash matches one path segment. " +
+					"A pattern with a slash matches from the repository root.",
+				Default:  defaultIgnoredPaths(),
+				Examples: []any{"vendor", "generated", "internal/library/legacy"},
 			},
 			"analysis.components": {
-				Description: "Path templates that map repository packages to strategic roles. {component} and {application} each capture one path segment.",
+				Description: "Path templates that classify repository packages. " +
+					"The {component} and {application} placeholders each match one path segment.",
 			},
 			"analysis.components.applications": {
-				Description: "Application-root templates. Each template must contain {application}.",
+				Description: "Templates for application root paths. Each template must contain {application}.",
 				Default:     defaultComponentRulesConfiguration().Applications,
 				Examples:    []any{"cmd/{application}", "services/{application}"},
 			},
 			"analysis.components.applicationModules": {
-				Description: "Application-owned module templates. Each template must contain {application} and {component}.",
-				Default:     defaultComponentRulesConfiguration().ApplicationModules,
-				Examples:    []any{"cmd/{application}/internal/module/{component}"},
+				Description: "Templates for modules in one application. " +
+					"Each template must contain {application} and {component}.",
+				Default:  defaultComponentRulesConfiguration().ApplicationModules,
+				Examples: []any{"cmd/{application}/internal/module/{component}"},
 			},
 			"analysis.components.sharedModules": {
-				Description: "Shared feature-module templates. Each template must contain {component}.",
+				Description: "Templates for shared feature modules. Each template must contain {component}.",
 				Default:     defaultComponentRulesConfiguration().SharedModules,
 				Examples:    []any{"internal/module/{component}"},
 			},
 			"analysis.components.libraries": {
-				Description: "Shared library templates. Each template must contain {component}.",
+				Description: "Templates for shared libraries. Each template must contain {component}.",
 				Default:     defaultComponentRulesConfiguration().Libraries,
 				Examples:    []any{"internal/library/{component}", "packages/{component}"},
 			},
 			"analysis.components.infrastructure": {
-				Description: "Shared infrastructure templates. Each template must contain {component}.",
+				Description: "Templates for shared infrastructure. Each template must contain {component}.",
 				Default:     defaultComponentRulesConfiguration().Infrastructure,
 				Examples:    []any{"internal/{component}"},
 			},
 			"analysis.components.developmentTools": {
-				Description: "Development-only tool templates. Each template must contain {component}.",
+				Description: "Templates for development tools. Each template must contain {component}.",
 				Default:     defaultComponentRulesConfiguration().DevelopmentTools,
 				Examples:    []any{"internal/devtool/{component}", "tools/{component}"},
 			},
@@ -172,5 +174,5 @@ func applicationSchemaDefinition() conf.SchemaDefinition {
 }
 
 // mutate4go-manifest-begin
-// {"version":1,"tested_at":"2026-08-21T07:59:30Z","module_hash":"82c7bbdf95657b1a20d933ab8e91696217d807b40f6a9adb76ed9b4ba2122b9b","functions":[{"id":"func/defaultRefreshInterval","name":"defaultRefreshInterval","line":15,"end_line":17,"hash":"64a1f07d35ff197bf67644d4889d3f31cffa2bf3c507009de7f97c2d522b31d3"},{"id":"func/minimumRefreshInterval","name":"minimumRefreshInterval","line":19,"end_line":21,"hash":"4f2930e0810d642ebd7a786753630b3715ac62d0ddcd29ec034323084de9eebc"},{"id":"func/DefaultApplicationConfiguration","name":"DefaultApplicationConfiguration","line":54,"end_line":67,"hash":"8959b0b14ca668f368b4e3dbd9b38de6edca2700f5e9b6f19d68ba8f88a4e1fe"},{"id":"func/defaultIgnoredPaths","name":"defaultIgnoredPaths","line":69,"end_line":71,"hash":"eb1ccd39c301970fc4e6f866b369fe060c767075b0ff2b595423519b907ff623"},{"id":"func/defaultComponentRulesConfiguration","name":"defaultComponentRulesConfiguration","line":73,"end_line":82,"hash":"b7fd6194dcdff30bddf674ccf3c96c87a2a7d4c1759b8ab4d3171ab949021627"},{"id":"func/ComponentRulesConfiguration.domainRules","name":"ComponentRulesConfiguration.domainRules","line":84,"end_line":93,"hash":"dd7ed848eb5d763670ffcb4221253d3c5aa28e06d6804ba769ef4846fcb3fb4a"},{"id":"func/loadApplicationConfiguration","name":"loadApplicationConfiguration","line":96,"end_line":102,"hash":"bdb0cf615949fb4ecd8b9d4a19ec822822007dc50c3c97a02b4cc67ac5e1c9e3"},{"id":"func/applicationSchemaDefinition","name":"applicationSchemaDefinition","line":105,"end_line":172,"hash":"671a4f48452af29f9ab3f56a38d5d4ed2b541fb77aa6c0eb839707bb6544783d"}]}
+// {"version":1,"tested_at":"2026-08-21T09:15:54Z","module_hash":"eacc533154bb4ac13231b7b69dd1e31666802895935d26a52e7c06f6ab9562d9","functions":[{"id":"func/defaultRefreshInterval","name":"defaultRefreshInterval","line":15,"end_line":17,"hash":"64a1f07d35ff197bf67644d4889d3f31cffa2bf3c507009de7f97c2d522b31d3"},{"id":"func/minimumRefreshInterval","name":"minimumRefreshInterval","line":19,"end_line":21,"hash":"4f2930e0810d642ebd7a786753630b3715ac62d0ddcd29ec034323084de9eebc"},{"id":"func/DefaultApplicationConfiguration","name":"DefaultApplicationConfiguration","line":54,"end_line":67,"hash":"8959b0b14ca668f368b4e3dbd9b38de6edca2700f5e9b6f19d68ba8f88a4e1fe"},{"id":"func/defaultIgnoredPaths","name":"defaultIgnoredPaths","line":69,"end_line":71,"hash":"eb1ccd39c301970fc4e6f866b369fe060c767075b0ff2b595423519b907ff623"},{"id":"func/defaultComponentRulesConfiguration","name":"defaultComponentRulesConfiguration","line":73,"end_line":82,"hash":"b7fd6194dcdff30bddf674ccf3c96c87a2a7d4c1759b8ab4d3171ab949021627"},{"id":"func/ComponentRulesConfiguration.domainRules","name":"ComponentRulesConfiguration.domainRules","line":84,"end_line":93,"hash":"dd7ed848eb5d763670ffcb4221253d3c5aa28e06d6804ba769ef4846fcb3fb4a"},{"id":"func/loadApplicationConfiguration","name":"loadApplicationConfiguration","line":95,"end_line":101,"hash":"1db003044865f83678db2220b8f87b9f55fa552aed7693838ec80caf6ad2dd2e"},{"id":"func/applicationSchemaDefinition","name":"applicationSchemaDefinition","line":103,"end_line":174,"hash":"26b16a07a33907a8b85d48087a464ce17013b15c3c8b2fb4e48be06b93c7d68a"}]}
 // mutate4go-manifest-end

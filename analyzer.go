@@ -85,6 +85,7 @@ func (analyzer *analyzer) analyze() (Graph, error) {
 
 	components := make(map[string]*componentAccumulator)
 	relationships := make(map[relationshipKey]*relationshipAccumulator)
+	functionPaths := make(stringSet)
 	var diagnostics []Diagnostic
 	for _, path := range paths {
 		file, err := analyzer.inspectSourceFile(modulePath, path)
@@ -95,11 +96,25 @@ func (analyzer *analyzer) analyze() (Graph, error) {
 			continue
 		}
 		diagnostics = append(diagnostics, file.diagnostics...)
+		if file.hasFunctionData {
+			functionPaths.add(path)
+		}
 		collectComponentFile(components, *file)
 		collectRelationships(components, relationships, *file)
 	}
 
 	graph := buildGraph(modulePath, components, relationships, diagnostics)
+	if len(functionPaths) != 0 {
+		declarations, references, functionError := analyzer.inspectFunctions(modulePath, paths)
+		if functionError != nil {
+			return Graph{}, functionError
+		}
+		graph.Functions, graph.FunctionCalls, graph.FunctionCycles = calculateFunctionGraph(
+			declarations,
+			references,
+		)
+		attachFunctionMetrics(&graph)
+	}
 	graph.Scope = analyzer.scope
 	payload, err := json.Marshal(graph)
 	if err != nil {
@@ -194,7 +209,7 @@ func newIgnoredPathMatcher(configuredPatterns []string) (ignoredPathMatcher, err
 }
 
 func (matcher ignoredPathMatcher) matches(relativePath string) (bool, error) {
-	cleaned := strings.Trim(filepathToSlash(relativePath), "/")
+	cleaned := strings.Trim(pathWithForwardSlashes(relativePath), "/")
 	if cleaned == "" || cleaned == "." {
 		return false, nil
 	}
@@ -285,8 +300,8 @@ func (analyzer *analyzer) inspectSourceFile(modulePath, sourcePath string) (*sou
 		return nil, fmt.Errorf("resolve source path %s: %w", sourcePath, err)
 	}
 	relativePath = filepath.ToSlash(relativePath)
-	descriptor, modeled := analyzer.classifier.classify(relativePath)
-	if !modeled {
+	descriptor, classified := analyzer.classifier.classify(relativePath)
+	if !classified {
 		return nil, nil
 	}
 	payload, err := os.ReadFile(sourcePath)
@@ -294,8 +309,9 @@ func (analyzer *analyzer) inspectSourceFile(modulePath, sourcePath string) (*sou
 		return nil, fmt.Errorf("read source file %s: %w", relativePath, err)
 	}
 
+	fileSet := token.NewFileSet()
 	parsed, parseError := parser.ParseFile(
-		token.NewFileSet(),
+		fileSet,
 		relativePath,
 		payload,
 		parser.AllErrors,
@@ -337,11 +353,24 @@ func (analyzer *analyzer) inspectSourceFile(modulePath, sourcePath string) (*sou
 		if ignored {
 			continue
 		}
-		target, modeled := analyzer.classifier.classify(targetPackage)
-		if modeled {
+		target, classified := analyzer.classifier.classify(targetPackage)
+		if classified {
+			position := fileSet.Position(specification.Pos())
+			alias := ""
+			if specification.Name != nil {
+				alias = specification.Name.Name
+			}
 			importsByPackage[targetPackage] = sourceImport{
 				packagePath: targetPackage,
 				component:   target,
+				site: ImportSite{
+					SourcePackage: file.packagePath,
+					TargetPackage: targetPackage,
+					Path:          relativePath,
+					Line:          position.Line,
+					Alias:         alias,
+					Test:          file.test,
+				},
 			}
 		}
 	}
@@ -354,7 +383,18 @@ func (analyzer *analyzer) inspectSourceFile(modulePath, sourcePath string) (*sou
 	})
 	file.imports = imports
 	file.abstractTypes, file.concreteTypes = countNamedTypes(parsed)
+	file.hasFunctionData = hasFunctionData(parsed)
 	return file, nil
+}
+
+func hasFunctionData(file *ast.File) bool {
+	for node := range ast.Preorder(file) {
+		switch node.(type) {
+		case *ast.FuncDecl, *ast.FuncType, *ast.CallExpr:
+			return true
+		}
+	}
+	return false
 }
 
 func countNamedTypes(file *ast.File) (int, int) {
@@ -381,5 +421,5 @@ func countNamedTypes(file *ast.File) (int, int) {
 }
 
 // mutate4go-manifest-begin
-// {"version":1,"tested_at":"2026-08-21T08:10:17Z","module_hash":"be544827ece121e24cf1d6346b1d1426556c2a9a24151bb59d90d842263cfda3","functions":[{"id":"func/newAnalyzer","name":"newAnalyzer","line":35,"end_line":74,"hash":"ba0447ed5957ebe3850942c846425c639341cc2d2f711a71e2412eeb8d1b8d05"},{"id":"func/analyzer.analyze","name":"analyzer.analyze","line":76,"end_line":111,"hash":"ab998b93726f6fe162d3a61835435ed1f15a345a5814e25852ad04c9f26702db"},{"id":"func/readModulePath","name":"readModulePath","line":113,"end_line":133,"hash":"3e80b06afd0e3742f8fa44577f3c85f873ebc83d596df3fae12f1cc2b6d0efdc"},{"id":"func/normalizeAnalysisPaths","name":"normalizeAnalysisPaths","line":135,"end_line":148,"hash":"0a1550906681003eb46f370ec3e1578e74ce0329eab580e6e1684ad1d9c5853b"},{"id":"func/normalizeRepositoryPath","name":"normalizeRepositoryPath","line":150,"end_line":165,"hash":"6957293b95ea88edb99c66a74bce84790b941736461cf8d9f4f1d8970a55274a"},{"id":"func/newIgnoredPathMatcher","name":"newIgnoredPathMatcher","line":167,"end_line":194,"hash":"723906109af7a1ccc25c5e6b58920f45ccc9db85e64efbc97c006179c251fb2d"},{"id":"func/ignoredPathMatcher.matches","name":"ignoredPathMatcher.matches","line":196,"end_line":227,"hash":"3589d80c58884e6dd1b35917b01654f7460221a7a7c0db1f442fa9f6259024c8"},{"id":"func/analyzer.sourcePaths","name":"analyzer.sourcePaths","line":229,"end_line":280,"hash":"20f179474d954ca33b6059ca0a1ae1964030d55b11f3762b6247a62300d75e8c"},{"id":"func/analyzer.inspectSourceFile","name":"analyzer.inspectSourceFile","line":282,"end_line":358,"hash":"0bcfbdb164f63028f1fbd39f215d52ccf8d1e54a7f0b1c7892855b8c82379733"},{"id":"func/countNamedTypes","name":"countNamedTypes","line":360,"end_line":381,"hash":"7269d3e77aa1bf662cb4e54d5c09fa72e159000c99cf165e2e385f33b6b8dd99"}]}
+// {"version":1,"tested_at":"2026-08-21T10:44:23Z","module_hash":"775f256e19b0364f949011ebcc3377122c9525fe6f34c34483b77bce88cc1ed9","functions":[{"id":"func/newAnalyzer","name":"newAnalyzer","line":35,"end_line":74,"hash":"ba0447ed5957ebe3850942c846425c639341cc2d2f711a71e2412eeb8d1b8d05"},{"id":"func/analyzer.analyze","name":"analyzer.analyze","line":76,"end_line":126,"hash":"50abf707f85419ccbac293caf74d13853c0abadbdfc0fe64713f1d76f2aafdbe"},{"id":"func/readModulePath","name":"readModulePath","line":128,"end_line":148,"hash":"3e80b06afd0e3742f8fa44577f3c85f873ebc83d596df3fae12f1cc2b6d0efdc"},{"id":"func/normalizeAnalysisPaths","name":"normalizeAnalysisPaths","line":150,"end_line":163,"hash":"0a1550906681003eb46f370ec3e1578e74ce0329eab580e6e1684ad1d9c5853b"},{"id":"func/normalizeRepositoryPath","name":"normalizeRepositoryPath","line":165,"end_line":180,"hash":"6957293b95ea88edb99c66a74bce84790b941736461cf8d9f4f1d8970a55274a"},{"id":"func/newIgnoredPathMatcher","name":"newIgnoredPathMatcher","line":182,"end_line":209,"hash":"723906109af7a1ccc25c5e6b58920f45ccc9db85e64efbc97c006179c251fb2d"},{"id":"func/ignoredPathMatcher.matches","name":"ignoredPathMatcher.matches","line":211,"end_line":242,"hash":"c6f020df612d638a3649adbea650b8117284391f34cff572ffb1d5c99d782822"},{"id":"func/analyzer.sourcePaths","name":"analyzer.sourcePaths","line":244,"end_line":295,"hash":"20f179474d954ca33b6059ca0a1ae1964030d55b11f3762b6247a62300d75e8c"},{"id":"func/analyzer.inspectSourceFile","name":"analyzer.inspectSourceFile","line":297,"end_line":388,"hash":"98457d0552665a6b2f9dfba51d23bb8515ec651df44c557087bd52b153fec5e7"},{"id":"func/hasFunctionData","name":"hasFunctionData","line":390,"end_line":398,"hash":"d06cecd4aa7d0ef4549ae5d251c85d54c830f5bf95dff40d27593b244be2ed37"},{"id":"func/countNamedTypes","name":"countNamedTypes","line":400,"end_line":421,"hash":"7269d3e77aa1bf662cb4e54d5c09fa72e159000c99cf165e2e385f33b6b8dd99"}]}
 // mutate4go-manifest-end

@@ -18,20 +18,20 @@ const kindDefinitions = [
   { identifier: "development", label: "Development tool", plural: "Development tools" },
 ];
 
-const concernLabels = {
-  "production-depends-on-development": "Production code imports a development tool.",
-  "library-depends-on-feature": "A library imports a feature.",
-  "shared-foundation-depends-on-application": "Shared foundation code imports application code.",
-  "cross-application-module-dependency":
+const ruleViolationLabels = {
+  "production-imports-development": "Production code imports development code.",
+  "library-imports-feature": "A shared library imports a feature module.",
+  "shared-component-imports-application": "A shared component imports application code.",
+  "cross-application-module-import":
     "An application module imports a module from a different application.",
   "stable-dependency-principle":
-    "SDP violation: this component depends on a less stable component.",
+    "Stable dependency principle violation: this component imports a less stable component.",
 };
 
-const impactMetricDefinitions = Object.freeze({
-  consumers: {
+const componentMetricDefinitions = Object.freeze({
+  importingComponents: {
     field: "afferentCoupling",
-    label: "afferent coupling (Cₐ)",
+    label: "direct production importing components, or afferent coupling (Cₐ)",
     shortLabel: "Cₐ",
   },
   efferent: {
@@ -45,14 +45,37 @@ const impactMetricDefinitions = Object.freeze({
     shortLabel: "packages",
   },
   transitive: {
-    field: "transitiveDependants",
-    label: "indirect production consumers",
-    shortLabel: "indirect",
+    field: "transitiveImportingComponents",
+    label: "transitive production importing components",
+    shortLabel: "importers",
   },
   files: {
     field: "sourceFiles",
     label: "Go source files",
     shortLabel: "Go files",
+  },
+});
+
+const functionMetricDefinitions = Object.freeze({
+  incomingCalls: {
+    label: "incoming call sites",
+    shortLabel: "calls in",
+  },
+  afferent: {
+    label: "caller functions, or afferent coupling (Cₐ)",
+    shortLabel: "Cₐ",
+  },
+  efferent: {
+    label: "called functions, or efferent coupling (Cₑ)",
+    shortLabel: "Cₑ",
+  },
+  outgoingCalls: {
+    label: "outgoing call sites",
+    shortLabel: "calls out",
+  },
+  transitiveCallers: {
+    label: "transitive caller functions",
+    shortLabel: "callers",
   },
 });
 
@@ -67,12 +90,12 @@ const layoutOptions = Object.freeze({
   top: 86,
   right: 54,
   bottom: 64,
-  fitPadding: 28,
+  viewportPadding: 28,
   minimumScale: 0.12,
   maximumScale: 2.4,
 });
 
-const impactLayoutOptions = Object.freeze({
+const componentMetricMapOptions = Object.freeze({
   padding: 8,
   gap: 3,
   zeroWeight: 0.2,
@@ -89,9 +112,11 @@ const elements = {
   summaryKinds: document.getElementById("summaryKinds"),
   summaryRelationships: document.getElementById("summaryRelationships"),
   summaryTests: document.getElementById("summaryTests"),
-  summaryReach: document.getElementById("summaryReach"),
-  summaryReachNote: document.getElementById("summaryReachNote"),
-  summaryConcerns: document.getElementById("summaryConcerns"),
+  summaryFunctions: document.getElementById("summaryFunctions"),
+  summaryFunctionCalls: document.getElementById("summaryFunctionCalls"),
+  summaryUsingApplications: document.getElementById("summaryUsingApplications"),
+  summaryUsingApplicationsNote: document.getElementById("summaryUsingApplicationsNote"),
+  summaryFindings: document.getElementById("summaryFindings"),
   summaryCycles: document.getElementById("summaryCycles"),
   searchInput: document.getElementById("searchInput"),
   kindFilters: document.getElementById("kindFilters"),
@@ -100,25 +125,30 @@ const elements = {
   graphTitle: document.getElementById("graphTitle"),
   graphDescription: document.getElementById("graphDescription"),
   graphViewport: document.getElementById("graphViewport"),
-  impactMap: document.getElementById("impactMap"),
+  componentMetricMap: document.getElementById("componentMetricMap"),
+  functionMetricMap: document.getElementById("functionMetricMap"),
   dependencyMap: document.getElementById("dependencyMap"),
   graphEmpty: document.getElementById("graphEmpty"),
   legend: document.getElementById("legend"),
-  impactView: document.getElementById("impactView"),
+  componentMetricView: document.getElementById("componentMetricView"),
+  functionMetricView: document.getElementById("functionMetricView"),
   dependencyView: document.getElementById("dependencyView"),
-  impactMetricControl: document.getElementById("impactMetricControl"),
-  impactMetric: document.getElementById("impactMetric"),
+  componentMetricControl: document.getElementById("componentMetricControl"),
+  componentMetric: document.getElementById("componentMetric"),
+  functionMetricControl: document.getElementById("functionMetricControl"),
+  functionMetric: document.getElementById("functionMetric"),
   dependencyControls: document.getElementById("dependencyControls"),
-  impactLegend: document.getElementById("impactLegend"),
-  impactLegendText: document.getElementById("impactLegendText"),
+  componentMetricLegend: document.getElementById("componentMetricLegend"),
+  componentMetricLegendText: document.getElementById("componentMetricLegendText"),
   edgeLegend: document.getElementById("edgeLegend"),
   zoomOut: document.getElementById("zoomOut"),
-  fitGraph: document.getElementById("fitGraph"),
+  showAllComponents: document.getElementById("showAllComponents"),
   zoomIn: document.getElementById("zoomIn"),
   detailPanel: document.getElementById("detailPanel"),
   usageRanking: document.getElementById("usageRanking"),
+  functionUsageRanking: document.getElementById("functionUsageRanking"),
   unusedRanking: document.getElementById("unusedRanking"),
-  zoneOfPainRanking: document.getElementById("zoneOfPainRanking"),
+  stableLowAbstractionRanking: document.getElementById("stableLowAbstractionRanking"),
   diagnostics: document.getElementById("diagnostics"),
   diagnosticsSummary: document.getElementById("diagnosticsSummary"),
   diagnosticsList: document.getElementById("diagnosticsList"),
@@ -129,11 +159,13 @@ const elements = {
 const state = {
   graph: null,
   selectedIdentifier: "",
+  selectedFunctionIdentifier: "",
   visibleKinds: new Set(kindDefinitions.map((definition) => definition.identifier)),
   includeTests: true,
   search: "",
-  viewMode: "impact",
-  impactMetric: "consumers",
+  viewMode: "metrics",
+  componentMetric: "importingComponents",
+  functionMetric: "incomingCalls",
   contentGroup: null,
   contentBounds: { width: 0, height: 0 },
   transform: { x: 0, y: 0, scale: 1 },
@@ -201,11 +233,11 @@ function compareIdentifiers(first, second) {
   return 0;
 }
 
-function compareUsage(first, second) {
+function compareByImportingComponents(first, second) {
   return (
-    second.productionDependants - first.productionDependants ||
+    second.productionImportingComponents - first.productionImportingComponents ||
     second.productionImporterPackages - first.productionImporterPackages ||
-    second.applicationReach - first.applicationReach ||
+    second.usingApplicationCount - first.usingApplicationCount ||
     compareIdentifiers(first, second)
   );
 }
@@ -231,12 +263,12 @@ function componentMatchesSearch(component) {
     component.id,
     component.name,
     component.application,
-    ...(component.applications || []),
+    ...(component.usingApplications || []),
   ].join(" ");
   return normalizeSearch(searchable).includes(state.search);
 }
 
-function graphComponents() {
+function visibleComponents() {
   if (!state.graph) {
     return [];
   }
@@ -245,7 +277,7 @@ function graphComponents() {
   );
 }
 
-function graphRelationships(visibleIdentifiers) {
+function visibleRelationships(visibleIdentifiers) {
   if (!state.graph) {
     return [];
   }
@@ -257,17 +289,73 @@ function graphRelationships(visibleIdentifiers) {
   );
 }
 
-function impactMetricDefinition() {
-  return impactMetricDefinitions[state.impactMetric] || impactMetricDefinitions.consumers;
+function functionMatchesSearch(functionValue) {
+  if (!state.search) {
+    return true;
+  }
+  const searchable = [
+    functionValue.id,
+    functionValue.name,
+    functionValue.package,
+    functionValue.component,
+    functionValue.path,
+  ].join(" ");
+  return normalizeSearch(searchable).includes(state.search);
 }
 
-function impactValue(component) {
-  const value = Number(component[impactMetricDefinition().field]);
+function visibleFunctions() {
+  if (!state.graph) {
+    return [];
+  }
+  return state.graph.functions.filter((functionValue) => {
+    const component = componentByIdentifier(functionValue.component);
+    return component &&
+      state.visibleKinds.has(component.kind) &&
+      (state.includeTests || !functionValue.test) &&
+      functionMatchesSearch(functionValue);
+  });
+}
+
+function selectedComponentMetric() {
+  return componentMetricDefinitions[state.componentMetric] || componentMetricDefinitions.importingComponents;
+}
+
+function selectedMetricValue(component) {
+  const value = Number(component[selectedComponentMetric().field]);
   return Number.isFinite(value) && value > 0 ? value : 0;
 }
 
-function compareImpact(first, second) {
-  return impactValue(second) - impactValue(first) || compareUsage(first, second);
+function compareBySelectedMetric(first, second) {
+  return selectedMetricValue(second) - selectedMetricValue(first) ||
+    compareByImportingComponents(first, second);
+}
+
+function selectedFunctionMetric() {
+  return functionMetricDefinitions[state.functionMetric] || functionMetricDefinitions.incomingCalls;
+}
+
+function selectedFunctionMetricValue(functionValue) {
+  const testIncoming = state.includeTests ? functionValue.testIncomingCallSites : 0;
+  const testOutgoing = state.includeTests ? functionValue.testOutgoingCallSites : 0;
+  const testAfferent = state.includeTests ? functionValue.testAfferentCoupling : 0;
+  const testEfferent = state.includeTests ? functionValue.testEfferentCoupling : 0;
+  switch (state.functionMetric) {
+    case "afferent":
+      return functionValue.afferentCoupling + testAfferent;
+    case "efferent":
+      return functionValue.efferentCoupling + testEfferent;
+    case "outgoingCalls":
+      return functionValue.outgoingCallSites + testOutgoing;
+    case "transitiveCallers":
+      return functionValue.transitiveCallerFunctions;
+    default:
+      return functionValue.incomingCallSites + testIncoming;
+  }
+}
+
+function compareBySelectedFunctionMetric(first, second) {
+  return selectedFunctionMetricValue(second) - selectedFunctionMetricValue(first) ||
+    first.id.localeCompare(second.id);
 }
 
 function totalTreemapWeight(items) {
@@ -335,7 +423,7 @@ function layoutTreemap(items, bounds, tiles = []) {
   return tiles;
 }
 
-function shortenedImpactName(name, width) {
+function shortenedMetricName(name, width) {
   const maximumLength = Math.max(5, Math.floor((width - 20) / 7));
   if (name.length <= maximumLength) {
     return name;
@@ -343,28 +431,28 @@ function shortenedImpactName(name, width) {
   return `${name.slice(0, Math.max(1, maximumLength - 1))}…`;
 }
 
-function appendImpactTile(container, tile, rank, concernedIdentifiers) {
+function appendMetricTile(container, tile, rankingPosition, identifiersWithRuleViolations) {
   const { component, value, width, height } = tile;
   const inset = Math.min(
-    impactLayoutOptions.gap / 2,
+    componentMetricMapOptions.gap / 2,
     Math.max(0, width / 5),
     Math.max(0, height / 5),
   );
   const contentWidth = Math.max(0.5, width - inset * 2);
   const contentHeight = Math.max(0.5, height - inset * 2);
   const rankVisible = contentWidth >= 145 && contentHeight >= 32;
-  const classes = ["impact-map__tile"];
+  const classes = ["component-metric-map__tile"];
   if (component.id === state.selectedIdentifier) {
-    classes.push("impact-map__tile--selected");
+    classes.push("component-metric-map__tile--selected");
   }
   if (value === 0) {
-    classes.push("impact-map__tile--zero");
+    classes.push("component-metric-map__tile--zero");
   }
   if (component.inCycle) {
-    classes.push("impact-map__tile--cycle");
+    classes.push("component-metric-map__tile--cycle");
   }
-  if (component.inZoneOfPain) {
-    classes.push("impact-map__tile--pain");
+  if (component.isStableWithLowAbstraction) {
+    classes.push("component-metric-map__tile--stable-low-abstraction");
   }
 
   const node = createSvgElement("g", classes.join(" "));
@@ -374,10 +462,10 @@ function appendImpactTile(container, tile, rank, concernedIdentifiers) {
   node.setAttribute("role", "button");
   node.setAttribute(
     "aria-label",
-    `${component.name}, ${numberFormatter.format(value)} ${impactMetricDefinition().label}`,
+    `${component.name}, ${numberFormatter.format(value)} ${selectedComponentMetric().label}`,
   );
 
-  const box = createSvgElement("rect", "impact-map__tile-box");
+  const box = createSvgElement("rect", "component-metric-map__tile-box");
   box.setAttribute("x", String(inset));
   box.setAttribute("y", String(inset));
   box.setAttribute("width", String(contentWidth));
@@ -387,49 +475,50 @@ function appendImpactTile(container, tile, rank, concernedIdentifiers) {
 
   const title = createSvgElement("title");
   title.textContent =
-    `${component.id}\nCₐ ${component.afferentCoupling} · Cₑ ${component.efferentCoupling}\n` +
-    `Instability I ${formatRatio(component.instability)} · ` +
-    `Abstractness A ${formatRatio(component.abstractness)}\n` +
-    `Main-sequence distance D ${formatRatio(component.mainSequenceDistance)}\n` +
+    `${component.id}\nAfferent coupling (Cₐ): ${component.afferentCoupling} · ` +
+    `Efferent coupling (Cₑ): ${component.efferentCoupling}\n` +
+    `Instability (I): ${formatRatio(component.instability)} · ` +
+    `Abstractness (A): ${formatRatio(component.abstractness)}\n` +
+    `Main-sequence distance (D): ${formatRatio(component.mainSequenceDistance)}\n` +
     `${component.abstractTypes} abstract types · ${component.concreteTypes} concrete types`;
   node.append(title);
 
   if (contentWidth >= 72 && contentHeight >= 32) {
-    const name = createSvgElement("text", "impact-map__tile-name");
+    const name = createSvgElement("text", "component-metric-map__tile-name");
     name.setAttribute("x", String(inset + 10));
     name.setAttribute("y", String(inset + 18));
-    name.textContent = shortenedImpactName(component.name, contentWidth - (rankVisible ? 42 : 0));
+    name.textContent = shortenedMetricName(component.name, contentWidth - (rankVisible ? 42 : 0));
     node.append(name);
   }
   if (rankVisible) {
-    const rankLabel = createSvgElement("text", "impact-map__tile-rank");
+    const rankLabel = createSvgElement("text", "component-metric-map__tile-rank");
     rankLabel.setAttribute("x", String(width - inset - 10));
     rankLabel.setAttribute("y", String(inset + 17));
     rankLabel.setAttribute("text-anchor", "end");
-    rankLabel.textContent = `#${String(rank).padStart(2, "0")}`;
+    rankLabel.textContent = `#${String(rankingPosition).padStart(2, "0")}`;
     node.append(rankLabel);
   }
   if (contentWidth >= 88 && contentHeight >= 52) {
-    const metric = createSvgElement("text", "impact-map__tile-value");
+    const metric = createSvgElement("text", "component-metric-map__tile-value");
     metric.setAttribute("x", String(inset + 10));
     metric.setAttribute("y", String(inset + 38));
     metric.textContent =
-      `${numberFormatter.format(value)} ${impactMetricDefinition().shortLabel}`;
+      `${numberFormatter.format(value)} ${selectedComponentMetric().shortLabel}`;
     node.append(metric);
   }
   if (contentWidth >= 122 && contentHeight >= 76) {
-    const kind = createSvgElement("text", "impact-map__tile-kind");
+    const kind = createSvgElement("text", "component-metric-map__tile-kind");
     kind.setAttribute("x", String(inset + 10));
     kind.setAttribute("y", String(height - inset - 10));
     kind.textContent = kindDefinition(component.kind).label;
     node.append(kind);
   }
   if (
-    (concernedIdentifiers.has(component.id) || component.inZoneOfPain) &&
+    (identifiersWithRuleViolations.has(component.id) || component.isStableWithLowAbstraction) &&
     contentWidth >= 24 &&
     contentHeight >= 24
   ) {
-    const alert = createSvgElement("circle", "impact-map__tile-alert");
+    const alert = createSvgElement("circle", "component-metric-map__tile-alert");
     alert.setAttribute("cx", String(width - inset - 9));
     alert.setAttribute("cy", String(height - inset - 9));
     alert.setAttribute("r", "3.5");
@@ -449,42 +538,168 @@ function appendImpactTile(container, tile, rank, concernedIdentifiers) {
   container.append(node);
 }
 
-function renderImpactMap() {
+function renderComponentMetricMap() {
   if (!state.graph) {
     return;
   }
-  const components = graphComponents().sort(compareImpact);
+  const components = visibleComponents().sort(compareBySelectedMetric);
   elements.graphEmpty.hidden = components.length !== 0;
-  elements.impactMap.replaceChildren();
+  elements.componentMetricMap.replaceChildren();
 
-  const width = Math.max(elements.graphViewport.clientWidth, impactLayoutOptions.minimumWidth);
-  const height = Math.max(elements.graphViewport.clientHeight, impactLayoutOptions.minimumHeight);
-  elements.impactMap.setAttribute("viewBox", `0 0 ${width} ${height}`);
+  const width = Math.max(elements.graphViewport.clientWidth, componentMetricMapOptions.minimumWidth);
+  const height = Math.max(elements.graphViewport.clientHeight, componentMetricMapOptions.minimumHeight);
+  elements.componentMetricMap.setAttribute("viewBox", `0 0 ${width} ${height}`);
 
-  const items = components.map((component) => {
-    const value = impactValue(component);
+  const weightedComponents = components.map((component) => {
+    const value = selectedMetricValue(component);
     return {
       component,
       value,
-      weight: value > 0 ? value : impactLayoutOptions.zeroWeight,
+      weight: value > 0 ? value : componentMetricMapOptions.zeroWeight,
     };
   });
-  const padding = impactLayoutOptions.padding;
-  const tiles = layoutTreemap(items, {
+  const padding = componentMetricMapOptions.padding;
+  const tiles = layoutTreemap(weightedComponents, {
     x: padding,
     y: padding,
     width: width - padding * 2,
     height: height - padding * 2,
   });
-  const concernedIdentifiers = new Set();
+  const identifiersWithRuleViolations = new Set();
   for (const relationship of state.graph.relationships) {
-    if (relationship.concerns.length > 0) {
-      concernedIdentifiers.add(relationship.source);
-      concernedIdentifiers.add(relationship.target);
+    if (relationship.ruleViolations.length > 0) {
+      identifiersWithRuleViolations.add(relationship.source);
+      identifiersWithRuleViolations.add(relationship.target);
     }
   }
   tiles.forEach((tile, index) => {
-    appendImpactTile(elements.impactMap, tile, index + 1, concernedIdentifiers);
+    appendMetricTile(elements.componentMetricMap, tile, index + 1, identifiersWithRuleViolations);
+  });
+}
+
+function appendFunctionMetricTile(container, tile, rankingPosition) {
+  const { functionValue, value, width, height } = tile;
+  const component = componentByIdentifier(functionValue.component);
+  const inset = Math.min(
+    componentMetricMapOptions.gap / 2,
+    Math.max(0, width / 5),
+    Math.max(0, height / 5),
+  );
+  const contentWidth = Math.max(0.5, width - inset * 2);
+  const contentHeight = Math.max(0.5, height - inset * 2);
+  const rankVisible = contentWidth >= 145 && contentHeight >= 32;
+  const classes = ["component-metric-map__tile"];
+  if (functionValue.id === state.selectedFunctionIdentifier) {
+    classes.push("component-metric-map__tile--selected");
+  }
+  if (value === 0) {
+    classes.push("component-metric-map__tile--zero");
+  }
+  if (functionValue.inCycle) {
+    classes.push("component-metric-map__tile--cycle");
+  }
+
+  const node = createSvgElement("g", classes.join(" "));
+  node.dataset.kind = component?.kind || "infrastructure";
+  node.setAttribute("transform", `translate(${tile.x} ${tile.y})`);
+  node.setAttribute("tabindex", "0");
+  node.setAttribute("role", "button");
+  node.setAttribute(
+    "aria-label",
+    `${functionValue.name}, ${numberFormatter.format(value)} ${selectedFunctionMetric().label}`,
+  );
+
+  const box = createSvgElement("rect", "component-metric-map__tile-box");
+  box.setAttribute("x", String(inset));
+  box.setAttribute("y", String(inset));
+  box.setAttribute("width", String(contentWidth));
+  box.setAttribute("height", String(contentHeight));
+  box.setAttribute("rx", String(Math.min(6, contentWidth / 5, contentHeight / 5)));
+  node.append(box);
+
+  const title = createSvgElement("title");
+  title.textContent =
+    `${functionValue.id}\nIncoming call sites: ${functionValue.incomingCallSites} · ` +
+    `Outgoing call sites: ${functionValue.outgoingCallSites}\n` +
+    `Afferent coupling (Cₐ): ${functionValue.afferentCoupling} · ` +
+    `Efferent coupling (Cₑ): ${functionValue.efferentCoupling}\n` +
+    `Instability (I): ${formatRatio(functionValue.instability)}`;
+  node.append(title);
+
+  if (contentWidth >= 72 && contentHeight >= 32) {
+    const name = createSvgElement("text", "component-metric-map__tile-name");
+    name.setAttribute("x", String(inset + 10));
+    name.setAttribute("y", String(inset + 18));
+    name.textContent = shortenedMetricName(
+      functionValue.name,
+      contentWidth - (rankVisible ? 42 : 0),
+    );
+    node.append(name);
+  }
+  if (rankVisible) {
+    const rank = createSvgElement("text", "component-metric-map__tile-rank");
+    rank.setAttribute("x", String(width - inset - 10));
+    rank.setAttribute("y", String(inset + 17));
+    rank.setAttribute("text-anchor", "end");
+    rank.textContent = `#${String(rankingPosition).padStart(2, "0")}`;
+    node.append(rank);
+  }
+  if (contentWidth >= 88 && contentHeight >= 52) {
+    const metric = createSvgElement("text", "component-metric-map__tile-value");
+    metric.setAttribute("x", String(inset + 10));
+    metric.setAttribute("y", String(inset + 38));
+    metric.textContent = `${numberFormatter.format(value)} ${selectedFunctionMetric().shortLabel}`;
+    node.append(metric);
+  }
+  if (contentWidth >= 122 && contentHeight >= 76) {
+    const componentName = createSvgElement("text", "component-metric-map__tile-kind");
+    componentName.setAttribute("x", String(inset + 10));
+    componentName.setAttribute("y", String(height - inset - 10));
+    componentName.textContent = component?.name || functionValue.component;
+    node.append(componentName);
+  }
+
+  node.addEventListener("click", (event) => {
+    event.stopPropagation();
+    selectFunction(functionValue.id, false);
+  });
+  node.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      selectFunction(functionValue.id, false);
+    }
+  });
+  container.append(node);
+}
+
+function renderFunctionMetricMap() {
+  if (!state.graph) {
+    return;
+  }
+  const functions = visibleFunctions().sort(compareBySelectedFunctionMetric);
+  elements.graphEmpty.hidden = functions.length !== 0;
+  elements.functionMetricMap.replaceChildren();
+
+  const width = Math.max(elements.graphViewport.clientWidth, componentMetricMapOptions.minimumWidth);
+  const height = Math.max(elements.graphViewport.clientHeight, componentMetricMapOptions.minimumHeight);
+  elements.functionMetricMap.setAttribute("viewBox", `0 0 ${width} ${height}`);
+  const weightedFunctions = functions.map((functionValue) => {
+    const value = selectedFunctionMetricValue(functionValue);
+    return {
+      functionValue,
+      value,
+      weight: value > 0 ? value : componentMetricMapOptions.zeroWeight,
+    };
+  });
+  const padding = componentMetricMapOptions.padding;
+  const tiles = layoutTreemap(weightedFunctions, {
+    x: padding,
+    y: padding,
+    width: width - padding * 2,
+    height: height - padding * 2,
+  });
+  tiles.forEach((tile, index) => {
+    appendFunctionMetricTile(elements.functionMetricMap, tile, index + 1);
   });
 }
 
@@ -538,33 +753,40 @@ function renderSummary() {
   elements.modulePath.textContent = `${state.graph.modulePath} · scope ${analysisPaths}`;
   elements.summaryComponents.textContent = numberFormatter.format(summary.components);
   elements.summaryKinds.textContent =
-    `${summary.applications} applications · ${summary.sharedModules + summary.applicationModules} modules · ` +
+    `${summary.applications} applications · ` +
+    `${summary.sharedModules + summary.applicationModules} modules · ` +
     `${summary.libraries} libraries`;
   elements.summaryRelationships.textContent = numberFormatter.format(summary.productionRelationships);
   elements.summaryTests.textContent = `${summary.testOnlyRelationships} test-only relationships`;
+  elements.summaryFunctions.textContent = numberFormatter.format(summary.productionFunctions);
+  elements.summaryFunctionCalls.textContent =
+    `${numberFormatter.format(summary.functionCallSites)} resolved call sites · ` +
+    `${numberFormatter.format(summary.testFunctions)} test functions · ` +
+    `${numberFormatter.format(summary.functionCycles)} call cycles`;
 
-  const candidates = components
+  const sharedComponents = components
     .filter((component) => !["application", "development"].includes(component.kind))
     .sort(
       (first, second) =>
-        second.applicationReach - first.applicationReach ||
-        second.transitiveDependants - first.transitiveDependants ||
-        compareUsage(first, second),
+        second.usingApplicationCount - first.usingApplicationCount ||
+        second.transitiveImportingComponents - first.transitiveImportingComponents ||
+        compareByImportingComponents(first, second),
     );
-  const greatestReach = candidates[0];
-  elements.summaryReach.textContent = greatestReach?.name || "—";
-  elements.summaryReach.title = greatestReach?.id || "";
-  elements.summaryReachNote.textContent = greatestReach
-    ? `${greatestReach.applicationReach} applications · ${greatestReach.transitiveDependants} indirect consumers`
+  const componentUsedByMostApplications = sharedComponents[0];
+  elements.summaryUsingApplications.textContent = componentUsedByMostApplications?.name || "—";
+  elements.summaryUsingApplications.title = componentUsedByMostApplications?.id || "";
+  elements.summaryUsingApplicationsNote.textContent = componentUsedByMostApplications
+    ? `${componentUsedByMostApplications.usingApplicationCount} applications · ` +
+      `${componentUsedByMostApplications.transitiveImportingComponents} transitive importing components`
     : "No shared component";
 
-  elements.summaryConcerns.textContent = numberFormatter.format(
+  elements.summaryFindings.textContent = numberFormatter.format(
     summary.findings,
   );
   elements.summaryCycles.textContent =
     `${summary.errors} errors · ${summary.warnings} warnings · ` +
-    `${summary.stableDependencyViolations} SDP violations`;
-  elements.revisionLabel.textContent = `revision ${state.graph.revision.slice(0, 12)}`;
+    `${summary.stableDependencyPrincipleViolations} stable dependency principle violations`;
+  elements.revisionLabel.textContent = `graph revision ${state.graph.revision.slice(0, 12)}`;
 }
 
 function layoutComponents(components) {
@@ -681,8 +903,8 @@ function appendRelationships(content, relationships, positions) {
     if (relationship.testOnly) {
       classes.push("dependency-map__edge--test");
     }
-    if (relationship.concerns.length > 0) {
-      classes.push("dependency-map__edge--concern");
+    if (relationship.ruleViolations.length > 0) {
+      classes.push("dependency-map__edge--rule-violation");
     }
     if (selected) {
       classes.push("dependency-map__edge--selected");
@@ -699,9 +921,12 @@ function appendRelationships(content, relationships, positions) {
     const sourceComponent = componentByIdentifier(relationship.source);
     const targetComponent = componentByIdentifier(relationship.target);
     const stability = sourceComponent && targetComponent
-      ? `\nI ${formatRatio(sourceComponent.instability)} → I ${formatRatio(targetComponent.instability)}`
+      ? `\nInstability (I): ${formatRatio(sourceComponent.instability)} → ` +
+        `${formatRatio(targetComponent.instability)}`
       : "";
-    const violation = relationship.stableDependencyViolation ? " · SDP violation" : "";
+    const violation = relationship.violatesStableDependencyPrinciple
+      ? " · stable dependency principle violation"
+      : "";
     title.textContent =
       `${relationship.source} → ${relationship.target}\n` +
       `${references} files · ${relationship.sourcePackages.length} source packages` +
@@ -745,8 +970,8 @@ function appendComponents(content, components, relationships, positions) {
     if (component.inCycle) {
       classes.push("dependency-map__node--cycle");
     }
-    if (component.inZoneOfPain) {
-      classes.push("dependency-map__node--pain");
+    if (component.isStableWithLowAbstraction) {
+      classes.push("dependency-map__node--stable-low-abstraction");
     }
 
     const node = createSvgElement("g", classes.join(" "));
@@ -775,21 +1000,24 @@ function appendComponents(content, components, relationships, positions) {
     metric.setAttribute("x", "14");
     metric.setAttribute("y", "35");
     metric.textContent =
-      `Cₐ ${component.afferentCoupling} · Cₑ ${component.efferentCoupling} · I ${formatRatio(component.instability)}`;
+      `Incoming ${component.afferentCoupling} · outgoing ${component.efferentCoupling} · ` +
+      `instability ${formatRatio(component.instability)}`;
 
     const title = createSvgElement("title");
     title.textContent =
-      `${component.id}\nCₐ ${component.afferentCoupling} · Cₑ ${component.efferentCoupling}\n` +
-      `I ${formatRatio(component.instability)} · A ${formatRatio(component.abstractness)} · ` +
-      `D ${formatRatio(component.mainSequenceDistance)}`;
+      `${component.id}\nAfferent coupling (Cₐ): ${component.afferentCoupling} · ` +
+      `Efferent coupling (Cₑ): ${component.efferentCoupling}\n` +
+      `Instability (I): ${formatRatio(component.instability)} · ` +
+      `Abstractness (A): ${formatRatio(component.abstractness)} · ` +
+      `Main-sequence distance (D): ${formatRatio(component.mainSequenceDistance)}`;
     node.append(box, kindDot, name, metric, title);
 
-    const hasConcern = component.inCycle || component.inZoneOfPain || relationships.some(
+    const hasFinding = component.inCycle || component.isStableWithLowAbstraction || relationships.some(
       (relationship) =>
-        relationship.concerns.length > 0 &&
+        relationship.ruleViolations.length > 0 &&
         (relationship.source === component.id || relationship.target === component.id),
     );
-    if (hasConcern) {
+    if (hasFinding) {
       const alert = createSvgElement("circle", "dependency-map__node-alert");
       alert.setAttribute("cx", String(layoutOptions.nodeWidth - 11));
       alert.setAttribute("cy", "11");
@@ -811,13 +1039,13 @@ function appendComponents(content, components, relationships, positions) {
   }
 }
 
-function renderGraph(shouldFit) {
+function renderGraph(shouldShowAllComponents) {
   if (!state.graph) {
     return;
   }
-  const components = graphComponents();
+  const components = visibleComponents();
   const visibleIdentifiers = new Set(components.map((component) => component.id));
-  const relationships = graphRelationships(visibleIdentifiers);
+  const relationships = visibleRelationships(visibleIdentifiers);
   const layout = layoutComponents(components);
   state.contentBounds = { width: layout.width, height: layout.height };
   elements.graphEmpty.hidden = components.length !== 0;
@@ -831,42 +1059,64 @@ function renderGraph(shouldFit) {
   appendComponents(content, components, relationships, layout.positions);
   elements.dependencyMap.append(definitions, content);
   state.contentGroup = content;
-  if (shouldFit) {
-    fitGraph();
+  if (shouldShowAllComponents) {
+    showAllComponents();
   } else {
     applyTransform();
   }
 }
 
 function renderViewState() {
-  const impactVisible = state.viewMode === "impact";
-  const metric = impactMetricDefinition();
-  elements.impactView.setAttribute("aria-pressed", String(impactVisible));
-  elements.dependencyView.setAttribute("aria-pressed", String(!impactVisible));
-  elements.impactMetricControl.hidden = !impactVisible;
-  elements.dependencyControls.hidden = impactVisible;
-  elements.impactMap.hidden = !impactVisible;
-  elements.dependencyMap.hidden = impactVisible;
-  elements.impactLegend.hidden = !impactVisible;
-  elements.edgeLegend.hidden = impactVisible;
+  const componentMapVisible = state.viewMode === "metrics";
+  const functionMapVisible = state.viewMode === "functions";
+  const dependencyMapVisible = state.viewMode === "dependencies";
+  elements.componentMetricView.setAttribute("aria-pressed", String(componentMapVisible));
+  elements.functionMetricView.setAttribute("aria-pressed", String(functionMapVisible));
+  elements.dependencyView.setAttribute("aria-pressed", String(dependencyMapVisible));
+  elements.componentMetricControl.hidden = !componentMapVisible;
+  elements.functionMetricControl.hidden = !functionMapVisible;
+  elements.dependencyControls.hidden = !dependencyMapVisible;
+  elements.componentMetricMap.hidden = !componentMapVisible;
+  elements.functionMetricMap.hidden = !functionMapVisible;
+  elements.dependencyMap.hidden = !dependencyMapVisible;
+  elements.componentMetricLegend.hidden = dependencyMapVisible;
+  elements.edgeLegend.hidden = !dependencyMapVisible;
   elements.graphViewport.dataset.view = state.viewMode;
   elements.graphViewport.dataset.dragging = "false";
   state.dragging = null;
 
-  if (impactVisible) {
-    elements.graphEyebrow.textContent = "Strategic weight";
-    elements.graphTitle.textContent = "Dependency mass map";
+  if (componentMapVisible) {
+    const selectedMetric = selectedComponentMetric();
+    elements.graphEyebrow.textContent = "Component import count";
+    elements.graphTitle.textContent = "Component usage map";
     elements.graphDescription.textContent =
-      `Area represents ${metric.label}. Larger components have more architectural weight.`;
-    elements.impactLegendText.textContent = `Larger area means more ${metric.label}.`;
+      `The tile area represents ${selectedMetric.label}. A larger area means a larger value.`;
+    elements.componentMetricLegendText.textContent =
+      `A larger area means more ${selectedMetric.label}.`;
     elements.graphViewport.setAttribute(
       "aria-label",
-      "Dependency impact map. Larger areas indicate greater architectural use.",
+      "Component count map. A larger area means a larger value.",
     );
     return;
   }
 
-  elements.graphEyebrow.textContent = "Dependency flow";
+  if (functionMapVisible) {
+    const selectedMetric = selectedFunctionMetric();
+    elements.graphEyebrow.textContent = "Resolved static function calls";
+    elements.graphTitle.textContent = "Function usage map";
+    elements.graphDescription.textContent =
+      `The tile area represents ${selectedMetric.label}. ` +
+      "Go static type information selects each target.";
+    elements.componentMetricLegendText.textContent =
+      `A larger area means more ${selectedMetric.label}.`;
+    elements.graphViewport.setAttribute(
+      "aria-label",
+      "Function count map. A larger area means a larger value.",
+    );
+    return;
+  }
+
+  elements.graphEyebrow.textContent = "Import relationships";
   elements.graphTitle.textContent = "Component import map";
   elements.graphDescription.textContent =
     "Arrows point from an importer to the internal component that it imports.";
@@ -876,21 +1126,26 @@ function renderViewState() {
   );
 }
 
-function renderActiveMap(shouldFit) {
+function renderActiveMap(shouldShowAllComponents) {
   renderViewState();
-  if (state.viewMode === "impact") {
-    renderImpactMap();
+  if (state.viewMode === "metrics") {
+    renderComponentMetricMap();
     return;
   }
-  renderGraph(shouldFit);
+  if (state.viewMode === "functions") {
+    renderFunctionMetricMap();
+    return;
+  }
+  renderGraph(shouldShowAllComponents);
 }
 
 function setViewMode(viewMode) {
-  if (viewMode !== "impact" && viewMode !== "dependencies") {
+  if (!["metrics", "functions", "dependencies"].includes(viewMode)) {
     return;
   }
   state.viewMode = viewMode;
   renderActiveMap(true);
+  renderDetail();
 }
 
 function applyTransform() {
@@ -901,7 +1156,7 @@ function applyTransform() {
   state.contentGroup.setAttribute("transform", `translate(${x} ${y}) scale(${scale})`);
 }
 
-function fitGraph() {
+function showAllComponents() {
   const viewportWidth = elements.graphViewport.clientWidth;
   const viewportHeight = elements.graphViewport.clientHeight;
   const contentWidth = state.contentBounds.width;
@@ -909,8 +1164,8 @@ function fitGraph() {
   if (!contentWidth || !contentHeight || !viewportWidth || !viewportHeight) {
     return;
   }
-  const horizontalScale = (viewportWidth - layoutOptions.fitPadding * 2) / contentWidth;
-  const verticalScale = (viewportHeight - layoutOptions.fitPadding * 2) / contentHeight;
+  const horizontalScale = (viewportWidth - layoutOptions.viewportPadding * 2) / contentWidth;
+  const verticalScale = (viewportHeight - layoutOptions.viewportPadding * 2) / contentHeight;
   const scale = Math.min(
     layoutOptions.maximumScale,
     Math.max(layoutOptions.minimumScale, Math.min(horizontalScale, verticalScale)),
@@ -954,12 +1209,16 @@ function componentByIdentifier(identifier) {
   return state.graph?.components.find((component) => component.id === identifier);
 }
 
+function functionByIdentifier(identifier) {
+  return state.graph?.functions.find((functionValue) => functionValue.id === identifier);
+}
+
 function relationshipVisibleInDetail(relationship) {
   return state.includeTests || !relationship.testOnly;
 }
 
-function relationshipButton(relationship, componentIdentifier, incoming) {
-  const otherIdentifier = incoming ? relationship.source : relationship.target;
+function relationshipButton(relationship, sourceImportsSelectedComponent) {
+  const otherIdentifier = sourceImportsSelectedComponent ? relationship.source : relationship.target;
   const other = componentByIdentifier(otherIdentifier);
   const button = createElement("button", "detail__relation-button");
   button.type = "button";
@@ -969,12 +1228,65 @@ function relationshipButton(relationship, componentIdentifier, incoming) {
   const references = relationship.productionReferences + relationship.testReferences;
   const suffix = relationship.testOnly
     ? " · test only"
-    : relationship.stableDependencyViolation
-      ? " · SDP violation"
+    : relationship.violatesStableDependencyPrinciple
+      ? " · stable dependency principle violation"
       : "";
-  const count = createElement("span", "detail__relation-count", `${references} files${suffix}`);
+  const functionCallSites =
+    relationship.productionFunctionCallSites + relationship.testFunctionCallSites;
+  const callText = functionCallSites > 0 ? ` · ${functionCallSites} calls` : "";
+  const count = createElement(
+    "span",
+    "detail__relation-count",
+    `${references} files${callText}${suffix}`,
+  );
   button.append(name, count);
   return button;
+}
+
+function appendRelationshipEvidence(container, relationship) {
+  const calls = state.graph.functionCalls.filter(
+    (call) =>
+      call.sourceComponent === relationship.source &&
+      call.targetComponent === relationship.target &&
+      (state.includeTests || !call.testOnly),
+  );
+  const imports = (relationship.importSites || []).filter(
+    (site) => state.includeTests || !site.test,
+  );
+  const callSiteCount = calls.reduce((total, call) => total + call.calls, 0);
+  const evidence = createElement("details", "detail__evidence");
+  const summary = createElement(
+    "summary",
+    "detail__evidence-summary",
+    `${callSiteCount} resolved call sites · ${imports.length} import declarations`,
+  );
+  const evidenceList = createElement("ul", "detail__call-list");
+  for (const call of calls) {
+    for (const site of call.callSites) {
+      evidenceList.append(
+        createElement(
+          "li",
+          "detail__call",
+          `${call.source} → ${call.target} · ${site.path}:${site.line}:${site.column}`,
+        ),
+      );
+    }
+  }
+  for (const site of imports) {
+    const alias = site.alias ? ` as ${site.alias}` : "";
+    evidenceList.append(
+      createElement(
+        "li",
+        "detail__call",
+        `import ${site.targetPackage}${alias} · ${site.path}:${site.line}`,
+      ),
+    );
+  }
+  if (evidenceList.childElementCount === 0) {
+    evidenceList.append(createElement("li", "detail__none", "No visible source evidence."));
+  }
+  evidence.append(summary, evidenceList);
+  container.append(evidence);
 }
 
 function appendMetric(container, value, label) {
@@ -992,20 +1304,146 @@ function appendDetailSection(container, title, content) {
   container.append(section);
 }
 
+function appendFunctionCallList(container, calls, incoming) {
+  if (calls.length === 0) {
+    container.append(
+      createElement(
+        "li",
+        "detail__none",
+        incoming ? "No visible function calls this function." : "This function has no visible calls.",
+      ),
+    );
+    return;
+  }
+  for (const call of calls) {
+    const otherIdentifier = incoming ? call.source : call.target;
+    const item = createElement("li", "detail__relation");
+    const button = createElement("button", "detail__function-button");
+    button.type = "button";
+    button.title = otherIdentifier;
+    button.addEventListener("click", () => selectFunction(otherIdentifier, true));
+    button.append(
+      createElement("span", "detail__relation-name", otherIdentifier),
+      createElement("span", "detail__relation-count", `${call.calls} call sites`),
+    );
+    item.append(button);
+    const sites = createElement("details", "detail__evidence");
+    sites.append(createElement("summary", "detail__evidence-summary", "Source locations"));
+    const siteList = createElement("ul", "detail__site-list");
+    for (const site of call.callSites) {
+      siteList.append(
+        createElement(
+          "li",
+          "detail__site",
+          `${site.path}:${site.line}:${site.column}${call.testOnly ? " · test" : ""}`,
+        ),
+      );
+    }
+    sites.append(siteList);
+    item.append(sites);
+    container.append(item);
+  }
+}
+
+function renderFunctionDetail(functionValue) {
+  const component = componentByIdentifier(functionValue.component);
+  elements.detailPanel.replaceChildren();
+  const header = createElement("header", "detail__header");
+  const heading = createElement("div", "detail__heading");
+  const kind = createElement("span", "detail__kind", "Go function");
+  kind.dataset.kind = component?.kind || "infrastructure";
+  heading.append(kind, createElement("h2", "detail__title", functionValue.name));
+  header.append(heading);
+  const location = functionValue.path
+    ? `${functionValue.id} · ${functionValue.path}:${functionValue.line}`
+    : functionValue.id;
+  elements.detailPanel.append(header, createElement("p", "detail__path", location));
+
+  const metrics = createElement("div", "detail__metrics");
+  appendMetric(metrics, functionValue.afferentCoupling, "afferent coupling (Cₐ)");
+  appendMetric(metrics, functionValue.efferentCoupling, "efferent coupling (Cₑ)");
+  appendMetric(metrics, formatRatio(functionValue.instability), "instability (I)");
+  appendMetric(metrics, functionValue.incomingCallSites, "incoming call sites");
+  appendMetric(metrics, functionValue.outgoingCallSites, "outgoing call sites");
+  appendMetric(
+    metrics,
+    functionValue.crossComponentCallerFunctions,
+    "cross-component caller functions",
+  );
+  appendMetric(
+    metrics,
+    functionValue.transitiveCallerFunctions,
+    "transitive caller functions",
+  );
+  appendMetric(
+    metrics,
+    functionValue.transitiveCalledFunctions,
+    "transitive called functions",
+  );
+  appendMetric(metrics, functionValue.testIncomingCallSites, "test incoming call sites");
+  appendMetric(metrics, functionValue.usingApplicationCount, "applications that use this function");
+  elements.detailPanel.append(metrics);
+
+  const formula = createElement("div", "detail__formula");
+  const totalCoupling = functionValue.afferentCoupling + functionValue.efferentCoupling;
+  const instabilityFormula = totalCoupling === 0
+    ? "Instability (I) = 0.00 · no resolved production coupling"
+    : `Instability (I) = Cₑ / (Cₐ + Cₑ) = ${functionValue.efferentCoupling} / ` +
+      `${totalCoupling} = ${formatRatio(functionValue.instability)}`;
+  formula.append(
+    createElement("code", "detail__formula-line", instabilityFormula),
+    createElement(
+      "code",
+      "detail__formula-line",
+      "Cₐ and Cₑ count unique production functions. Call-site counts retain repeated calls.",
+    ),
+    createElement(
+      "code",
+      "detail__formula-line",
+      "Go static type information selects targets. Calls through function variables are not resolved.",
+    ),
+  );
+  appendDetailSection(elements.detailPanel, "Function coupling calculation", formula);
+
+  const visibleCalls = state.graph.functionCalls.filter(
+    (call) => state.includeTests || !call.testOnly,
+  );
+  const callers = visibleCalls.filter((call) => call.target === functionValue.id);
+  const callees = visibleCalls.filter((call) => call.source === functionValue.id);
+  const callerList = createElement("ul", "detail__relation-list");
+  appendFunctionCallList(callerList, callers, true);
+  appendDetailSection(elements.detailPanel, "Caller functions", callerList);
+  const calleeList = createElement("ul", "detail__relation-list");
+  appendFunctionCallList(calleeList, callees, false);
+  appendDetailSection(elements.detailPanel, "Called functions", calleeList);
+}
+
 function renderDetail() {
+  const selectedFunction = functionByIdentifier(state.selectedFunctionIdentifier);
+  if (state.viewMode === "functions" && selectedFunction) {
+    renderFunctionDetail(selectedFunction);
+    return;
+  }
   const component = componentByIdentifier(state.selectedIdentifier);
   if (!component) {
     elements.detailPanel.replaceChildren();
     const empty = createElement("div", "detail__empty");
     const mark = createElement("span", "detail__empty-mark", "↗");
     mark.setAttribute("aria-hidden", "true");
+    const functionView = state.viewMode === "functions";
     empty.append(
       mark,
-      createElement("h2", "detail__empty-title", "Select a component"),
+      createElement(
+        "h2",
+        "detail__empty-title",
+        functionView ? "Select a function" : "Select a component",
+      ),
       createElement(
         "p",
         "detail__empty-copy",
-        "Review its dependencies, consumers, and application impact.",
+        functionView
+          ? "Review callers, called functions, and exact source locations."
+          : "Review the imports and importers of the selected component.",
       ),
     );
     elements.detailPanel.append(empty);
@@ -1022,31 +1460,31 @@ function renderDetail() {
   elements.detailPanel.append(header, createElement("p", "detail__path", component.id));
 
   const metrics = createElement("div", "detail__metrics");
-  appendMetric(metrics, component.afferentCoupling, "Cₐ · incoming");
-  appendMetric(metrics, component.efferentCoupling, "Cₑ · outgoing");
-  appendMetric(metrics, formatRatio(component.instability), "I · instability");
-  appendMetric(metrics, formatRatio(component.abstractness), "A · abstractness");
-  appendMetric(metrics, formatRatio(component.mainSequenceDistance), "D · main sequence");
+  appendMetric(metrics, component.afferentCoupling, "afferent coupling (Cₐ)");
+  appendMetric(metrics, component.efferentCoupling, "efferent coupling (Cₑ)");
+  appendMetric(metrics, formatRatio(component.instability), "instability (I)");
+  appendMetric(metrics, formatRatio(component.abstractness), "abstractness (A)");
+  appendMetric(metrics, formatRatio(component.mainSequenceDistance), "main-sequence distance (D)");
   appendMetric(
     metrics,
     `${component.abstractTypes}/${component.abstractTypes + component.concreteTypes}`,
     "abstract types",
   );
-  appendMetric(metrics, component.applicationReach, "applications");
-  appendMetric(metrics, component.transitiveDependants, "indirect impact");
+  appendMetric(metrics, component.usingApplicationCount, "applications that use this component");
+  appendMetric(metrics, component.transitiveImportingComponents, "transitive importing components");
   appendMetric(metrics, component.sourceFiles, "Go files");
   elements.detailPanel.append(metrics);
 
   const stabilityFormula = createElement("div", "detail__formula");
   const totalCoupling = component.afferentCoupling + component.efferentCoupling;
   const instabilityFormula = totalCoupling === 0
-    ? "I = 0.00 · no external production coupling"
-    : `I = Cₑ / (Cₐ + Cₑ) = ${component.efferentCoupling} / ${totalCoupling} = ` +
+    ? "Instability (I) = 0.00 · no external production coupling"
+    : `Instability (I) = Cₑ / (Cₐ + Cₑ) = ${component.efferentCoupling} / ${totalCoupling} = ` +
       formatRatio(component.instability);
   const namedTypes = component.abstractTypes + component.concreteTypes;
   const abstractnessFormula = namedTypes === 0
-    ? "A = 0.00 · no named production types"
-    : `A = interfaces / named types = ${component.abstractTypes} / ${namedTypes} = ` +
+    ? "Abstractness (A) = 0.00 · no named production types"
+    : `Abstractness (A) = interface types / named types = ${component.abstractTypes} / ${namedTypes} = ` +
       formatRatio(component.abstractness);
   stabilityFormula.append(
     createElement("code", "detail__formula-line", instabilityFormula),
@@ -1054,105 +1492,174 @@ function renderDetail() {
     createElement(
       "code",
       "detail__formula-line",
-      `D = |A + I − 1| = ${formatRatio(component.mainSequenceDistance)}`,
+      `Main-sequence distance (D) = |A + I − 1| = ${formatRatio(component.mainSequenceDistance)}`,
     ),
     createElement(
       "code",
       "detail__formula-line",
-      `Pain zone = Cₐ > 0, I ≤ 0.20, A ≤ 0.20 · ${component.inZoneOfPain ? "yes" : "no"}`,
+      `Stable with low abstraction = Cₐ > 0, I ≤ 0.20, A ≤ 0.20 · ` +
+        `${component.isStableWithLowAbstraction ? "yes" : "no"}`,
     ),
   );
   appendDetailSection(elements.detailPanel, "Stability calculation", stabilityFormula);
 
-  if (component.applications.length > 0) {
-    const applications = createElement("ul", "detail__application-list");
-    for (const application of component.applications) {
-      applications.append(createElement("li", "detail__application", application));
+  if (component.usingApplications.length > 0) {
+    const usingApplications = createElement("ul", "detail__application-list");
+    for (const application of component.usingApplications) {
+      usingApplications.append(createElement("li", "detail__application", application));
     }
-    appendDetailSection(elements.detailPanel, "Application reach", applications);
+    appendDetailSection(elements.detailPanel, "Applications that use this component", usingApplications);
   }
 
-  const incoming = state.graph.relationships
+  const importingRelationships = state.graph.relationships
     .filter(
       (relationship) =>
         relationship.target === component.id && relationshipVisibleInDetail(relationship),
     )
     .sort((first, second) => first.source.localeCompare(second.source));
-  const incomingList = createElement("ul", "detail__relation-list");
-  if (incoming.length === 0) {
-    incomingList.append(createElement("li", "detail__none", "No component imports this component."));
+  const importingRelationshipList = createElement("ul", "detail__relation-list");
+  if (importingRelationships.length === 0) {
+    importingRelationshipList.append(
+      createElement("li", "detail__none", "No component imports this component."),
+    );
   } else {
-    for (const relationship of incoming) {
+    for (const relationship of importingRelationships) {
       const item = createElement("li", "detail__relation");
-      item.append(relationshipButton(relationship, component.id, true));
-      incomingList.append(item);
+      item.append(relationshipButton(relationship, true));
+      appendRelationshipEvidence(item, relationship);
+      importingRelationshipList.append(item);
     }
   }
-  appendDetailSection(elements.detailPanel, "Imported by", incomingList);
+  appendDetailSection(elements.detailPanel, "Importing components", importingRelationshipList);
 
-  const outgoing = state.graph.relationships
+  const importedRelationships = state.graph.relationships
     .filter(
       (relationship) =>
         relationship.source === component.id && relationshipVisibleInDetail(relationship),
     )
     .sort((first, second) => first.target.localeCompare(second.target));
-  const outgoingList = createElement("ul", "detail__relation-list");
-  if (outgoing.length === 0) {
-    outgoingList.append(
+  const importedRelationshipList = createElement("ul", "detail__relation-list");
+  if (importedRelationships.length === 0) {
+    importedRelationshipList.append(
       createElement("li", "detail__none", "This component does not import another internal component."),
     );
   } else {
-    for (const relationship of outgoing) {
+    for (const relationship of importedRelationships) {
       const item = createElement("li", "detail__relation");
-      item.append(relationshipButton(relationship, component.id, false));
-      outgoingList.append(item);
+      item.append(relationshipButton(relationship, false));
+      appendRelationshipEvidence(item, relationship);
+      importedRelationshipList.append(item);
     }
   }
-  appendDetailSection(elements.detailPanel, "Imports", outgoingList);
+  appendDetailSection(elements.detailPanel, "Imported components", importedRelationshipList);
 
-  const concerns = new Set();
-  if (component.inCycle) {
-    concerns.add("This component is in a production cycle.");
+  const componentFunctions = state.graph.functions
+    .filter(
+      (functionValue) =>
+        functionValue.component === component.id && (state.includeTests || !functionValue.test),
+    )
+    .sort(
+      (first, second) =>
+        second.incomingCallSites - first.incomingCallSites || first.id.localeCompare(second.id),
+    )
+    .slice(0, 12);
+  const functionList = createElement("ul", "detail__relation-list");
+  if (componentFunctions.length === 0) {
+    functionList.append(createElement("li", "detail__none", "No function is in the selected scope."));
+  } else {
+    for (const functionValue of componentFunctions) {
+      const item = createElement("li", "detail__relation");
+      const button = createElement("button", "detail__function-button");
+      button.type = "button";
+      button.title = functionValue.id;
+      button.addEventListener("click", () => selectFunction(functionValue.id, true));
+      button.append(
+        createElement("span", "detail__relation-name", functionValue.name),
+        createElement(
+          "span",
+          "detail__relation-count",
+          `${functionValue.incomingCallSites} incoming calls · Cₐ ${functionValue.afferentCoupling}`,
+        ),
+      );
+      item.append(button);
+      functionList.append(item);
+    }
   }
-  if (component.inZoneOfPain) {
-    concerns.add(
-      "Zone of Pain: production consumers depend on a stable component with little abstraction.",
+  appendDetailSection(elements.detailPanel, "Most called functions", functionList);
+
+  const findingMessages = new Set();
+  if (component.inCycle) {
+    findingMessages.add("This component is in a production import cycle.");
+  }
+  if (component.isStableWithLowAbstraction) {
+    findingMessages.add(
+      "One or more production components import this stable component, which has low abstraction.",
     );
   }
-  for (const relationship of [...incoming, ...outgoing]) {
-    for (const concern of relationship.concerns) {
-      concerns.add(concernLabels[concern] || concern);
+  for (const relationship of [...importingRelationships, ...importedRelationships]) {
+    for (const ruleViolation of relationship.ruleViolations) {
+      findingMessages.add(ruleViolationLabels[ruleViolation] || ruleViolation);
     }
   }
-  if (concerns.size > 0) {
-    const concernList = createElement("ul", "detail__concern-list");
-    for (const concern of [...concerns].sort()) {
-      concernList.append(createElement("li", "detail__concern", concern));
+  if (findingMessages.size > 0) {
+    const findingList = createElement("ul", "detail__finding-list");
+    for (const findingMessage of [...findingMessages].sort()) {
+      findingList.append(createElement("li", "detail__finding", findingMessage));
     }
-    appendDetailSection(elements.detailPanel, "Design alerts", concernList);
+    appendDetailSection(elements.detailPanel, "Findings", findingList);
   }
 }
 
-function selectComponent(identifier, reveal) {
+function selectComponent(identifier, makeVisible) {
   const component = componentByIdentifier(identifier);
   if (!component) {
     return;
   }
   let filtersChanged = false;
-  if (reveal && !state.visibleKinds.has(component.kind)) {
+  if (makeVisible && !state.visibleKinds.has(component.kind)) {
     state.visibleKinds.add(component.kind);
     filtersChanged = true;
   }
-  if (reveal && state.search) {
+  if (makeVisible && state.search) {
     state.search = "";
     elements.searchInput.value = "";
     filtersChanged = true;
   }
   state.selectedIdentifier = identifier;
+  state.selectedFunctionIdentifier = "";
+  if (state.viewMode === "functions") {
+    state.viewMode = "metrics";
+  }
   if (filtersChanged) {
     renderKindControls();
   }
   renderActiveMap(filtersChanged);
+  renderDetail();
+}
+
+function selectFunction(identifier, makeVisible) {
+  const functionValue = functionByIdentifier(identifier);
+  if (!functionValue) {
+    return;
+  }
+  const component = componentByIdentifier(functionValue.component);
+  let filtersChanged = false;
+  if (makeVisible && component && !state.visibleKinds.has(component.kind)) {
+    state.visibleKinds.add(component.kind);
+    filtersChanged = true;
+  }
+  if (makeVisible && state.search) {
+    state.search = "";
+    elements.searchInput.value = "";
+    filtersChanged = true;
+  }
+  state.selectedFunctionIdentifier = identifier;
+  state.selectedIdentifier = functionValue.component;
+  state.viewMode = "functions";
+  if (filtersChanged) {
+    renderKindControls();
+  }
+  renderActiveMap(false);
   renderDetail();
 }
 
@@ -1172,43 +1679,105 @@ function appendRankingEntry(list, component, position, value) {
   list.append(item);
 }
 
+function appendFunctionRankingEntry(list, functionValue, position) {
+  const component = componentByIdentifier(functionValue.component);
+  const item = createElement("li", "ranking__item");
+  const button = createElement("button", "ranking__button");
+  button.type = "button";
+  button.dataset.kind = component?.kind || "infrastructure";
+  button.title = functionValue.id;
+  button.addEventListener("click", () => selectFunction(functionValue.id, true));
+  const incomingCalls = functionValue.incomingCallSites +
+    (state.includeTests ? functionValue.testIncomingCallSites : 0);
+  button.append(
+    createElement("span", "ranking__position", position),
+    createElement("span", "ranking__name", functionValue.name),
+    createElement("span", "ranking__value", `${incomingCalls} calls · Cₐ ${functionValue.afferentCoupling}`),
+  );
+  item.append(button);
+  list.append(item);
+}
+
 function renderRankings() {
   elements.usageRanking.replaceChildren();
-  const reusableKinds = new Set([
+  const importedComponentKinds = new Set([
     "application-module",
     "shared-module",
     "library",
     "infrastructure",
   ]);
-  const used = state.graph.components
-    .filter((component) => reusableKinds.has(component.kind) && component.productionDependants > 0)
-    .sort(compareUsage)
+  const componentsWithProductionImporters = state.graph.components
+    .filter(
+      (component) =>
+        importedComponentKinds.has(component.kind) && component.productionImportingComponents > 0,
+    )
+    .sort(compareByImportingComponents)
     .slice(0, 7);
-  if (used.length === 0) {
+  if (componentsWithProductionImporters.length === 0) {
     elements.usageRanking.append(createElement("li", "detail__none", "No production relationship exists."));
   } else {
-    used.forEach((component, index) => {
+    componentsWithProductionImporters.forEach((component, index) => {
       appendRankingEntry(
         elements.usageRanking,
         component,
         String(index + 1).padStart(2, "0"),
-        `${component.productionDependants} consumers`,
+        `${component.productionImportingComponents} importing components`,
+      );
+    });
+  }
+
+  elements.functionUsageRanking.replaceChildren();
+  const calledFunctions = state.graph.functions
+    .filter(
+      (functionValue) =>
+        (state.includeTests || !functionValue.test) &&
+        functionValue.incomingCallSites +
+          (state.includeTests ? functionValue.testIncomingCallSites : 0) > 0,
+    )
+    .sort(
+      (first, second) =>
+        second.incomingCallSites +
+          (state.includeTests ? second.testIncomingCallSites : 0) -
+          (first.incomingCallSites +
+            (state.includeTests ? first.testIncomingCallSites : 0)) ||
+        second.afferentCoupling - first.afferentCoupling ||
+        first.id.localeCompare(second.id),
+    )
+    .slice(0, 10);
+  if (calledFunctions.length === 0) {
+    elements.functionUsageRanking.append(
+      createElement("li", "detail__none", "No resolved internal function call exists."),
+    );
+  } else {
+    calledFunctions.forEach((functionValue, index) => {
+      appendFunctionRankingEntry(
+        elements.functionUsageRanking,
+        functionValue,
+        String(index + 1).padStart(2, "0"),
       );
     });
   }
 
   elements.unusedRanking.replaceChildren();
-  const reviewableKinds = new Set(["application-module", "shared-module", "library"]);
-  const unused = state.graph.components
-    .filter((component) => reviewableKinds.has(component.kind) && component.productionDependants === 0)
+  const componentKindsThatCanHaveImporters = new Set([
+    "application-module",
+    "shared-module",
+    "library",
+  ]);
+  const componentsWithoutProductionImporters = state.graph.components
+    .filter(
+      (component) =>
+        componentKindsThatCanHaveImporters.has(component.kind) &&
+        component.productionImportingComponents === 0,
+    )
     .sort(compareIdentifiers)
     .slice(0, 7);
-  if (unused.length === 0) {
+  if (componentsWithoutProductionImporters.length === 0) {
     elements.unusedRanking.append(
-      createElement("li", "detail__none", "Each component has a production consumer."),
+      createElement("li", "detail__none", "Each listed component has a production importer."),
     );
   } else {
-    unused.forEach((component, index) => {
+    componentsWithoutProductionImporters.forEach((component, index) => {
       appendRankingEntry(
         elements.unusedRanking,
         component,
@@ -1218,9 +1787,9 @@ function renderRankings() {
     });
   }
 
-  elements.zoneOfPainRanking.replaceChildren();
-  const painZone = state.graph.components
-    .filter((component) => component.inZoneOfPain)
+  elements.stableLowAbstractionRanking.replaceChildren();
+  const stableLowAbstractionComponents = state.graph.components
+    .filter((component) => component.isStableWithLowAbstraction)
     .sort(
       (first, second) =>
         second.afferentCoupling - first.afferentCoupling ||
@@ -1228,17 +1797,18 @@ function renderRankings() {
         compareIdentifiers(first, second),
     )
     .slice(0, 7);
-  if (painZone.length === 0) {
-    elements.zoneOfPainRanking.append(
-      createElement("li", "detail__none", "No component is in the stable concrete corner."),
+  if (stableLowAbstractionComponents.length === 0) {
+    elements.stableLowAbstractionRanking.append(
+      createElement("li", "detail__none", "No stable component has low abstraction."),
     );
   } else {
-    painZone.forEach((component, index) => {
+    stableLowAbstractionComponents.forEach((component, index) => {
       appendRankingEntry(
-        elements.zoneOfPainRanking,
+        elements.stableLowAbstractionRanking,
         component,
         String(index + 1).padStart(2, "0"),
-        `Cₐ ${component.afferentCoupling} · I ${formatRatio(component.instability)}`,
+        `afferent coupling ${component.afferentCoupling} · ` +
+          `instability ${formatRatio(component.instability)}`,
       );
     });
   }
@@ -1252,7 +1822,7 @@ function renderDiagnostics() {
     return;
   }
   elements.diagnosticsSummary.textContent =
-    `The analyzer could not fully analyze ${diagnostics.length} files`;
+    `The analyzer finds errors in ${diagnostics.length} source files`;
   for (const diagnostic of diagnostics) {
     elements.diagnosticsList.append(
       createElement(
@@ -1290,7 +1860,7 @@ function requestGraph() {
         state.graphRequestPending = false;
         const response = await fetch("/api/graph", { cache: "no-store" });
         if (!response.ok) {
-          throw new Error(`HTTP status ${response.status}`);
+          throw new Error(`The server returns status ${response.status}.`);
         }
         const graph = await response.json();
         if (state.graph?.revision !== graph.revision) {
@@ -1298,12 +1868,18 @@ function requestGraph() {
           if (state.selectedIdentifier && !componentByIdentifier(state.selectedIdentifier)) {
             state.selectedIdentifier = "";
           }
+          if (
+            state.selectedFunctionIdentifier &&
+            !functionByIdentifier(state.selectedFunctionIdentifier)
+          ) {
+            state.selectedFunctionIdentifier = "";
+          }
           renderDashboard();
         }
       } while (state.graphRequestPending);
       return true;
     } catch (error) {
-      setConnectionState("error", "Read error");
+      setConnectionState("error", "Cannot load the dependency graph");
       elements.revisionLabel.textContent = String(error);
       return false;
     } finally {
@@ -1318,23 +1894,23 @@ function connectEventStream() {
   const events = new EventSource("/api/events");
   events.addEventListener("ready", (event) => {
     state.eventStreamConnected = true;
-    setConnectionState("live", "Live");
+    setConnectionState("live", "The connection is active.");
     if (state.graph?.revision !== event.data) {
       requestGraph();
     }
   });
   events.addEventListener("graph", () => {
     state.eventStreamConnected = true;
-    setConnectionState("live", "Updating");
+    setConnectionState("live", "The client loads the updated graph.");
     requestGraph().then((succeeded) => {
       if (succeeded && state.eventStreamConnected) {
-        setConnectionState("live", "Live");
+        setConnectionState("live", "The connection is active.");
       }
     });
   });
   events.onerror = () => {
     state.eventStreamConnected = false;
-    setConnectionState("connecting", "Reconnecting");
+    setConnectionState("connecting", "The client reconnects to the server.");
   };
 }
 
@@ -1345,20 +1921,30 @@ elements.searchInput.addEventListener("input", () => {
 
 elements.testToggle.addEventListener("change", () => {
   state.includeTests = elements.testToggle.checked;
+  renderRankings();
   renderActiveMap(false);
   renderDetail();
 });
 
-elements.impactView.addEventListener("click", () => setViewMode("impact"));
+elements.componentMetricView.addEventListener("click", () => setViewMode("metrics"));
+elements.functionMetricView.addEventListener("click", () => setViewMode("functions"));
 elements.dependencyView.addEventListener("click", () => setViewMode("dependencies"));
 elements.lightTheme.addEventListener("click", () => setTheme("light", true));
 elements.darkTheme.addEventListener("click", () => setTheme("dark", true));
 
-elements.impactMetric.addEventListener("change", () => {
-  if (!impactMetricDefinitions[elements.impactMetric.value]) {
+elements.componentMetric.addEventListener("change", () => {
+  if (!componentMetricDefinitions[elements.componentMetric.value]) {
     return;
   }
-  state.impactMetric = elements.impactMetric.value;
+  state.componentMetric = elements.componentMetric.value;
+  renderActiveMap(false);
+});
+
+elements.functionMetric.addEventListener("change", () => {
+  if (!functionMetricDefinitions[elements.functionMetric.value]) {
+    return;
+  }
+  state.functionMetric = elements.functionMetric.value;
   renderActiveMap(false);
 });
 
@@ -1372,7 +1958,7 @@ elements.zoomOut.addEventListener("click", () => {
   zoomAt(0.8, center.x, center.y);
 });
 
-elements.fitGraph.addEventListener("click", fitGraph);
+elements.showAllComponents.addEventListener("click", showAllComponents);
 
 elements.graphViewport.addEventListener(
   "wheel",
@@ -1443,8 +2029,10 @@ document.addEventListener("keydown", (event) => {
 
 new ResizeObserver(() => {
   if (state.graph) {
-    if (state.viewMode === "impact") {
-      renderImpactMap();
+    if (state.viewMode === "metrics") {
+      renderComponentMetricMap();
+    } else if (state.viewMode === "functions") {
+      renderFunctionMetricMap();
     } else {
       applyTransform();
     }
@@ -1452,6 +2040,6 @@ new ResizeObserver(() => {
 }).observe(elements.graphViewport);
 
 setTheme(storedTheme(), false);
-setConnectionState("connecting", "Connecting");
+setConnectionState("connecting", "The client connects.");
 requestGraph();
 connectEventStream();

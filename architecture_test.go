@@ -10,7 +10,7 @@ import (
 	"testing"
 )
 
-func TestLayerArchitecture_KeepPureFilesIndependent(t *testing.T) {
+func TestLayerArchitecture_RejectProjectImportsInPureFiles(t *testing.T) {
 	testCases := []struct {
 		file           string
 		allowedImports []string
@@ -28,6 +28,14 @@ func TestLayerArchitecture_KeepPureFilesIndependent(t *testing.T) {
 			file:           "query.go",
 			allowedImports: []string{"cmp", "errors", "fmt", "slices", "strings"},
 		},
+		{
+			file:           "functioncalculation.go",
+			allowedImports: []string{"cmp", "slices", "strconv", "strings"},
+		},
+		{
+			file:           "functionquery.go",
+			allowedImports: []string{"cmp", "errors", "fmt", "slices", "strings"},
+		},
 	}
 	for _, testCase := range testCases {
 		t.Run("Scenario: The pure layer file is "+testCase.file, func(t *testing.T) {
@@ -38,7 +46,7 @@ func TestLayerArchitecture_KeepPureFilesIndependent(t *testing.T) {
 				imports = make([]string, 0)
 			})
 
-			t.Run("When the layer imports are inspected", func(t *testing.T) {
+			t.Run("When the test inspects the layer imports", func(t *testing.T) {
 				file, err := parser.ParseFile(
 					token.NewFileSet(),
 					testCase.file,
@@ -60,7 +68,7 @@ func TestLayerArchitecture_KeepPureFilesIndependent(t *testing.T) {
 				slices.Sort(imports)
 			})
 
-			if !t.Run("Then the source file can be parsed", func(t *testing.T) {
+			if !t.Run("Then the parser can parse the source file", func(t *testing.T) {
 				if parseError != nil {
 					t.Fatalf("parse %s: %v", testCase.file, parseError)
 				}
@@ -82,8 +90,8 @@ func TestLayerArchitecture_KeepPureFilesIndependent(t *testing.T) {
 	}
 }
 
-func TestLayerArchitecture_KeepRepositoryLayoutInConfiguration(t *testing.T) {
-	t.Run("Scenario: Core analysis files are inspected for repository-specific roots", func(t *testing.T) {
+func TestLayerArchitecture_RejectRepositoryRootsOutsideConfiguration(t *testing.T) {
+	t.Run("Scenario: The test inspects core analysis files for repository-specific roots", func(t *testing.T) {
 		var payloads map[string]string
 		var readError error
 
@@ -91,7 +99,7 @@ func TestLayerArchitecture_KeepRepositoryLayoutInConfiguration(t *testing.T) {
 			payloads = make(map[string]string)
 		})
 
-		t.Run("When their source text is read", func(t *testing.T) {
+		t.Run("When the test reads their source text", func(t *testing.T) {
 			for _, file := range []string{
 				"analyzer.go",
 				"classification.go",
@@ -107,7 +115,7 @@ func TestLayerArchitecture_KeepRepositoryLayoutInConfiguration(t *testing.T) {
 			}
 		})
 
-		if !t.Run("Then every core file can be inspected", func(t *testing.T) {
+		if !t.Run("Then the test can inspect every core file", func(t *testing.T) {
 			if readError != nil {
 				t.Fatalf("read architecture source: %v", readError)
 			}

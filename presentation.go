@@ -4,9 +4,9 @@ import "embed"
 
 const (
 	dashboardDocumentPath = "_resources/web/index.html"
-	dashboardStylePath    = "_resources/web/app.css"
-	dashboardScriptPath   = "_resources/web/app.js"
+	dashboardStylePath    = "_resources/web/dashboard.css"
+	dashboardScriptPath   = "_resources/web/dashboard.js"
 )
 
-//go:embed _resources/web/index.html _resources/web/app.css _resources/web/app.js
+//go:embed _resources/web/index.html _resources/web/dashboard.css _resources/web/dashboard.js
 var dashboardAssets embed.FS

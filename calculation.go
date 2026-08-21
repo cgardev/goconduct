@@ -9,11 +9,11 @@ import (
 )
 
 const (
-	zoneOfPainMaximumInstability  = 0.2
-	zoneOfPainMaximumAbstractness = 0.2
+	stableLowAbstractionMaximumInstability  = 0.2
+	stableLowAbstractionMaximumAbstractness = 0.2
 )
 
-// componentDescriptor is normalized strategic identity used by pure calculations.
+// componentDescriptor identifies one component for the calculation functions.
 type componentDescriptor struct {
 	identifier  string
 	name        string
@@ -21,21 +21,23 @@ type componentDescriptor struct {
 	application string
 }
 
-// sourceFile is normalized source evidence produced by the repository adapter.
+// sourceFile contains the source data that the analyzer collected.
 type sourceFile struct {
-	relativePath  string
-	packagePath   string
-	component     componentDescriptor
-	test          bool
-	imports       []sourceImport
-	abstractTypes int
-	concreteTypes int
-	diagnostics   []Diagnostic
+	relativePath    string
+	packagePath     string
+	component       componentDescriptor
+	test            bool
+	imports         []sourceImport
+	abstractTypes   int
+	concreteTypes   int
+	diagnostics     []Diagnostic
+	hasFunctionData bool
 }
 
 type sourceImport struct {
 	packagePath string
 	component   componentDescriptor
+	site        ImportSite
 }
 
 type componentAccumulator struct {
@@ -60,6 +62,7 @@ type relationshipAccumulator struct {
 	productionSourcePackages stringSet
 	testSourcePackages       stringSet
 	targetPackages           stringSet
+	importSites              []ImportSite
 }
 
 type stringSet map[string]struct{}
@@ -98,11 +101,13 @@ func collectRelationships(
 				productionSourcePackages: make(stringSet),
 				testSourcePackages:       make(stringSet),
 				targetPackages:           make(stringSet),
+				importSites:              make([]ImportSite, 0),
 			}
 			relationships[key] = relationship
 		}
 		relationship.sourcePackages.add(file.packagePath)
 		relationship.targetPackages.add(imported.packagePath)
+		relationship.importSites = append(relationship.importSites, imported.site)
 		if file.test {
 			relationship.testFiles.add(file.relativePath)
 			relationship.testSourcePackages.add(file.packagePath)
@@ -151,9 +156,9 @@ func buildGraph(
 	})
 
 	allDependencies := newAdjacency(identifiers)
-	allDependants := newAdjacency(identifiers)
+	allImportingComponents := newAdjacency(identifiers)
 	productionDependencies := newAdjacency(identifiers)
-	productionDependants := newAdjacency(identifiers)
+	productionImportingComponents := newAdjacency(identifiers)
 	incomingPackages := make(map[string]stringSet, len(identifiers))
 	incomingProductionPackages := make(map[string]stringSet, len(identifiers))
 	incomingTestPackages := make(map[string]stringSet, len(identifiers))
@@ -174,13 +179,13 @@ func buildGraph(
 		data := relationshipData[key]
 		testOnly := len(data.productionFiles) == 0
 		allDependencies[key.source].add(key.target)
-		allDependants[key.target].add(key.source)
+		allImportingComponents[key.target].add(key.source)
 		if testOnly {
 			testOnlyIncoming[key.target].add(key.source)
 			testOnlyOutgoing[key.source].add(key.target)
 		} else {
 			productionDependencies[key.source].add(key.target)
-			productionDependants[key.target].add(key.source)
+			productionImportingComponents[key.target].add(key.source)
 			productionIncoming[key.target].add(key.source)
 		}
 		incomingPackages[key.target].addAll(data.sourcePackages)
@@ -193,8 +198,9 @@ func buildGraph(
 			TestReferences:       len(data.testFiles),
 			SourcePackages:       sortedSet(data.sourcePackages),
 			TargetPackages:       sortedSet(data.targetPackages),
+			ImportSites:          sortedImportSites(data.importSites),
 			TestOnly:             testOnly,
-			Concerns: relationshipConcerns(
+			RuleViolations: relationshipRuleViolations(
 				componentData[key.source].descriptor,
 				componentData[key.target].descriptor,
 				testOnly,
@@ -212,46 +218,50 @@ func buildGraph(
 	for _, identifier := range identifiers {
 		data := componentData[identifier]
 		transitiveDependencies := reachable(identifier, productionDependencies)
-		transitiveDependants := reachable(identifier, productionDependants)
-		applications := reachedApplications(identifier, productionDependants, componentData)
-		fanIn := len(productionIncoming[identifier])
-		fanOut := len(productionDependencies[identifier])
-		componentInstability := instability(fanIn, fanOut)
+		transitiveImportingComponents := reachable(identifier, productionImportingComponents)
+		usingApplications := applicationsUsingComponent(identifier, productionImportingComponents, componentData)
+		afferentCoupling := len(productionIncoming[identifier])
+		efferentCoupling := len(productionDependencies[identifier])
+		componentInstability := instability(afferentCoupling, efferentCoupling)
 		componentAbstractness := abstractness(data.abstractTypes, data.concreteTypes)
 		components = append(components, Component{
-			Identifier:                 identifier,
-			Name:                       data.descriptor.name,
-			Kind:                       data.descriptor.kind,
-			Application:                data.descriptor.application,
-			Packages:                   len(data.packages),
-			SourceFiles:                len(data.sourceFiles),
-			ProductionFiles:            len(data.productionFiles),
-			TestFiles:                  len(data.testFiles),
-			DirectDependencies:         len(allDependencies[identifier]),
-			ProductionDependencies:     len(productionDependencies[identifier]),
-			TestOnlyDependencies:       len(testOnlyOutgoing[identifier]),
-			DirectDependants:           len(allDependants[identifier]),
-			ProductionDependants:       fanIn,
-			TestOnlyDependants:         len(testOnlyIncoming[identifier]),
-			TransitiveDependencies:     len(transitiveDependencies),
-			TransitiveDependants:       len(transitiveDependants),
-			ImporterPackages:           len(incomingPackages[identifier]),
-			ProductionImporterPackages: len(incomingProductionPackages[identifier]),
-			TestImporterPackages:       len(incomingTestPackages[identifier]),
-			ApplicationReach:           len(applications),
-			Applications:               applications,
-			AfferentCoupling:           fanIn,
-			EfferentCoupling:           fanOut,
-			Instability:                componentInstability,
-			AbstractTypes:              data.abstractTypes,
-			ConcreteTypes:              data.concreteTypes,
-			Abstractness:               componentAbstractness,
-			MainSequenceDistance:       mainSequenceDistance(componentAbstractness, componentInstability),
-			InZoneOfPain:               inZoneOfPain(fanIn, componentInstability, componentAbstractness),
-			InCycle:                    cycleMembers.contains(identifier),
+			Identifier:                    identifier,
+			Name:                          data.descriptor.name,
+			Kind:                          data.descriptor.kind,
+			Application:                   data.descriptor.application,
+			Packages:                      len(data.packages),
+			SourceFiles:                   len(data.sourceFiles),
+			ProductionFiles:               len(data.productionFiles),
+			TestFiles:                     len(data.testFiles),
+			DirectDependencies:            len(allDependencies[identifier]),
+			ProductionDependencies:        len(productionDependencies[identifier]),
+			TestOnlyDependencies:          len(testOnlyOutgoing[identifier]),
+			DirectImportingComponents:     len(allImportingComponents[identifier]),
+			ProductionImportingComponents: afferentCoupling,
+			TestOnlyImportingComponents:   len(testOnlyIncoming[identifier]),
+			TransitiveDependencies:        len(transitiveDependencies),
+			TransitiveImportingComponents: len(transitiveImportingComponents),
+			ImporterPackages:              len(incomingPackages[identifier]),
+			ProductionImporterPackages:    len(incomingProductionPackages[identifier]),
+			TestImporterPackages:          len(incomingTestPackages[identifier]),
+			UsingApplicationCount:         len(usingApplications),
+			UsingApplications:             usingApplications,
+			AfferentCoupling:              afferentCoupling,
+			EfferentCoupling:              efferentCoupling,
+			Instability:                   componentInstability,
+			AbstractTypes:                 data.abstractTypes,
+			ConcreteTypes:                 data.concreteTypes,
+			Abstractness:                  componentAbstractness,
+			MainSequenceDistance:          mainSequenceDistance(componentAbstractness, componentInstability),
+			IsStableWithLowAbstraction: isStableWithLowAbstraction(
+				afferentCoupling,
+				componentInstability,
+				componentAbstractness,
+			),
+			InCycle: cycleMembers.contains(identifier),
 		})
 	}
-	annotateStableDependencyViolations(relationships, components)
+	annotateStableDependencyPrincipleViolations(relationships, components)
 
 	slices.SortFunc(diagnostics, func(first, second Diagnostic) int {
 		return cmp.Or(
@@ -260,32 +270,51 @@ func buildGraph(
 		)
 	})
 	graph := Graph{
-		SchemaVersion: graphSchemaVersion,
-		ModulePath:    modulePath,
-		Policy:        defaultAnalysisPolicy(),
-		Components:    components,
-		Relationships: relationships,
-		Cycles:        cycles,
-		Diagnostics:   diagnostics,
+		SchemaVersion:  graphSchemaVersion,
+		ModulePath:     modulePath,
+		Policy:         defaultAnalysisPolicy(),
+		Components:     components,
+		Relationships:  relationships,
+		Functions:      make([]Function, 0),
+		FunctionCalls:  make([]FunctionCall, 0),
+		FunctionCycles: make([][]string, 0),
+		Cycles:         cycles,
+		Diagnostics:    diagnostics,
 	}
 	graph.Findings = detectFindings(graph)
 	graph.Summary = summarizeGraph(graph)
 	return graph
 }
 
+func sortedImportSites(sites []ImportSite) []ImportSite {
+	result := slices.Clone(sites)
+	slices.SortFunc(result, func(first, second ImportSite) int {
+		return cmp.Or(
+			strings.Compare(first.Path, second.Path),
+			cmp.Compare(first.Line, second.Line),
+			strings.Compare(first.TargetPackage, second.TargetPackage),
+			strings.Compare(first.Alias, second.Alias),
+		)
+	})
+	return result
+}
+
 func defaultAnalysisPolicy() AnalysisPolicy {
 	return AnalysisPolicy{
 		InstabilityFormula:          "Ce/(Ca+Ce)",
+		FunctionInstabilityFormula:  "functionCe/(functionCa+functionCe)",
+		FunctionCouplingDefinition:  "unique resolved production caller and called functions",
+		FunctionCallResolution:      "Go static type information",
 		IsolatedInstability:         0,
 		AbstractnessFormula:         "abstractTypes/(abstractTypes+concreteTypes)",
 		UntypedAbstractness:         0,
 		MainSequenceDistanceFormula: "abs(A+I-1)",
-		ZoneOfPain: ZoneOfPainPolicy{
+		StableLowAbstraction: StableLowAbstractionPolicy{
 			MinimumAfferentCoupling: 1,
-			MaximumInstability:      zoneOfPainMaximumInstability,
-			MaximumAbstractness:     zoneOfPainMaximumAbstractness,
+			MaximumInstability:      stableLowAbstractionMaximumInstability,
+			MaximumAbstractness:     stableLowAbstractionMaximumAbstractness,
 		},
-		StableDependency: StableDependencyPolicy{
+		StableDependencyPrinciple: StableDependencyPrinciplePolicy{
 			RequiredRelation: "targetInstability <= sourceInstability",
 			ProductionOnly:   true,
 		},
@@ -294,14 +323,30 @@ func defaultAnalysisPolicy() AnalysisPolicy {
 
 func summarizeGraph(graph Graph) GraphSummary {
 	summary := GraphSummary{
-		Components:    len(graph.Components),
-		Relationships: len(graph.Relationships),
-		Cycles:        len(graph.Cycles),
-		Findings:      len(graph.Findings),
+		Components:            len(graph.Components),
+		Relationships:         len(graph.Relationships),
+		Functions:             len(graph.Functions),
+		FunctionRelationships: len(graph.FunctionCalls),
+		FunctionCycles:        len(graph.FunctionCycles),
+		Cycles:                len(graph.Cycles),
+		Findings:              len(graph.Findings),
+	}
+	for _, function := range graph.Functions {
+		if function.Test {
+			summary.TestFunctions++
+		} else {
+			summary.ProductionFunctions++
+		}
+	}
+	for _, call := range graph.FunctionCalls {
+		summary.FunctionCallSites += call.Calls
+		if call.CrossComponent {
+			summary.CrossComponentFunctionCallSites += call.Calls
+		}
 	}
 	for _, component := range graph.Components {
-		if component.InZoneOfPain {
-			summary.ZonesOfPain++
+		if component.IsStableWithLowAbstraction {
+			summary.StableLowAbstractionComponents++
 		}
 		switch component.Kind {
 		case componentKindApplication:
@@ -324,10 +369,10 @@ func summarizeGraph(graph Graph) GraphSummary {
 		} else {
 			summary.ProductionRelationships++
 		}
-		if relationship.StableDependencyViolation {
-			summary.StableDependencyViolations++
+		if relationship.ViolatesStableDependencyPrinciple {
+			summary.StableDependencyPrincipleViolations++
 		}
-		summary.Concerns += len(relationship.Concerns)
+		summary.RelationshipRuleViolations += len(relationship.RuleViolations)
 	}
 	for _, finding := range graph.Findings {
 		switch finding.Severity {
@@ -360,14 +405,14 @@ func detectFindings(graph Graph) []Finding {
 		})
 	}
 	for _, component := range graph.Components {
-		if !component.InZoneOfPain {
+		if !component.IsStableWithLowAbstraction {
 			continue
 		}
 		findings = append(findings, Finding{
-			Rule:     "zone-of-pain",
+			Rule:     "stable-component-low-abstraction",
 			Severity: findingSeverityWarning,
 			Subject:  component.Identifier,
-			Message:  "A stable concrete component has high incoming responsibility.",
+			Message:  "One or more production components import this stable component, which has low abstraction.",
 			Metrics: map[string]float64{
 				"abstractness":         component.Abstractness,
 				"afferentCoupling":     float64(component.AfferentCoupling),
@@ -378,16 +423,16 @@ func detectFindings(graph Graph) []Finding {
 		})
 	}
 	for _, relationship := range graph.Relationships {
-		for _, concern := range relationship.Concerns {
+		for _, ruleViolation := range relationship.RuleViolations {
 			finding := Finding{
-				Rule:     concern,
+				Rule:     ruleViolation,
 				Severity: findingSeverityWarning,
 				Subject:  relationship.Source + " -> " + relationship.Target,
-				Message:  findingMessage(concern),
+				Message:  findingMessage(ruleViolation),
 				Source:   relationship.Source,
 				Target:   relationship.Target,
 			}
-			if concern == "stable-dependency-principle" {
+			if ruleViolation == "stable-dependency-principle" {
 				finding.Metrics = map[string]float64{
 					"sourceInstability": components[relationship.Source].Instability,
 					"targetInstability": components[relationship.Target].Instability,
@@ -415,22 +460,22 @@ func detectFindings(graph Graph) []Finding {
 
 func findingMessage(rule string) string {
 	switch rule {
-	case "cross-application-module-dependency":
-		return "An application module depends on a module owned by another application."
-	case "library-depends-on-feature":
-		return "A shared library depends on a feature module."
-	case "production-depends-on-development":
-		return "Production code depends on development-only tooling."
-	case "shared-foundation-depends-on-application":
-		return "Shared foundation code depends on application-specific code."
+	case "cross-application-module-import":
+		return "An application module imports a module from another application."
+	case "library-imports-feature":
+		return "A shared library imports a feature module."
+	case "production-imports-development":
+		return "Production code imports development code."
+	case "shared-component-imports-application":
+		return "A shared component imports application-specific code."
 	case "stable-dependency-principle":
-		return "A dependency points to a less stable component."
+		return "The source component imports a less stable target component."
 	default:
-		return "A strategic dependency rule is violated."
+		return "The dependency violates an architecture rule."
 	}
 }
 
-func relationshipConcerns(
+func relationshipRuleViolations(
 	source componentDescriptor,
 	target componentDescriptor,
 	testOnly bool,
@@ -438,23 +483,23 @@ func relationshipConcerns(
 	if testOnly {
 		return []string{}
 	}
-	concerns := make(stringSet)
+	ruleViolations := make(stringSet)
 	if target.kind == componentKindDevelopment {
-		concerns.add("production-depends-on-development")
+		ruleViolations.add("production-imports-development")
 	}
 	if source.kind == componentKindLibrary && isFeatureKind(target.kind) {
-		concerns.add("library-depends-on-feature")
+		ruleViolations.add("library-imports-feature")
 	}
 	if (source.kind == componentKindSharedModule || source.kind == componentKindInfrastructure) &&
 		(target.kind == componentKindApplication || target.kind == componentKindApplicationModule) {
-		concerns.add("shared-foundation-depends-on-application")
+		ruleViolations.add("shared-component-imports-application")
 	}
 	if source.kind == componentKindApplicationModule &&
 		target.kind == componentKindApplicationModule &&
 		source.application != target.application {
-		concerns.add("cross-application-module-dependency")
+		ruleViolations.add("cross-application-module-import")
 	}
-	return sortedSet(concerns)
+	return sortedSet(ruleViolations)
 }
 
 func isFeatureKind(kind componentKind) bool {
@@ -487,15 +532,15 @@ func reachable(start string, adjacency map[string]stringSet) stringSet {
 	return visited
 }
 
-func reachedApplications(
+func applicationsUsingComponent(
 	start string,
-	dependants map[string]stringSet,
+	importingComponents map[string]stringSet,
 	components map[string]*componentAccumulator,
 ) []string {
-	reached := reachable(start, dependants)
-	reached.add(start)
+	importingComponentIdentifiers := reachable(start, importingComponents)
+	importingComponentIdentifiers.add(start)
 	applications := make(stringSet)
-	for identifier := range reached {
+	for identifier := range importingComponentIdentifiers {
 		descriptor := components[identifier].descriptor
 		if descriptor.application != "" {
 			applications.add(descriptor.application)
@@ -524,38 +569,38 @@ func mainSequenceDistance(componentAbstractness, componentInstability float64) f
 	return math.Abs(componentAbstractness + componentInstability - 1)
 }
 
-func inZoneOfPain(
+func isStableWithLowAbstraction(
 	afferentCoupling int,
 	componentInstability float64,
 	componentAbstractness float64,
 ) bool {
 	return afferentCoupling > 0 &&
-		componentInstability <= zoneOfPainMaximumInstability &&
-		componentAbstractness <= zoneOfPainMaximumAbstractness
+		componentInstability <= stableLowAbstractionMaximumInstability &&
+		componentAbstractness <= stableLowAbstractionMaximumAbstractness
 }
 
-func stableDependencyViolation(testOnly bool, sourceInstability, targetInstability float64) bool {
+func violatesStableDependencyPrinciple(testOnly bool, sourceInstability, targetInstability float64) bool {
 	return !testOnly && targetInstability > sourceInstability
 }
 
-func annotateStableDependencyViolations(relationships []Relationship, components []Component) {
+func annotateStableDependencyPrincipleViolations(relationships []Relationship, components []Component) {
 	instabilities := make(map[string]float64, len(components))
 	for _, component := range components {
 		instabilities[component.Identifier] = component.Instability
 	}
 	for index := range relationships {
 		relationship := &relationships[index]
-		relationship.StableDependencyViolation = stableDependencyViolation(
+		relationship.ViolatesStableDependencyPrinciple = violatesStableDependencyPrinciple(
 			relationship.TestOnly,
 			instabilities[relationship.Source],
 			instabilities[relationship.Target],
 		)
-		if !relationship.StableDependencyViolation {
+		if !relationship.ViolatesStableDependencyPrinciple {
 			continue
 		}
-		concerns := newStringSet(relationship.Concerns...)
-		concerns.add("stable-dependency-principle")
-		relationship.Concerns = sortedSet(concerns)
+		ruleViolations := newStringSet(relationship.RuleViolations...)
+		ruleViolations.add("stable-dependency-principle")
+		relationship.RuleViolations = sortedSet(ruleViolations)
 	}
 }
 
@@ -563,7 +608,7 @@ func stronglyConnectedComponents(
 	identifiers []string,
 	adjacency map[string]stringSet,
 ) [][]string {
-	index := 0
+	var index int
 	indices := make(map[string]int, len(identifiers))
 	lowLinks := make(map[string]int, len(identifiers))
 	onStack := make(stringSet)
@@ -594,7 +639,7 @@ func stronglyConnectedComponents(
 			return
 		}
 		var component []string
-		for len(stack) > 0 {
+		for {
 			last := len(stack) - 1
 			member := stack[last]
 			stack = stack[:last]
@@ -661,3 +706,7 @@ func sortedSet(set stringSet) []string {
 	sort.Strings(values)
 	return values
 }
+
+// mutate4go-manifest-begin
+// {"version":1,"tested_at":"2026-08-21T10:47:51Z","module_hash":"6ef7c8087b8f027a9f4b829ffaeb6080d84f69e86c72ab9d9b5d3cf06d85c09f","functions":[{"id":"func/collectComponentFile","name":"collectComponentFile","line":70,"end_line":81,"hash":"938958d970c744bf18e07ec11548edd3d1346ec9f3fd309db911319b46f7f58e"},{"id":"func/collectRelationships","name":"collectRelationships","line":83,"end_line":119,"hash":"505ddc4c1bbbc2a12e78bb77cb0dc48b091ba0c75fb59141f171ed9257df5e03"},{"id":"func/ensureComponent","name":"ensureComponent","line":121,"end_line":138,"hash":"b2ee1c6ea29e2fdafeba1ced76b4314eb3377cadcc6ca9df30f818f22c5898c6"},{"id":"func/buildGraph","name":"buildGraph","line":140,"end_line":287,"hash":"9877ff60c958b2b1f79f13d7e566a189331f09871b639090e8c35cfe524adde9"},{"id":"func/sortedImportSites","name":"sortedImportSites","line":289,"end_line":300,"hash":"729ddd6163295c1811de2ff72c769c334ffb3aa7196882021d35a9d8051fbd9e"},{"id":"func/defaultAnalysisPolicy","name":"defaultAnalysisPolicy","line":302,"end_line":322,"hash":"82d2dafcbf5aaa30a36f8f2e7253ac398b703f04020b4ad474d86a14387d22f1"},{"id":"func/summarizeGraph","name":"summarizeGraph","line":324,"end_line":386,"hash":"35e57c829f505dc352ca8704dddaef55f1f27b2a0cddfd2eaf0b48e1aad8f07d"},{"id":"func/detectFindings","name":"detectFindings","line":388,"end_line":459,"hash":"10160266034dbfcba96067821cce31fccc572641c44c0c51b96498ef1cb4430a"},{"id":"func/findingMessage","name":"findingMessage","line":461,"end_line":476,"hash":"af28466375cc484b6fc143060bc0b46703f0dac317a2c946fe5ba8890410d24f"},{"id":"func/relationshipRuleViolations","name":"relationshipRuleViolations","line":478,"end_line":503,"hash":"4e0c0ceeb3050332f3f5ca90ddfd3a3afe1d3879cdf3ba43b4dd9fe2897c0a5c"},{"id":"func/isFeatureKind","name":"isFeatureKind","line":505,"end_line":509,"hash":"c5e429066186e1a57f6e0a2a5a508a9aa37fea218938be30d8c82cdb1b3731a9"},{"id":"func/newAdjacency","name":"newAdjacency","line":511,"end_line":517,"hash":"6eceeef34cd2d6d3abcf78165a79bba7d1befb6c0cde92110a15075a4e38efea"},{"id":"func/reachable","name":"reachable","line":519,"end_line":533,"hash":"c071168a27fe3dd7a2d070ee43f8de98c49bf6159c3acfdda5112a3fb0b0af4e"},{"id":"func/applicationsUsingComponent","name":"applicationsUsingComponent","line":535,"end_line":550,"hash":"3ec05464a25ddd856be98a5dd7635ee19162293241ec4e6900762c403099a464"},{"id":"func/instability","name":"instability","line":552,"end_line":558,"hash":"b40772ba78c4b17186225502c99e12c720ed760823c4a596ca210a0cf34eaac4"},{"id":"func/abstractness","name":"abstractness","line":560,"end_line":566,"hash":"2c152b5d594bfe9b3e0c9bc4a72def1c7649d32e3fdcc167586438f35dbab972"},{"id":"func/mainSequenceDistance","name":"mainSequenceDistance","line":568,"end_line":570,"hash":"8ba4f3225162b2c9fa687623fb476836a5e0aec75d20bb08fc4b1c8a95bc1f8c"},{"id":"func/isStableWithLowAbstraction","name":"isStableWithLowAbstraction","line":572,"end_line":580,"hash":"91f2d822a4a3f3f3ca141788e5122df7be0219ad72beeef98c0cf2159734fbeb"},{"id":"func/violatesStableDependencyPrinciple","name":"violatesStableDependencyPrinciple","line":582,"end_line":584,"hash":"63c9e0e5d52643962f073958c80183d3b7f31977ff7339d0a0ebe9de394c82fb"},{"id":"func/annotateStableDependencyPrincipleViolations","name":"annotateStableDependencyPrincipleViolations","line":586,"end_line":605,"hash":"9c70a90cb4c621bc16fdd6b02e940eb659425e009e0ab06755aff0269a50cd34"},{"id":"func/stronglyConnectedComponents","name":"stronglyConnectedComponents","line":607,"end_line":667,"hash":"0b241044e11ec0aa3ed51cabf7b9067999e1f1ba448741781fd8337113f0a95a"},{"id":"func/sortedMapKeys","name":"sortedMapKeys","line":669,"end_line":676,"hash":"1d5deae91c55d6844f6f56d5f0c16073c50098cda817844e28cbc5c01bf8341a"},{"id":"func/newStringSet","name":"newStringSet","line":678,"end_line":684,"hash":"b730b1c23697d3e1870fca737c8d3c49fecf63e9776f5332ea9e200b97dff445"},{"id":"func/stringSet.add","name":"stringSet.add","line":686,"end_line":688,"hash":"45b2c2c013dfaa1cd9a65c1a644f1f282c32a010db5cc7a3de75e4409c0a535c"},{"id":"func/stringSet.addAll","name":"stringSet.addAll","line":690,"end_line":694,"hash":"90d3236ccd4c3035b96c98f45e83750e147e8ebc92f8436e0178619ca48dffb1"},{"id":"func/stringSet.contains","name":"stringSet.contains","line":696,"end_line":699,"hash":"6f2d5791a86876cd618cecf68b5b4c02454923aa193152eb605bca630ed89f3f"},{"id":"func/sortedSet","name":"sortedSet","line":701,"end_line":708,"hash":"ec41880a5d2594ae1abb2611395a53d9162461b669743e28a537e2cb79566ba1"}]}
+// mutate4go-manifest-end

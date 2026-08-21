@@ -3,6 +3,8 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	"go/parser"
+	"go/token"
 	"math"
 	"os"
 	"path/filepath"
@@ -17,31 +19,108 @@ func fixtureAnalysisConfiguration(repositoryRoot string) AnalysisConfiguration {
 	return configuration
 }
 
-func TestAnalyzer_AnalyzeStableStrategicMetrics(t *testing.T) {
-	t.Run("Scenario: Production and test imports produce a deterministic strategic graph", func(t *testing.T) {
-		var sut *analyzer
+func TestAnalyzer_DetectFunctionData(t *testing.T) {
+	t.Run("Scenario: Go files contain different callable syntax", func(t *testing.T) {
+		var sources []string
+		var results []bool
+		var parseError error
+
+		t.Run("Given files with no callable syntax, a declaration, a type, and a call", func(*testing.T) {
+			sources = []string{
+				"package sample\nconst Value = 1\n",
+				"package sample\nfunc Run() {}\n",
+				"package sample\nvar Callback func()\n",
+				"package sample\nvar Value = build()\n",
+			}
+		})
+
+		t.Run("When each syntax tree is inspected", func(*testing.T) {
+			for _, source := range sources {
+				file, err := parser.ParseFile(token.NewFileSet(), "sample.go", source, 0)
+				if err != nil {
+					parseError = err
+					return
+				}
+				results = append(results, hasFunctionData(file))
+			}
+		})
+
+		if !t.Run("Then only callable syntax requires type analysis", func(t *testing.T) {
+			if parseError != nil {
+				t.Fatalf("parse function data fixture: %v", parseError)
+			}
+			if !slices.Equal(results, []bool{false, true, true, true}) {
+				t.Errorf("function data results are %v", results)
+			}
+		}) {
+			return
+		}
+	})
+}
+
+func TestAnalyzer_AnalyzeSingleFunctionFile(t *testing.T) {
+	t.Run("Scenario: The analysis scope contains exactly one function file", func(t *testing.T) {
+		var sourceAnalyzer *analyzer
+		var graph Graph
+		var analysisError error
+
+		t.Run("Given one classified package with one function", func(step *testing.T) {
+			repositoryRoot := t.TempDir()
+			writeFixtureFile(step, repositoryRoot, "go.mod", "module example.com/single\n\ngo 1.26\n")
+			writeFixtureFile(
+				step,
+				repositoryRoot,
+				"internal/library/sample/sample.go",
+				"package sample\n\nfunc Run() {}\n",
+			)
+			var err error
+			sourceAnalyzer, err = newAnalyzer(fixtureAnalysisConfiguration(repositoryRoot))
+			if err != nil {
+				step.Fatalf("build analyzer: %v", err)
+			}
+		})
+
+		t.Run("When the repository is analyzed", func(*testing.T) {
+			graph, analysisError = sourceAnalyzer.analyze()
+		})
+
+		t.Run("Then the only function is present in the graph", func(t *testing.T) {
+			if analysisError != nil {
+				t.Fatalf("analyze one function file: %v", analysisError)
+			}
+			if graph.Summary.Functions != 1 || len(graph.Functions) != 1 ||
+				graph.Functions[0].Identifier != "internal/library/sample.Run" {
+				t.Errorf("unexpected single-function graph: %+v", graph)
+			}
+		})
+	})
+}
+
+func TestAnalyzer_ReturnDeterministicDependencyMetrics(t *testing.T) {
+	t.Run("Scenario: Production and test imports produce a deterministic component graph", func(t *testing.T) {
+		var sourceAnalyzer *analyzer
 		var first Graph
 		var second Graph
 		var err error
 
 		if !t.Run("Given a repository with production, test, and cyclic imports", func(step *testing.T) {
 			repositoryRoot := newAnalyzerFixture(t)
-			sut, err = newAnalyzer(fixtureAnalysisConfiguration(repositoryRoot))
+			sourceAnalyzer, err = newAnalyzer(fixtureAnalysisConfiguration(repositoryRoot))
 			if err != nil {
-				step.Fatalf("newAnalyzer failed: %v", err)
+				step.Fatalf("newAnalyzer fails: %v", err)
 			}
 		}) {
 			return
 		}
 
-		if !t.Run("When the repository is analyzed twice without source changes", func(t *testing.T) {
-			first, err = sut.analyze()
+		if !t.Run("When the analyzer analyzes the repository twice without source changes", func(t *testing.T) {
+			first, err = sourceAnalyzer.analyze()
 			if err != nil {
-				t.Fatalf("first analyze failed: %v", err)
+				t.Fatalf("the first analysis fails: %v", err)
 			}
-			second, err = sut.analyze()
+			second, err = sourceAnalyzer.analyze()
 			if err != nil {
-				t.Fatalf("second analyze failed: %v", err)
+				t.Fatalf("the second analysis fails: %v", err)
 			}
 		}) {
 			return
@@ -57,22 +136,22 @@ func TestAnalyzer_AnalyzeStableStrategicMetrics(t *testing.T) {
 				t.Fatalf("encode the second graph: %v", marshalError)
 			}
 			if !slices.Equal(firstPayload, secondPayload) {
-				t.Fatal("two analyses of unchanged source produced different graphs")
+				t.Fatal("two analyses of unchanged source produce different graphs")
 			}
 			if first.Revision == "" {
-				t.Fatal("the graph carries no content revision")
+				t.Fatal("the graph contains no content revision")
 			}
 			if first.SchemaVersion != graphSchemaVersion {
 				t.Fatalf("schema version %d does not match the configured version", first.SchemaVersion)
 			}
-			if first.SchemaVersion != 4 {
+			if first.SchemaVersion != 6 {
 				t.Fatalf("unexpected graph schema version %d", first.SchemaVersion)
 			}
 		}) {
 			return
 		}
 
-		t.Run("And the summary reports every strategic component and relationship", func(t *testing.T) {
+		t.Run("And the summary reports every classified component and relationship", func(t *testing.T) {
 			if first.Summary.Components != 8 {
 				t.Errorf("components are %d, want 8", first.Summary.Components)
 			}
@@ -83,14 +162,16 @@ func TestAnalyzer_AnalyzeStableStrategicMetrics(t *testing.T) {
 					first.Summary.TestOnlyRelationships,
 				)
 			}
-			if first.Summary.Concerns != 1 {
-				t.Errorf("concerns are %d, want 1", first.Summary.Concerns)
+			if first.Summary.RelationshipRuleViolations != 1 {
+				t.Errorf("rule violations are %d, want 1", first.Summary.RelationshipRuleViolations)
 			}
-			if first.Summary.StableDependencyViolations != 0 || first.Summary.ZonesOfPain != 1 {
+			if first.Summary.StableDependencyPrincipleViolations != 0 ||
+				first.Summary.StableLowAbstractionComponents != 1 {
 				t.Errorf(
-					"stability risks are %d SDP violations and %d pain zones, want 0 and 1",
-					first.Summary.StableDependencyViolations,
-					first.Summary.ZonesOfPain,
+					"findings are %d violations of the stable dependency principle and "+
+						"%d stable components with low abstraction; want 0 and 1",
+					first.Summary.StableDependencyPrincipleViolations,
+					first.Summary.StableLowAbstractionComponents,
 				)
 			}
 			if first.Summary.Findings != 3 || first.Summary.Errors != 1 || first.Summary.Warnings != 2 {
@@ -109,16 +190,20 @@ func TestAnalyzer_AnalyzeStableStrategicMetrics(t *testing.T) {
 			}
 		})
 
-		t.Run("And coupling metrics show the impact of the logging library", func(t *testing.T) {
+		t.Run("And coupling metrics show how many components import the logging library", func(t *testing.T) {
 			logging := componentWithIdentifier(t, first, "internal/library/logging")
-			if logging.ProductionDependants != 3 {
-				t.Errorf("production consumers are %d, want 3", logging.ProductionDependants)
+			if logging.ProductionImportingComponents != 3 {
+				t.Errorf("production importing components are %d, want 3", logging.ProductionImportingComponents)
 			}
-			if logging.ApplicationReach != 1 || !slices.Equal(logging.Applications, []string{"control"}) {
-				t.Errorf("unexpected application reach: %d, %v", logging.ApplicationReach, logging.Applications)
+			if logging.UsingApplicationCount != 1 || !slices.Equal(logging.UsingApplications, []string{"control"}) {
+				t.Errorf(
+					"unexpected applications that use the component: %d, %v",
+					logging.UsingApplicationCount,
+					logging.UsingApplications,
+				)
 			}
-			if logging.TransitiveDependants != 5 {
-				t.Errorf("transitive consumers are %d, want 5", logging.TransitiveDependants)
+			if logging.TransitiveImportingComponents != 5 {
+				t.Errorf("transitive importing components are %d, want 5", logging.TransitiveImportingComponents)
 			}
 			if logging.AfferentCoupling != 3 || logging.EfferentCoupling != 0 || logging.Instability != 0 {
 				t.Errorf(
@@ -129,7 +214,7 @@ func TestAnalyzer_AnalyzeStableStrategicMetrics(t *testing.T) {
 				)
 			}
 			if logging.AbstractTypes != 0 || logging.ConcreteTypes != 1 ||
-				logging.Abstractness != 0 || logging.MainSequenceDistance != 1 || !logging.InZoneOfPain {
+				logging.Abstractness != 0 || logging.MainSequenceDistance != 1 || !logging.IsStableWithLowAbstraction {
 				t.Errorf("unexpected stable-abstraction metrics: %+v", logging)
 			}
 			if logging.DirectDependencies != 1 || logging.ProductionDependencies != 0 ||
@@ -146,15 +231,15 @@ func TestAnalyzer_AnalyzeStableStrategicMetrics(t *testing.T) {
 		t.Run("And only production imports create the expected cycle", func(t *testing.T) {
 			logging := componentWithIdentifier(t, first, "internal/library/logging")
 			audit := componentWithIdentifier(t, first, "internal/module/audit")
-			if audit.ProductionDependants != 3 || audit.TestOnlyDependants != 1 {
+			if audit.ProductionImportingComponents != 3 || audit.TestOnlyImportingComponents != 1 {
 				t.Errorf(
-					"audit consumers are %d production and %d test-only, want 3 and 1",
-					audit.ProductionDependants,
-					audit.TestOnlyDependants,
+					"audit importing components are %d production and %d test-only, want 3 and 1",
+					audit.ProductionImportingComponents,
+					audit.TestOnlyImportingComponents,
 				)
 			}
 			if audit.InCycle || logging.InCycle {
-				t.Error("a test-only reverse import created a production cycle")
+				t.Error("a test-only reverse import creates a production cycle")
 			}
 			if len(first.Cycles) != 1 {
 				t.Fatalf("cycles are %v, want one cycle", first.Cycles)
@@ -167,33 +252,33 @@ func TestAnalyzer_AnalyzeStableStrategicMetrics(t *testing.T) {
 			}
 		})
 
-		t.Run("And relationships distinguish test imports from layer concerns", func(t *testing.T) {
+		t.Run("And relationships distinguish test imports from layer rule violations", func(t *testing.T) {
 			testRelationship := relationshipBetween(
 				t,
 				first,
 				"internal/library/logging",
 				"internal/module/audit",
 			)
-			if !testRelationship.TestOnly || len(testRelationship.Concerns) != 0 {
+			if !testRelationship.TestOnly || len(testRelationship.RuleViolations) != 0 {
 				t.Errorf("unexpected test relationship: %+v", testRelationship)
 			}
-			layerConcern := relationshipBetween(
+			layerRuleViolation := relationshipBetween(
 				t,
 				first,
 				"internal/library/facade",
 				"internal/module/audit",
 			)
-			if !slices.Equal(layerConcern.Concerns, []string{"library-depends-on-feature"}) {
-				t.Errorf("unexpected layer concern: %v", layerConcern.Concerns)
+			if !slices.Equal(layerRuleViolation.RuleViolations, []string{"library-imports-feature"}) {
+				t.Errorf("unexpected layer rule violation: %v", layerRuleViolation.RuleViolations)
 			}
 		})
 
-		t.Run("And findings provide stable machine-readable rule identifiers", func(t *testing.T) {
+		t.Run("And findings provide stable rule identifiers", func(t *testing.T) {
 			rules := make([]string, 0, len(first.Findings))
 			for _, finding := range first.Findings {
 				rules = append(rules, finding.Rule)
 			}
-			want := []string{"dependency-cycle", "library-depends-on-feature", "zone-of-pain"}
+			want := []string{"dependency-cycle", "library-imports-feature", "stable-component-low-abstraction"}
 			if !slices.Equal(rules, want) {
 				t.Errorf("finding rules are %v, want %v", rules, want)
 			}
@@ -204,10 +289,11 @@ func TestAnalyzer_AnalyzeStableStrategicMetrics(t *testing.T) {
 				first.Policy.IsolatedInstability != 0 ||
 				first.Policy.MainSequenceDistanceFormula != "abs(A+I-1)" ||
 				first.Policy.UntypedAbstractness != 0 ||
-				first.Policy.ZoneOfPain.MaximumInstability != 0.2 ||
-				first.Policy.ZoneOfPain.MaximumAbstractness != 0.2 ||
-				!first.Policy.StableDependency.ProductionOnly ||
-				first.Policy.StableDependency.RequiredRelation !=
+				first.Policy.StableLowAbstraction.MinimumAfferentCoupling != 1 ||
+				first.Policy.StableLowAbstraction.MaximumInstability != 0.2 ||
+				first.Policy.StableLowAbstraction.MaximumAbstractness != 0.2 ||
+				!first.Policy.StableDependencyPrinciple.ProductionOnly ||
+				first.Policy.StableDependencyPrinciple.RequiredRelation !=
 					"targetInstability <= sourceInstability" {
 				t.Errorf("unexpected mathematical policy: %+v", first.Policy)
 			}
@@ -225,11 +311,11 @@ func TestAnalyzer_AnalyzeStableStrategicMetrics(t *testing.T) {
 }
 func TestAnalyzer_AnalyzeInvalidImportBlock(t *testing.T) {
 	t.Run("Scenario: An invalid import block remains visible as a diagnostic", func(t *testing.T) {
-		var sut *analyzer
+		var sourceAnalyzer *analyzer
 		var graph Graph
 		var err error
 
-		if !t.Run("Given a modeled component with an invalid import block", func(step *testing.T) {
+		if !t.Run("Given a classified component with an invalid import block", func(step *testing.T) {
 			repositoryRoot := t.TempDir()
 			writeFixtureFile(step, repositoryRoot, "go.mod", "module example.com/invalid\n\ngo 1.26\n")
 			writeFixtureFile(
@@ -238,23 +324,23 @@ func TestAnalyzer_AnalyzeInvalidImportBlock(t *testing.T) {
 				"internal/library/broken/broken.go",
 				"package broken\n\nimport \"example.com/invalid/internal/library/missing\n",
 			)
-			sut, err = newAnalyzer(fixtureAnalysisConfiguration(repositoryRoot))
+			sourceAnalyzer, err = newAnalyzer(fixtureAnalysisConfiguration(repositoryRoot))
 			if err != nil {
-				step.Fatalf("newAnalyzer failed: %v", err)
+				step.Fatalf("newAnalyzer fails: %v", err)
 			}
 		}) {
 			return
 		}
 
-		if !t.Run("When the repository is analyzed", func(t *testing.T) {
-			graph, err = sut.analyze()
+		if !t.Run("When the analyzer analyzes the repository", func(t *testing.T) {
+			graph, err = sourceAnalyzer.analyze()
 		}) {
 			return
 		}
 
 		if !t.Run("Then the analysis succeeds and keeps the broken component", func(t *testing.T) {
 			if err != nil {
-				t.Fatalf("analyze failed: %v", err)
+				t.Fatalf("the analysis fails: %v", err)
 			}
 			if graph.Summary.Components != 1 {
 				t.Fatalf("components are %d, want 1", graph.Summary.Components)
@@ -265,10 +351,19 @@ func TestAnalyzer_AnalyzeInvalidImportBlock(t *testing.T) {
 
 		t.Run("And the graph reports the invalid source path", func(t *testing.T) {
 			if len(graph.Diagnostics) == 0 {
-				t.Fatal("the graph carries no diagnostic")
+				t.Fatal("the graph contains no diagnostic")
 			}
 			if graph.Diagnostics[0].Path != "internal/library/broken/broken.go" {
 				t.Errorf("unexpected diagnostic path %q", graph.Diagnostics[0].Path)
+			}
+			if graph.Functions == nil || graph.FunctionCalls == nil || graph.FunctionCycles == nil ||
+				len(graph.Functions) != 0 || len(graph.FunctionCalls) != 0 || len(graph.FunctionCycles) != 0 {
+				t.Errorf(
+					"empty function data is functions=%v calls=%v cycles=%v",
+					graph.Functions,
+					graph.FunctionCalls,
+					graph.FunctionCycles,
+				)
 			}
 		})
 	})
@@ -276,7 +371,7 @@ func TestAnalyzer_AnalyzeInvalidImportBlock(t *testing.T) {
 
 func TestAnalyzer_ApplyConfiguredScope(t *testing.T) {
 	t.Run("Scenario: A generic repository layout selects and excludes explicit paths", func(t *testing.T) {
-		var sut *analyzer
+		var sourceAnalyzer *analyzer
 		var graph Graph
 		var analysisError error
 
@@ -325,32 +420,35 @@ import (
 				},
 			}
 			var err error
-			sut, err = newAnalyzer(configuration)
+			sourceAnalyzer, err = newAnalyzer(configuration)
 			if err != nil {
-				step.Fatalf("newAnalyzer failed: %v", err)
+				step.Fatalf("newAnalyzer fails: %v", err)
 			}
 		}) {
 			return
 		}
 
-		t.Run("When the configured repository scope is analyzed", func(t *testing.T) {
-			graph, analysisError = sut.analyze()
+		t.Run("When the analyzer analyzes the configured repository scope", func(t *testing.T) {
+			graph, analysisError = sourceAnalyzer.analyze()
 		})
 
-		if !t.Run("Then only selected non-ignored components are present", func(t *testing.T) {
-			if analysisError != nil {
-				t.Fatalf("analyze failed: %v", analysisError)
-			}
-			if graph.Summary.Components != 2 || graph.Summary.Relationships != 1 {
-				t.Fatalf("unexpected configured graph summary: %+v", graph.Summary)
-			}
-			componentWithIdentifier(t, graph, "services/control/features/orders")
-			componentWithIdentifier(t, graph, "packages/shared")
-		}) {
+		if !t.Run(
+			"Then the graph contains only components that the ignore rules do not exclude",
+			func(t *testing.T) {
+				if analysisError != nil {
+					t.Fatalf("the analysis fails: %v", analysisError)
+				}
+				if graph.Summary.Components != 2 || graph.Summary.Relationships != 1 {
+					t.Fatalf("unexpected configured graph summary: %+v", graph.Summary)
+				}
+				componentWithIdentifier(t, graph, "services/control/features/orders")
+				componentWithIdentifier(t, graph, "packages/shared")
+			},
+		) {
 			return
 		}
 
-		t.Run("And excluded and unselected components do not leak into the graph", func(t *testing.T) {
+		t.Run("And excluded and unselected components do not occur in the graph", func(t *testing.T) {
 			for _, identifier := range []string{"packages/legacy", "tools/generator"} {
 				for _, component := range graph.Components {
 					if component.Identifier == identifier {
@@ -360,7 +458,7 @@ import (
 			}
 		})
 
-		t.Run("And machine output declares the normalized configured scope", func(t *testing.T) {
+		t.Run("And the JSON output declares the normalized configured scope", func(t *testing.T) {
 			if !slices.Equal(graph.Scope.Paths, []string{"packages", "services"}) ||
 				!slices.Equal(graph.Scope.IgnoredPaths, []string{"packages/legacy"}) ||
 				!slices.Equal(
@@ -387,7 +485,11 @@ func TestAnalyzer_RejectInvalidConfiguredScope(t *testing.T) {
 		},
 		{
 			name: "an analysis path is absolute",
-			configure: func(_ *testing.T, configuration AnalysisConfiguration, repositoryRoot string) AnalysisConfiguration {
+			configure: func(
+				_ *testing.T,
+				configuration AnalysisConfiguration,
+				repositoryRoot string,
+			) AnalysisConfiguration {
 				configuration.Paths = []string{repositoryRoot}
 				return configuration
 			},
@@ -457,7 +559,11 @@ func TestAnalyzer_RejectInvalidConfiguredScope(t *testing.T) {
 		},
 		{
 			name: "a selected source path is not Go source",
-			configure: func(step *testing.T, configuration AnalysisConfiguration, repositoryRoot string) AnalysisConfiguration {
+			configure: func(
+				step *testing.T,
+				configuration AnalysisConfiguration,
+				repositoryRoot string,
+			) AnalysisConfiguration {
 				writeFixtureFile(step, repositoryRoot, "README.md", "documentation\n")
 				configuration.Paths = []string{"README.md"}
 				return configuration
@@ -477,16 +583,16 @@ func TestAnalyzer_RejectInvalidConfiguredScope(t *testing.T) {
 			})
 
 			t.Run("When the analyzer validates and discovers its source scope", func(t *testing.T) {
-				sut, err := newAnalyzer(configuration)
+				sourceAnalyzer, err := newAnalyzer(configuration)
 				startupError = err
 				if err == nil {
-					_, startupError = sut.sourcePaths()
+					_, startupError = sourceAnalyzer.sourcePaths()
 				}
 			})
 
 			t.Run("Then startup rejects the invalid configuration", func(t *testing.T) {
 				if startupError == nil {
-					t.Fatal("invalid analysis scope was accepted")
+					t.Fatal("the analyzer accepts an invalid analysis scope")
 				}
 			})
 		})
@@ -502,13 +608,13 @@ func TestModulePath_ReadAbsentDeclaration(t *testing.T) {
 			writeFixtureFile(step, repositoryRoot, "go.mod", "go 1.26\n")
 		})
 
-		t.Run("When the module path is read", func(t *testing.T) {
+		t.Run("When the reader reads the module path", func(t *testing.T) {
 			_, err = readModulePath(repositoryRoot)
 		})
 
-		t.Run("Then the typed declaration error is returned", func(t *testing.T) {
+		t.Run("Then the reader returns the typed declaration error", func(t *testing.T) {
 			if !errors.Is(err, errModuleDeclarationNotFound) {
-				t.Fatalf("expected errModuleDeclarationNotFound, got %v", err)
+				t.Fatalf("error is %v, want errModuleDeclarationNotFound", err)
 			}
 		})
 	})
@@ -529,29 +635,29 @@ func TestModulePath_ReadQuotedDeclaration(t *testing.T) {
 			)
 		})
 
-		t.Run("When the module path is read", func(t *testing.T) {
+		t.Run("When the reader reads the module path", func(t *testing.T) {
 			modulePath, err = readModulePath(repositoryRoot)
 		})
 
-		if !t.Run("Then the declaration is read without an error", func(t *testing.T) {
+		if !t.Run("Then the reader reads the declaration without an error", func(t *testing.T) {
 			if err != nil {
-				t.Fatalf("readModulePath failed: %v", err)
+				t.Fatalf("readModulePath fails: %v", err)
 			}
 		}) {
 			return
 		}
 
-		t.Run("And quotes and comments are removed from the path", func(t *testing.T) {
+		t.Run("And the reader removes quotes and comments from the path", func(t *testing.T) {
 			if modulePath != "example.com/current" {
 				t.Errorf("module path is %q, want %q", modulePath, "example.com/current")
 			}
 		})
 	})
 }
-func TestSourcePaths_FindModeledGoFiles(t *testing.T) {
+func TestSourcePaths_FindIncludedGoFiles(t *testing.T) {
 	t.Run("Scenario: A repository contains ignored directories and non-Go entries", func(t *testing.T) {
 		var repositoryRoot string
-		var sut *analyzer
+		var sourceAnalyzer *analyzer
 		var paths []string
 		var err error
 
@@ -565,31 +671,38 @@ func TestSourcePaths_FindModeledGoFiles(t *testing.T) {
 			); mkdirError != nil {
 				step.Fatalf("create directory ending in .go: %v", mkdirError)
 			}
-			for _, directory := range []string{".cache", "node_modules", "vendor", "testdata", "target", "_resources"} {
+			for _, directory := range []string{
+				".cache",
+				"node_modules",
+				"vendor",
+				"testdata",
+				"target",
+				"_resources",
+			} {
 				writeFixtureFile(step, repositoryRoot, directory+"/ignored.go", "package ignored\n")
 			}
 			writeFixtureFile(step, repositoryRoot, "go.mod", "module example.com/sourcepaths\n\ngo 1.26\n")
-			sut, err = newAnalyzer(fixtureAnalysisConfiguration(repositoryRoot))
+			sourceAnalyzer, err = newAnalyzer(fixtureAnalysisConfiguration(repositoryRoot))
 			if err != nil {
-				step.Fatalf("newAnalyzer failed: %v", err)
+				step.Fatalf("newAnalyzer fails: %v", err)
 			}
 		}) {
 			return
 		}
 
-		t.Run("When Go source paths are collected", func(t *testing.T) {
-			paths, err = sut.sourcePaths()
+		t.Run("When the analyzer collects Go source paths", func(t *testing.T) {
+			paths, err = sourceAnalyzer.sourcePaths()
 		})
 
 		if !t.Run("Then source discovery succeeds", func(t *testing.T) {
 			if err != nil {
-				t.Fatalf("goSourcePaths failed: %v", err)
+				t.Fatalf("goSourcePaths fails: %v", err)
 			}
 		}) {
 			return
 		}
 
-		t.Run("And only the visible Go file is returned", func(t *testing.T) {
+		t.Run("And the analyzer returns only the visible Go file", func(t *testing.T) {
 			want := []string{filepath.Join(repositoryRoot, "visible", "first.go")}
 			if !slices.Equal(paths, want) {
 				t.Errorf("source paths are %v, want %v", paths, want)
@@ -624,15 +737,15 @@ func TestIgnoredPaths_MatchConfiguredPatterns(t *testing.T) {
 					DefaultApplicationConfiguration().Analysis.IgnoredPaths,
 				)
 				if err != nil {
-					t.Fatalf("newIgnoredPathMatcher failed: %v", err)
+					t.Fatalf("newIgnoredPathMatcher fails: %v", err)
 				}
 			})
 
-			t.Run("When the configured path rule is evaluated", func(t *testing.T) {
+			t.Run("When the matcher evaluates the configured path rule", func(t *testing.T) {
 				result, matchError = matcher.matches(name)
 			})
 
-			t.Run("Then matching succeeds with the expected decision", func(t *testing.T) {
+			t.Run("Then the result matches the expected decision", func(t *testing.T) {
 				if matchError != nil {
 					t.Fatalf("match ignored path: %v", matchError)
 				}
@@ -643,11 +756,11 @@ func TestIgnoredPaths_MatchConfiguredPatterns(t *testing.T) {
 		})
 	}
 }
-func TestComponent_Classification(t *testing.T) {
+func TestComponent_ClassifyPaths(t *testing.T) {
 	testCases := []struct {
 		name        string
 		path        string
-		modeled     bool
+		classified  bool
 		identifier  string
 		component   string
 		kind        componentKind
@@ -656,7 +769,7 @@ func TestComponent_Classification(t *testing.T) {
 		{
 			name:        "an application module",
 			path:        "cmd/control/internal/module/orders/domain.go",
-			modeled:     true,
+			classified:  true,
 			identifier:  "cmd/control/internal/module/orders",
 			component:   "orders",
 			kind:        componentKindApplicationModule,
@@ -665,7 +778,7 @@ func TestComponent_Classification(t *testing.T) {
 		{
 			name:        "an application composition root",
 			path:        "cmd/control/main.go",
-			modeled:     true,
+			classified:  true,
 			identifier:  "cmd/control",
 			component:   "control",
 			kind:        componentKindApplication,
@@ -674,7 +787,7 @@ func TestComponent_Classification(t *testing.T) {
 		{
 			name:        "an application package import",
 			path:        "cmd/control",
-			modeled:     true,
+			classified:  true,
 			identifier:  "cmd/control",
 			component:   "control",
 			kind:        componentKindApplication,
@@ -683,7 +796,7 @@ func TestComponent_Classification(t *testing.T) {
 		{
 			name:        "a command package that is not an application module",
 			path:        "cmd/control/internal/adapter/http.go",
-			modeled:     true,
+			classified:  true,
 			identifier:  "cmd/control",
 			component:   "control",
 			kind:        componentKindApplication,
@@ -692,7 +805,7 @@ func TestComponent_Classification(t *testing.T) {
 		{
 			name:       "a nested library package",
 			path:       "internal/library/authorization/openfga/adapter.go",
-			modeled:    true,
+			classified: true,
 			identifier: "internal/library/authorization",
 			component:  "authorization",
 			kind:       componentKindLibrary,
@@ -700,7 +813,7 @@ func TestComponent_Classification(t *testing.T) {
 		{
 			name:       "a shared module",
 			path:       "internal/module/audit/module.go",
-			modeled:    true,
+			classified: true,
 			identifier: "internal/module/audit",
 			component:  "audit",
 			kind:       componentKindSharedModule,
@@ -708,7 +821,7 @@ func TestComponent_Classification(t *testing.T) {
 		{
 			name:       "a development tool",
 			path:       "internal/devtool/generator/main.go",
-			modeled:    true,
+			classified: true,
 			identifier: "internal/devtool/generator",
 			component:  "generator",
 			kind:       componentKindDevelopment,
@@ -716,7 +829,7 @@ func TestComponent_Classification(t *testing.T) {
 		{
 			name:       "a development tool package import",
 			path:       "internal/devtool/generator",
-			modeled:    true,
+			classified: true,
 			identifier: "internal/devtool/generator",
 			component:  "generator",
 			kind:       componentKindDevelopment,
@@ -724,7 +837,7 @@ func TestComponent_Classification(t *testing.T) {
 		{
 			name:       "shared infrastructure",
 			path:       "internal/kernel/kernel.go",
-			modeled:    true,
+			classified: true,
 			identifier: "internal/kernel",
 			component:  "kernel",
 			kind:       componentKindInfrastructure,
@@ -732,24 +845,24 @@ func TestComponent_Classification(t *testing.T) {
 		{
 			name:       "a shared infrastructure package import",
 			path:       "internal/kernel",
-			modeled:    true,
+			classified: true,
 			identifier: "internal/kernel",
 			component:  "kernel",
 			kind:       componentKindInfrastructure,
 		},
-		{name: "a path without an architectural root", path: "main.go", modeled: false},
-		{name: "an incomplete module root", path: "internal/module", modeled: false},
-		{name: "an incomplete library root", path: "internal/library", modeled: false},
-		{name: "an incomplete development root", path: "internal/devtool", modeled: false},
-		{name: "an incomplete command root", path: "cmd", modeled: false},
-		{name: "an unrelated top-level package", path: "generate/protobuf/main.go", modeled: false},
+		{name: "a path without an architecture root", path: "main.go", classified: false},
+		{name: "an incomplete module root", path: "internal/module", classified: false},
+		{name: "an incomplete library root", path: "internal/library", classified: false},
+		{name: "an incomplete development root", path: "internal/devtool", classified: false},
+		{name: "an incomplete command root", path: "cmd", classified: false},
+		{name: "an unrelated top-level package", path: "generate/protobuf/main.go", classified: false},
 	}
 	for _, testCase := range testCases {
 		t.Run("Scenario: The source path is "+testCase.name, func(t *testing.T) {
 			var path string
 			var classifier componentClassifier
 			var descriptor componentDescriptor
-			var modeled bool
+			var classified bool
 
 			t.Run("Given a repository-relative path and configured component templates", func(t *testing.T) {
 				path = testCase.path
@@ -758,24 +871,24 @@ func TestComponent_Classification(t *testing.T) {
 					DefaultApplicationConfiguration().Analysis.Components.domainRules(),
 				)
 				if err != nil {
-					t.Fatalf("newComponentClassifier failed: %v", err)
+					t.Fatalf("newComponentClassifier fails: %v", err)
 				}
 			})
 
-			t.Run("When the component is classified", func(t *testing.T) {
-				descriptor, modeled = classifier.classify(path)
+			t.Run("When the classifier classifies the component", func(t *testing.T) {
+				descriptor, classified = classifier.classify(path)
 			})
 
-			if !t.Run("Then the path has the expected modeled state", func(t *testing.T) {
-				if modeled != testCase.modeled {
-					t.Fatalf("modeled is %t, want %t", modeled, testCase.modeled)
+			if !t.Run("Then the path has the expected classified state", func(t *testing.T) {
+				if classified != testCase.classified {
+					t.Fatalf("classified is %t, want %t", classified, testCase.classified)
 				}
 			}) {
 				return
 			}
 
-			t.Run("And a modeled path has the expected strategic descriptor", func(t *testing.T) {
-				if !modeled {
+			t.Run("And a classified path has the expected component descriptor", func(t *testing.T) {
+				if !classified {
 					return
 				}
 				if descriptor.identifier != testCase.identifier || descriptor.name != testCase.component ||
@@ -787,9 +900,9 @@ func TestComponent_Classification(t *testing.T) {
 	}
 }
 func TestSourceFile_InspectImports(t *testing.T) {
-	t.Run("Scenario: A modeled source imports internal and external packages", func(t *testing.T) {
+	t.Run("Scenario: A classified source imports internal and external packages", func(t *testing.T) {
 		var repositoryRoot string
-		var sut *analyzer
+		var sourceAnalyzer *analyzer
 		var sourcePath string
 		var file *sourceFile
 		var err error
@@ -812,29 +925,29 @@ import (
 			)
 			writeFixtureFile(step, repositoryRoot, "go.mod", "module example.com/current\n\ngo 1.26\n")
 			var analyzerError error
-			sut, analyzerError = newAnalyzer(fixtureAnalysisConfiguration(repositoryRoot))
+			sourceAnalyzer, analyzerError = newAnalyzer(fixtureAnalysisConfiguration(repositoryRoot))
 			if analyzerError != nil {
-				step.Fatalf("newAnalyzer failed: %v", analyzerError)
+				step.Fatalf("newAnalyzer fails: %v", analyzerError)
 			}
 			sourcePath = filepath.Join(repositoryRoot, filepath.FromSlash(relativePath))
 		})
 
-		t.Run("When the source file is inspected", func(t *testing.T) {
-			file, err = sut.inspectSourceFile("example.com/current", sourcePath)
+		t.Run("When the analyzer inspects the source file", func(t *testing.T) {
+			file, err = sourceAnalyzer.inspectSourceFile("example.com/current", sourcePath)
 		})
 
 		if !t.Run("Then source inspection succeeds", func(t *testing.T) {
 			if err != nil {
-				t.Fatalf("inspectSourceFile failed: %v", err)
+				t.Fatalf("inspectSourceFile fails: %v", err)
 			}
 			if file == nil {
-				t.Fatal("inspectSourceFile returned no source file")
+				t.Fatal("inspectSourceFile returns no source file")
 			}
 		}) {
 			return
 		}
 
-		t.Run("And only current-module imports are retained", func(t *testing.T) {
+		t.Run("And the analyzer retains only current-module imports", func(t *testing.T) {
 			var importedPackages []string
 			for _, imported := range file.imports {
 				importedPackages = append(importedPackages, imported.packagePath)
@@ -850,7 +963,7 @@ import (
 func TestSourceFile_InspectNamedTypes(t *testing.T) {
 	t.Run("Scenario: Production source declares abstract and concrete named types", func(t *testing.T) {
 		var repositoryRoot string
-		var sut *analyzer
+		var sourceAnalyzer *analyzer
 		var sourcePath string
 		var file *sourceFile
 		var err error
@@ -878,29 +991,29 @@ func NewRecord() Record { return current }
 			)
 			writeFixtureFile(step, repositoryRoot, "go.mod", "module example.com/current\n\ngo 1.26\n")
 			var analyzerError error
-			sut, analyzerError = newAnalyzer(fixtureAnalysisConfiguration(repositoryRoot))
+			sourceAnalyzer, analyzerError = newAnalyzer(fixtureAnalysisConfiguration(repositoryRoot))
 			if analyzerError != nil {
-				step.Fatalf("newAnalyzer failed: %v", analyzerError)
+				step.Fatalf("newAnalyzer fails: %v", analyzerError)
 			}
 			sourcePath = filepath.Join(repositoryRoot, filepath.FromSlash(relativePath))
 		})
 
-		t.Run("When the source file is inspected", func(t *testing.T) {
-			file, err = sut.inspectSourceFile("example.com/current", sourcePath)
+		t.Run("When the analyzer inspects the source file", func(t *testing.T) {
+			file, err = sourceAnalyzer.inspectSourceFile("example.com/current", sourcePath)
 		})
 
 		if !t.Run("Then source inspection succeeds", func(t *testing.T) {
 			if err != nil {
-				t.Fatalf("inspectSourceFile failed: %v", err)
+				t.Fatalf("inspectSourceFile fails: %v", err)
 			}
 			if file == nil {
-				t.Fatal("inspectSourceFile returned no source file")
+				t.Fatal("inspectSourceFile returns no source file")
 			}
 		}) {
 			return
 		}
 
-		t.Run("And named interfaces and concrete types are counted separately", func(t *testing.T) {
+		t.Run("And the analyzer counts named interfaces and concrete types separately", func(t *testing.T) {
 			if file.abstractTypes != 1 || file.concreteTypes != 2 {
 				t.Errorf(
 					"named types are %d abstract and %d concrete, want 1 and 2",
@@ -912,7 +1025,7 @@ func NewRecord() Record { return current }
 	})
 }
 
-func TestRelationships_CollectModeledImports(t *testing.T) {
+func TestRelationships_CollectClassifiedImports(t *testing.T) {
 	t.Run("Scenario: A component has normalized imports to itself and another component", func(t *testing.T) {
 		var source componentDescriptor
 		var file sourceFile
@@ -949,14 +1062,14 @@ func TestRelationships_CollectModeledImports(t *testing.T) {
 			}
 		})
 
-		t.Run("When relationships are collected from the source imports", func(t *testing.T) {
+		t.Run("When the collector collects relationships from the source imports", func(t *testing.T) {
 			collectRelationships(components, relationships, file)
 		})
 
 		if !t.Run("Then only one relationship and two components exist", func(t *testing.T) {
 			if len(relationships) != 1 || len(components) != 2 {
 				t.Fatalf(
-					"collected %d relationships and %d components",
+					"the collector creates %d relationships and %d components",
 					len(relationships),
 					len(components),
 				)
@@ -965,7 +1078,7 @@ func TestRelationships_CollectModeledImports(t *testing.T) {
 			return
 		}
 
-		t.Run("And the modeled audit relationship is retained", func(t *testing.T) {
+		t.Run("And the collector retains the classified audit relationship", func(t *testing.T) {
 			key := relationshipKey{source: source.identifier, target: "internal/module/audit"}
 			if _, exists := relationships[key]; !exists {
 				t.Errorf("the expected relationship is absent: %v", relationships)
@@ -973,7 +1086,7 @@ func TestRelationships_CollectModeledImports(t *testing.T) {
 		})
 	})
 }
-func TestRelationshipConcerns_ClassifyBoundary(t *testing.T) {
+func TestRelationshipRuleViolations_ClassifyImport(t *testing.T) {
 	descriptor := func(kind componentKind, application string) componentDescriptor {
 		return componentDescriptor{kind: kind, application: application}
 	}
@@ -988,37 +1101,37 @@ func TestRelationshipConcerns_ClassifyBoundary(t *testing.T) {
 			name:   "production code depends on a development tool",
 			source: descriptor(componentKindApplication, "control"),
 			target: descriptor(componentKindDevelopment, ""),
-			want:   []string{"production-depends-on-development"},
+			want:   []string{"production-imports-development"},
 		},
 		{
 			name:   "a library depends on an application",
 			source: descriptor(componentKindLibrary, ""),
 			target: descriptor(componentKindApplication, "control"),
-			want:   []string{"library-depends-on-feature"},
+			want:   []string{"library-imports-feature"},
 		},
 		{
 			name:   "a library depends on an application module",
 			source: descriptor(componentKindLibrary, ""),
 			target: descriptor(componentKindApplicationModule, "control"),
-			want:   []string{"library-depends-on-feature"},
+			want:   []string{"library-imports-feature"},
 		},
 		{
 			name:   "shared infrastructure depends on an application module",
 			source: descriptor(componentKindInfrastructure, ""),
 			target: descriptor(componentKindApplicationModule, "control"),
-			want:   []string{"shared-foundation-depends-on-application"},
+			want:   []string{"shared-component-imports-application"},
 		},
 		{
 			name:   "a shared module depends on an application",
 			source: descriptor(componentKindSharedModule, ""),
 			target: descriptor(componentKindApplication, "control"),
-			want:   []string{"shared-foundation-depends-on-application"},
+			want:   []string{"shared-component-imports-application"},
 		},
 		{
 			name:   "one application module depends on another application",
 			source: descriptor(componentKindApplicationModule, "control"),
 			target: descriptor(componentKindApplicationModule, "portal"),
-			want:   []string{"cross-application-module-dependency"},
+			want:   []string{"cross-application-module-import"},
 		},
 		{
 			name:   "modules from the same application can depend on each other",
@@ -1027,7 +1140,7 @@ func TestRelationshipConcerns_ClassifyBoundary(t *testing.T) {
 			want:   []string{},
 		},
 		{
-			name:     "test imports do not create strategic concerns",
+			name:     "test imports do not create component rule violations",
 			source:   descriptor(componentKindLibrary, ""),
 			target:   descriptor(componentKindApplication, "control"),
 			testOnly: true,
@@ -1039,21 +1152,21 @@ func TestRelationshipConcerns_ClassifyBoundary(t *testing.T) {
 			var source componentDescriptor
 			var target componentDescriptor
 			var testOnly bool
-			var concerns []string
+			var ruleViolations []string
 
-			t.Run("Given source and target strategic descriptors", func(t *testing.T) {
+			t.Run("Given source and target component descriptors", func(t *testing.T) {
 				source = testCase.source
 				target = testCase.target
 				testOnly = testCase.testOnly
 			})
 
-			t.Run("When relationship concerns are classified", func(t *testing.T) {
-				concerns = relationshipConcerns(source, target, testOnly)
+			t.Run("When the classifier classifies relationship rule violations", func(t *testing.T) {
+				ruleViolations = relationshipRuleViolations(source, target, testOnly)
 			})
 
-			t.Run("Then the expected strategic concerns are returned", func(t *testing.T) {
-				if !slices.Equal(concerns, testCase.want) {
-					t.Fatalf("concerns are %v, want %v", concerns, testCase.want)
+			t.Run("Then the result contains the expected component rule violations", func(t *testing.T) {
+				if !slices.Equal(ruleViolations, testCase.want) {
+					t.Fatalf("rule violations are %v, want %v", ruleViolations, testCase.want)
 				}
 			})
 		})
@@ -1072,47 +1185,52 @@ func TestReachability_TraverseDependencyGraph(t *testing.T) {
 			}
 		})
 
-		t.Run("When reachable nodes are collected from the start", func(t *testing.T) {
+		t.Run("When the traversal collects reachable nodes from the start", func(t *testing.T) {
 			result = reachable("a", adjacency)
 		})
 
-		t.Run("Then each downstream node is returned once without the start", func(t *testing.T) {
-			got := sortedSet(result)
-			if !slices.Equal(got, []string{"b", "c"}) {
-				t.Fatalf("reachable nodes are %v, want [b c]", got)
+		t.Run("Then the traversal returns each downstream node once without the start", func(t *testing.T) {
+			sortedResult := sortedSet(result)
+			if !slices.Equal(sortedResult, []string{"b", "c"}) {
+				t.Fatalf("reachable nodes are %v, want [b c]", sortedResult)
 			}
 		})
 	})
 }
 func TestInstability_CalculateCouplingRatio(t *testing.T) {
 	testCases := []struct {
-		name   string
-		fanIn  int
-		fanOut int
-		want   float64
+		name             string
+		afferentCoupling int
+		efferentCoupling int
+		expectedResult   float64
 	}{
-		{name: "an isolated component is stable", want: 0},
-		{name: "one outgoing edge exists among three edges", fanIn: 2, fanOut: 1, want: 1.0 / 3.0},
-		{name: "only outgoing edges exist", fanOut: 2, want: 1},
+		{name: "an isolated component is stable", expectedResult: 0},
+		{
+			name:             "one outgoing edge exists among three edges",
+			afferentCoupling: 2,
+			efferentCoupling: 1,
+			expectedResult:   1.0 / 3.0,
+		},
+		{name: "only outgoing edges exist", efferentCoupling: 2, expectedResult: 1},
 	}
 	for _, testCase := range testCases {
 		t.Run("Scenario: "+testCase.name, func(t *testing.T) {
-			var fanIn int
-			var fanOut int
+			var afferentCoupling int
+			var efferentCoupling int
 			var result float64
 
-			t.Run("Given incoming and outgoing coupling counts", func(t *testing.T) {
-				fanIn = testCase.fanIn
-				fanOut = testCase.fanOut
+			t.Run("Given afferent and efferent coupling counts", func(t *testing.T) {
+				afferentCoupling = testCase.afferentCoupling
+				efferentCoupling = testCase.efferentCoupling
 			})
 
-			t.Run("When instability is calculated", func(t *testing.T) {
-				result = instability(fanIn, fanOut)
+			t.Run("When the calculator calculates instability", func(t *testing.T) {
+				result = instability(afferentCoupling, efferentCoupling)
 			})
 
-			t.Run("Then the expected coupling ratio is returned", func(t *testing.T) {
-				if math.Abs(result-testCase.want) > 1e-12 {
-					t.Fatalf("instability is %v, want %v", result, testCase.want)
+			t.Run("Then the calculator returns the expected coupling ratio", func(t *testing.T) {
+				if math.Abs(result-testCase.expectedResult) > 1e-12 {
+					t.Fatalf("instability is %v, want %v", result, testCase.expectedResult)
 				}
 			})
 		})
@@ -1141,11 +1259,11 @@ func TestAbstractness_CalculateNamedTypeRatio(t *testing.T) {
 				concreteTypes = testCase.concreteTypes
 			})
 
-			t.Run("When abstractness is calculated", func(t *testing.T) {
+			t.Run("When the calculator calculates abstractness", func(t *testing.T) {
 				result = abstractness(abstractTypes, concreteTypes)
 			})
 
-			t.Run("Then the expected abstract type ratio is returned", func(t *testing.T) {
+			t.Run("Then the calculator returns the expected abstract type ratio", func(t *testing.T) {
 				if math.Abs(result-testCase.want) > 1e-12 {
 					t.Fatalf("abstractness is %v, want %v", result, testCase.want)
 				}
@@ -1162,8 +1280,8 @@ func TestMainSequenceDistance_CalculateStabilityAbstractionBalance(t *testing.T)
 		want         float64
 	}{
 		{name: "a stable abstract component is on the main sequence", abstractness: 1, want: 0},
-		{name: "a flexible concrete component is on the main sequence", instability: 1, want: 0},
-		{name: "a stable concrete component is maximally distant", want: 1},
+		{name: "an unstable concrete component is on the main sequence", instability: 1, want: 0},
+		{name: "a stable component with low abstraction is maximally distant", want: 1},
 		{name: "a mixed component is partially distant", abstractness: 0.2, instability: 0.3, want: 0.5},
 	}
 	for _, testCase := range testCases {
@@ -1177,11 +1295,11 @@ func TestMainSequenceDistance_CalculateStabilityAbstractionBalance(t *testing.T)
 				componentInstability = testCase.instability
 			})
 
-			t.Run("When distance from the main sequence is calculated", func(t *testing.T) {
+			t.Run("When the calculator calculates distance from the main sequence", func(t *testing.T) {
 				result = mainSequenceDistance(componentAbstractness, componentInstability)
 			})
 
-			t.Run("Then the expected absolute distance is returned", func(t *testing.T) {
+			t.Run("Then the calculator returns the expected absolute distance", func(t *testing.T) {
 				if math.Abs(result-testCase.want) > 1e-12 {
 					t.Fatalf("main-sequence distance is %v, want %v", result, testCase.want)
 				}
@@ -1190,31 +1308,31 @@ func TestMainSequenceDistance_CalculateStabilityAbstractionBalance(t *testing.T)
 	}
 }
 
-func TestZoneOfPain_ClassifyStableConcreteResponsibility(t *testing.T) {
+func TestStableLowAbstraction_ClassifyComponent(t *testing.T) {
 	testCases := []struct {
-		name             string
-		afferentCoupling int
-		instability      float64
-		abstractness     float64
-		wantInZoneOfPain bool
+		name                         string
+		afferentCoupling             int
+		instability                  float64
+		abstractness                 float64
+		wantStableWithLowAbstraction bool
 	}{
 		{
-			name:             "a responsible component is in the stable concrete corner",
-			afferentCoupling: 1,
-			instability:      zoneOfPainMaximumInstability,
-			abstractness:     zoneOfPainMaximumAbstractness,
-			wantInZoneOfPain: true,
+			name:                         "a responsible component is in the stable component with low abstraction",
+			afferentCoupling:             1,
+			instability:                  stableLowAbstractionMaximumInstability,
+			abstractness:                 stableLowAbstractionMaximumAbstractness,
+			wantStableWithLowAbstraction: true,
 		},
 		{name: "an isolated component has no external responsibility"},
 		{
-			name:             "an unstable component is outside the corner",
+			name:             "an unstable component exceeds the maximum instability",
 			afferentCoupling: 2,
-			instability:      zoneOfPainMaximumInstability + 0.01,
+			instability:      stableLowAbstractionMaximumInstability + 0.01,
 		},
 		{
-			name:             "an abstract component is outside the corner",
+			name:             "an abstract component exceeds the maximum abstractness",
 			afferentCoupling: 2,
-			abstractness:     zoneOfPainMaximumAbstractness + 0.01,
+			abstractness:     stableLowAbstractionMaximumAbstractness + 0.01,
 		},
 	}
 	for _, testCase := range testCases {
@@ -1230,17 +1348,21 @@ func TestZoneOfPain_ClassifyStableConcreteResponsibility(t *testing.T) {
 				componentAbstractness = testCase.abstractness
 			})
 
-			t.Run("When the pain-zone rule is evaluated", func(t *testing.T) {
-				result = inZoneOfPain(
+			t.Run("When the classifier evaluates the stable-low-abstraction rule", func(t *testing.T) {
+				result = isStableWithLowAbstraction(
 					afferentCoupling,
 					componentInstability,
 					componentAbstractness,
 				)
 			})
 
-			t.Run("Then the expected classification is returned", func(t *testing.T) {
-				if result != testCase.wantInZoneOfPain {
-					t.Fatalf("pain-zone result is %t, want %t", result, testCase.wantInZoneOfPain)
+			t.Run("Then the classifier returns the expected classification", func(t *testing.T) {
+				if result != testCase.wantStableWithLowAbstraction {
+					t.Fatalf(
+						"stable-low-abstraction result is %t, want %t",
+						result,
+						testCase.wantStableWithLowAbstraction,
+					)
 				}
 			})
 		})
@@ -1252,41 +1374,44 @@ func TestStableDependency_AnnotateInstabilityDirection(t *testing.T) {
 		var components []Component
 		var relationships []Relationship
 
-		t.Run("Given stable, peer, and flexible components with four relationships", func(t *testing.T) {
+		t.Run("Given stable, peer, and unstable components with four relationships", func(t *testing.T) {
 			components = []Component{
 				{Identifier: "stable", Instability: 0.2},
 				{Identifier: "peer", Instability: 0.2},
-				{Identifier: "flexible", Instability: 0.8},
+				{Identifier: "unstable", Instability: 0.8},
 			}
 			relationships = []Relationship{
-				{Source: "stable", Target: "flexible", Concerns: []string{"existing-concern"}},
-				{Source: "flexible", Target: "stable", Concerns: []string{}},
-				{Source: "stable", Target: "peer", Concerns: []string{}},
-				{Source: "stable", Target: "flexible", TestOnly: true, Concerns: []string{}},
+				{Source: "stable", Target: "unstable", RuleViolations: []string{"existing-rule-violation"}},
+				{Source: "unstable", Target: "stable", RuleViolations: []string{}},
+				{Source: "stable", Target: "peer", RuleViolations: []string{}},
+				{Source: "stable", Target: "unstable", TestOnly: true, RuleViolations: []string{}},
 			}
 		})
 
-		t.Run("When stable-dependency violations are annotated", func(t *testing.T) {
-			annotateStableDependencyViolations(relationships, components)
+		t.Run("When the analyzer marks violations of the stable dependency principle", func(t *testing.T) {
+			annotateStableDependencyPrincipleViolations(relationships, components)
 		})
 
-		if !t.Run("Then only the production dependency on the less stable component is marked", func(t *testing.T) {
-			if !relationships[0].StableDependencyViolation {
-				t.Fatal("the stable-to-flexible production dependency is not marked")
-			}
-			for index := 1; index < len(relationships); index++ {
-				if relationships[index].StableDependencyViolation {
-					t.Fatalf("relationship %d is marked as an SDP violation", index)
+		if !t.Run(
+			"Then the analyzer marks only the production import of the less stable component",
+			func(t *testing.T) {
+				if !relationships[0].ViolatesStableDependencyPrinciple {
+					t.Fatal("the analyzer does not mark the stable-to-unstable production import")
 				}
-			}
-		}) {
+				for index := 1; index < len(relationships); index++ {
+					if relationships[index].ViolatesStableDependencyPrinciple {
+						t.Fatalf("relationship %d has an unexpected stable dependency principle violation", index)
+					}
+				}
+			},
+		) {
 			return
 		}
 
-		t.Run("And the SDP concern is sorted with the existing concern", func(t *testing.T) {
-			want := []string{"existing-concern", "stable-dependency-principle"}
-			if !slices.Equal(relationships[0].Concerns, want) {
-				t.Errorf("concerns are %v, want %v", relationships[0].Concerns, want)
+		t.Run("And the analyzer sorts the violation of the stable dependency principle", func(t *testing.T) {
+			want := []string{"existing-rule-violation", "stable-dependency-principle"}
+			if !slices.Equal(relationships[0].RuleViolations, want) {
+				t.Errorf("rule violations are %v, want %v", relationships[0].RuleViolations, want)
 			}
 		})
 	})
@@ -1309,11 +1434,11 @@ func TestStronglyConnectedComponents_FindCycles(t *testing.T) {
 			adjacency["e"].add("e")
 		})
 
-		t.Run("When strongly connected components are calculated", func(t *testing.T) {
+		t.Run("When the calculator calculates strongly connected components", func(t *testing.T) {
 			cycles = stronglyConnectedComponents(identifiers, adjacency)
 		})
 
-		t.Run("Then only the sorted multi-node cycles are returned", func(t *testing.T) {
+		t.Run("Then the calculator returns only the sorted multi-node cycles", func(t *testing.T) {
 			want := [][]string{{"a", "b"}, {"c", "d"}}
 			if !slices.EqualFunc(
 				cycles,
@@ -1338,7 +1463,7 @@ func TestGraph_BuildSortedDiagnostics(t *testing.T) {
 			}
 		})
 
-		t.Run("When the dependency graph is built", func(t *testing.T) {
+		t.Run("When the builder builds the dependency graph", func(t *testing.T) {
 			graph = buildGraph(
 				"example.com/current",
 				map[string]*componentAccumulator{},
@@ -1347,7 +1472,7 @@ func TestGraph_BuildSortedDiagnostics(t *testing.T) {
 			)
 		})
 
-		t.Run("Then diagnostics are sorted by path and message", func(t *testing.T) {
+		t.Run("Then the builder sorts diagnostics by path and message", func(t *testing.T) {
 			want := []Diagnostic{
 				{Path: "a.go", Message: "first"},
 				{Path: "a.go", Message: "second"},
@@ -1368,7 +1493,7 @@ func TestGraph_BuildSortedDiagnostics(t *testing.T) {
 func newAnalyzerFixture(t *testing.T) string {
 	t.Helper()
 	repositoryRoot := t.TempDir()
-	writeFixtureFile(t, repositoryRoot, "go.mod", "module example.com/strategic\n\ngo 1.26\n")
+	writeFixtureFile(t, repositoryRoot, "go.mod", "module example.com/repository\n\ngo 1.26\n")
 	writeFixtureFile(
 		t,
 		repositoryRoot,
@@ -1376,8 +1501,8 @@ func newAnalyzerFixture(t *testing.T) string {
 		`package main
 
 import (
-	_ "example.com/strategic/cmd/control/internal/module/orders"
-	_ "example.com/strategic/internal/module/audit"
+	_ "example.com/repository/cmd/control/internal/module/orders"
+	_ "example.com/repository/internal/module/audit"
 )
 `,
 	)
@@ -1388,8 +1513,8 @@ import (
 		`package orders
 
 import (
-	_ "example.com/strategic/internal/library/logging"
-	_ "example.com/strategic/internal/module/audit"
+	_ "example.com/repository/internal/library/logging"
+	_ "example.com/repository/internal/module/audit"
 )
 `,
 	)
@@ -1399,7 +1524,7 @@ import (
 		"internal/module/audit/module.go",
 		`package audit
 
-import _ "example.com/strategic/internal/library/logging"
+import _ "example.com/repository/internal/library/logging"
 `,
 	)
 	writeFixtureFile(
@@ -1408,7 +1533,7 @@ import _ "example.com/strategic/internal/library/logging"
 		"internal/module/cycleone/module.go",
 		`package cycleone
 
-import _ "example.com/strategic/internal/module/cycletwo"
+import _ "example.com/repository/internal/module/cycletwo"
 `,
 	)
 	writeFixtureFile(
@@ -1417,7 +1542,7 @@ import _ "example.com/strategic/internal/module/cycletwo"
 		"internal/module/cycletwo/module.go",
 		`package cycletwo
 
-import _ "example.com/strategic/internal/module/cycleone"
+import _ "example.com/repository/internal/module/cycleone"
 `,
 	)
 	writeFixtureFile(
@@ -1432,7 +1557,7 @@ import _ "example.com/strategic/internal/module/cycleone"
 		"internal/library/logging/logging_test.go",
 		`package logging_test
 
-import _ "example.com/strategic/internal/module/audit"
+import _ "example.com/repository/internal/module/audit"
 
 type testContract interface {
 	testOnly()
@@ -1445,7 +1570,7 @@ type testContract interface {
 		"internal/library/facade/facade.go",
 		`package facade
 
-import _ "example.com/strategic/internal/module/audit"
+import _ "example.com/repository/internal/module/audit"
 `,
 	)
 	writeFixtureFile(
@@ -1454,7 +1579,7 @@ import _ "example.com/strategic/internal/module/audit"
 		"internal/devtool/generator/main.go",
 		`package main
 
-import _ "example.com/strategic/internal/library/logging"
+import _ "example.com/repository/internal/library/logging"
 `,
 	)
 	return repositoryRoot
@@ -1478,7 +1603,7 @@ func componentWithIdentifier(t *testing.T, graph Graph, identifier string) Compo
 			return component
 		}
 	}
-	t.Fatalf("the graph carries no component %q", identifier)
+	t.Fatalf("the graph contains no component %q", identifier)
 	return Component{}
 }
 
@@ -1489,6 +1614,6 @@ func relationshipBetween(t *testing.T, graph Graph, source, target string) Relat
 			return relationship
 		}
 	}
-	t.Fatalf("the graph carries no relationship from %q to %q", source, target)
+	t.Fatalf("the graph contains no relationship from %q to %q", source, target)
 	return Relationship{}
 }

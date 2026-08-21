@@ -19,7 +19,7 @@ type notifyingResponseRecorder struct {
 	flushed chan struct{}
 }
 
-var errResponseWrite = errors.New("response write failed")
+var errResponseWrite = errors.New("response write failure")
 
 type failingResponseWriter struct {
 	header http.Header
@@ -76,12 +76,12 @@ func TestDashboard_ServeHTTPResources(t *testing.T) {
 			repositoryRoot := newAnalyzerFixture(t)
 			sourceAnalyzer, err := newAnalyzer(fixtureAnalysisConfiguration(repositoryRoot))
 			if err != nil {
-				step.Fatalf("newAnalyzer failed: %v", err)
+				step.Fatalf("newAnalyzer fails: %v", err)
 			}
 			logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 			monitor, err := newGraphMonitor(sourceAnalyzer, time.Second, logger)
 			if err != nil {
-				step.Fatalf("newGraphMonitor failed: %v", err)
+				step.Fatalf("newGraphMonitor fails: %v", err)
 			}
 			server = httptest.NewServer(newDashboardHandler(monitor, logger))
 			t.Cleanup(server.Close)
@@ -89,15 +89,15 @@ func TestDashboard_ServeHTTPResources(t *testing.T) {
 			return
 		}
 
-		t.Run("When the dashboard document is requested", func(step *testing.T) {
-			response, document = requestDashboardResource(step, server.Client(), server.URL+"/")
+		t.Run("When the client requests the dashboard document", func(step *testing.T) {
+			response, document = requestDashboardAsset(step, server.Client(), server.URL+"/")
 		})
 
-		if !t.Run("Then the self-contained document is returned", func(t *testing.T) {
+		if !t.Run("Then the server returns the self-contained document", func(t *testing.T) {
 			if response.StatusCode != http.StatusOK {
-				t.Fatalf("dashboard returned status %d", response.StatusCode)
+				t.Fatalf("dashboard returns status %d", response.StatusCode)
 			}
-			if !strings.Contains(string(document), "Strategic design map") {
+			if !strings.Contains(string(document), "Go component dependency map") {
 				t.Fatal("the dashboard document does not contain its title")
 			}
 			for _, remoteReference := range []string{"https://", "http://", "//cdn"} {
@@ -109,20 +109,24 @@ func TestDashboard_ServeHTTPResources(t *testing.T) {
 			return
 		}
 
-		t.Run("And restrictive browser security headers are present", func(t *testing.T) {
+		t.Run("And the response contains restrictive browser security headers", func(t *testing.T) {
 			securityPolicy := response.Header.Get("Content-Security-Policy")
 			if securityPolicy == "" || strings.Contains(securityPolicy, "unsafe-inline") {
 				t.Errorf("unexpected content security policy %q", securityPolicy)
 			}
 		})
 
-		t.Run("And the impact view controls are present", func(t *testing.T) {
+		t.Run("And the dashboard contains the component count controls", func(t *testing.T) {
 			for _, marker := range []string{
-				`id="impactView"`,
-				`id="impactMetric"`,
-				`id="impactMap"`,
+				`id="componentMetricView"`,
+				`id="functionMetricView"`,
+				`id="componentMetric"`,
+				`id="functionMetric"`,
+				`id="componentMetricMap"`,
+				`id="functionMetricMap"`,
 				"Afferent coupling",
-				`id="zoneOfPainRanking"`,
+				`id="functionUsageRanking"`,
+				`id="stableLowAbstractionRanking"`,
 			} {
 				if !strings.Contains(string(document), marker) {
 					t.Errorf("the dashboard document does not contain %q", marker)
@@ -130,12 +134,12 @@ func TestDashboard_ServeHTTPResources(t *testing.T) {
 			}
 		})
 
-		t.Run("And both colour theme controls are present", func(t *testing.T) {
+		t.Run("And the dashboard contains both color theme controls", func(t *testing.T) {
 			for _, marker := range []string{
 				`data-theme="dark"`,
 				`id="lightTheme"`,
 				`id="darkTheme"`,
-				`aria-label="Colour theme"`,
+				`aria-label="Color theme"`,
 			} {
 				if !strings.Contains(string(document), marker) {
 					t.Errorf("the dashboard document does not contain %q", marker)
@@ -144,7 +148,7 @@ func TestDashboard_ServeHTTPResources(t *testing.T) {
 		})
 	})
 
-	t.Run("Scenario: A client requests both embedded static assets", func(t *testing.T) {
+	t.Run("Scenario: A client requests both embedded dashboard assets", func(t *testing.T) {
 		var server *httptest.Server
 		var styleResponse *http.Response
 		var scriptResponse *http.Response
@@ -155,12 +159,12 @@ func TestDashboard_ServeHTTPResources(t *testing.T) {
 			repositoryRoot := newAnalyzerFixture(t)
 			sourceAnalyzer, err := newAnalyzer(fixtureAnalysisConfiguration(repositoryRoot))
 			if err != nil {
-				step.Fatalf("newAnalyzer failed: %v", err)
+				step.Fatalf("newAnalyzer fails: %v", err)
 			}
 			logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 			monitor, err := newGraphMonitor(sourceAnalyzer, time.Second, logger)
 			if err != nil {
-				step.Fatalf("newGraphMonitor failed: %v", err)
+				step.Fatalf("newGraphMonitor fails: %v", err)
 			}
 			server = httptest.NewServer(newDashboardHandler(monitor, logger))
 			t.Cleanup(server.Close)
@@ -168,20 +172,20 @@ func TestDashboard_ServeHTTPResources(t *testing.T) {
 			return
 		}
 
-		t.Run("When the stylesheet and script are requested", func(step *testing.T) {
-			styleResponse, style = requestDashboardResource(
+		t.Run("When the client requests the stylesheet and script", func(step *testing.T) {
+			styleResponse, style = requestDashboardAsset(
 				step,
 				server.Client(),
-				server.URL+"/assets/app.css",
+				server.URL+"/assets/dashboard.css",
 			)
-			scriptResponse, script = requestDashboardResource(
+			scriptResponse, script = requestDashboardAsset(
 				step,
 				server.Client(),
-				server.URL+"/assets/app.js",
+				server.URL+"/assets/dashboard.js",
 			)
 		})
 
-		t.Run("Then both non-empty assets are returned", func(t *testing.T) {
+		t.Run("Then the server returns both non-empty dashboard assets", func(t *testing.T) {
 			if styleResponse.StatusCode != http.StatusOK || len(style) == 0 {
 				t.Errorf(
 					"style response is status %d with %d bytes",
@@ -231,12 +235,12 @@ func TestDashboard_ServeHTTPResources(t *testing.T) {
 			repositoryRoot := newAnalyzerFixture(t)
 			sourceAnalyzer, err := newAnalyzer(fixtureAnalysisConfiguration(repositoryRoot))
 			if err != nil {
-				step.Fatalf("newAnalyzer failed: %v", err)
+				step.Fatalf("newAnalyzer fails: %v", err)
 			}
 			logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 			monitor, err = newGraphMonitor(sourceAnalyzer, time.Second, logger)
 			if err != nil {
-				step.Fatalf("newGraphMonitor failed: %v", err)
+				step.Fatalf("newGraphMonitor fails: %v", err)
 			}
 			server = httptest.NewServer(newDashboardHandler(monitor, logger))
 			t.Cleanup(server.Close)
@@ -244,15 +248,15 @@ func TestDashboard_ServeHTTPResources(t *testing.T) {
 			return
 		}
 
-		t.Run("When the graph endpoint is requested", func(step *testing.T) {
+		t.Run("When the client requests the graph endpoint", func(step *testing.T) {
 			var payload []byte
-			response, payload = requestDashboardResource(step, server.Client(), server.URL+"/api/graph")
+			response, payload = requestDashboardAsset(step, server.Client(), server.URL+"/api/graph")
 			decodeError = json.Unmarshal(payload, &graph)
 		})
 
-		if !t.Run("Then a valid graph response is returned", func(t *testing.T) {
+		if !t.Run("Then the server returns a valid graph response", func(t *testing.T) {
 			if response.StatusCode != http.StatusOK {
-				t.Fatalf("graph endpoint returned status %d", response.StatusCode)
+				t.Fatalf("graph endpoint returns status %d", response.StatusCode)
 			}
 			if decodeError != nil {
 				t.Fatalf("decode graph response: %v", decodeError)
@@ -267,7 +271,7 @@ func TestDashboard_ServeHTTPResources(t *testing.T) {
 			}
 		})
 
-		t.Run("And the HTTP transport exposes the same machine findings", func(t *testing.T) {
+		t.Run("And the HTTP transport exposes the same JSON findings", func(t *testing.T) {
 			if graph.Summary.Findings != 3 || len(graph.Findings) != 3 {
 				t.Errorf(
 					"HTTP graph has %d summary findings and %d details, want 3 and 3",
@@ -287,12 +291,12 @@ func TestDashboard_ServeHTTPResources(t *testing.T) {
 			repositoryRoot := newAnalyzerFixture(t)
 			sourceAnalyzer, err := newAnalyzer(fixtureAnalysisConfiguration(repositoryRoot))
 			if err != nil {
-				step.Fatalf("newAnalyzer failed: %v", err)
+				step.Fatalf("newAnalyzer fails: %v", err)
 			}
 			logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 			monitor, err := newGraphMonitor(sourceAnalyzer, time.Second, logger)
 			if err != nil {
-				step.Fatalf("newGraphMonitor failed: %v", err)
+				step.Fatalf("newGraphMonitor fails: %v", err)
 			}
 			server = httptest.NewServer(newDashboardHandler(monitor, logger))
 			t.Cleanup(server.Close)
@@ -300,7 +304,7 @@ func TestDashboard_ServeHTTPResources(t *testing.T) {
 			return
 		}
 
-		t.Run("When a POST request is sent to the graph endpoint", func(step *testing.T) {
+		t.Run("When the client sends a POST request to the graph endpoint", func(step *testing.T) {
 			request, err := http.NewRequestWithContext(
 				step.Context(),
 				http.MethodPost,
@@ -327,7 +331,7 @@ func TestDashboard_ServeHTTPResources(t *testing.T) {
 
 		if !t.Run("Then the request completes without a transport error", func(t *testing.T) {
 			if requestError != nil {
-				t.Fatalf("unsupported method request failed: %v", requestError)
+				t.Fatalf("the unsupported method request fails: %v", requestError)
 			}
 		}) {
 			return
@@ -335,7 +339,7 @@ func TestDashboard_ServeHTTPResources(t *testing.T) {
 
 		t.Run("And the server reports method not allowed", func(t *testing.T) {
 			if status != http.StatusMethodNotAllowed {
-				t.Errorf("unsupported method returned status %d", status)
+				t.Errorf("unsupported method returns status %d", status)
 			}
 		})
 	})
@@ -359,12 +363,12 @@ func TestDashboardEventStream_PublishGraphChanges(t *testing.T) {
 			repositoryRoot = newAnalyzerFixture(t)
 			sourceAnalyzer, err := newAnalyzer(fixtureAnalysisConfiguration(repositoryRoot))
 			if err != nil {
-				step.Fatalf("newAnalyzer failed: %v", err)
+				step.Fatalf("newAnalyzer fails: %v", err)
 			}
 			logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 			monitor, err = newGraphMonitor(sourceAnalyzer, time.Second, logger)
 			if err != nil {
-				step.Fatalf("newGraphMonitor failed: %v", err)
+				step.Fatalf("newGraphMonitor fails: %v", err)
 			}
 			handler = newDashboardHandler(monitor, logger)
 			requestContext, cancel := context.WithCancel(t.Context())
@@ -384,7 +388,7 @@ func TestDashboardEventStream_PublishGraphChanges(t *testing.T) {
 			return
 		}
 
-		t.Run("When two source changes occur before the request is canceled", func(step *testing.T) {
+		t.Run("When two source changes occur before the client cancels the request", func(step *testing.T) {
 			go func() {
 				handler.ServeHTTP(recorder, request)
 				close(completed)
@@ -398,7 +402,7 @@ func TestDashboardEventStream_PublishGraphChanges(t *testing.T) {
 				step,
 				repositoryRoot,
 				"cmd/control/main.go",
-				"package main\n\nimport _ \"example.com/strategic/internal/library/logging\"\n",
+				"package main\n\nimport _ \"example.com/repository/internal/library/logging\"\n",
 			)
 			monitor.refresh()
 			select {
@@ -427,7 +431,7 @@ func TestDashboardEventStream_PublishGraphChanges(t *testing.T) {
 			payload = recorder.Body.String()
 		})
 
-		if !t.Run("Then every event is flushed and the stream stops", func(t *testing.T) {
+		if !t.Run("Then the handler flushes every event and stops the stream", func(t *testing.T) {
 			if !readyFlushed || !firstGraphFlushed || !secondGraphFlushed {
 				t.Fatalf(
 					"flush states are ready=%t, first=%t, second=%t",
@@ -437,10 +441,10 @@ func TestDashboardEventStream_PublishGraphChanges(t *testing.T) {
 				)
 			}
 			if !stopped {
-				t.Fatal("the event stream did not stop after request cancellation")
+				t.Fatal("the event stream does not stop after request cancellation")
 			}
 			if recorder.Code != http.StatusOK {
-				t.Fatalf("event stream returned status %d", recorder.Code)
+				t.Fatalf("event stream returns status %d", recorder.Code)
 			}
 		}) {
 			return
@@ -449,10 +453,10 @@ func TestDashboardEventStream_PublishGraphChanges(t *testing.T) {
 		t.Run("And the stream contains the ready event and both graph events", func(t *testing.T) {
 			if !strings.Contains(payload, "event: ready\n") ||
 				!strings.Contains(payload, "data: "+monitor.currentGraph().Revision+"\n") {
-				t.Errorf("event stream did not publish the current revision: %q", payload)
+				t.Errorf("the event stream does not publish the current revision: %q", payload)
 			}
 			if graphEvents := strings.Count(payload, "event: graph\n"); graphEvents != 2 {
-				t.Errorf("event stream published %d graph events, want 2: %q", graphEvents, payload)
+				t.Errorf("event stream publishes %d graph events, want 2: %q", graphEvents, payload)
 			}
 		})
 	})
@@ -473,12 +477,12 @@ func TestDashboardEventStream_PublishKeepAlive(t *testing.T) {
 			repositoryRoot := newAnalyzerFixture(t)
 			sourceAnalyzer, err := newAnalyzer(fixtureAnalysisConfiguration(repositoryRoot))
 			if err != nil {
-				step.Fatalf("newAnalyzer failed: %v", err)
+				step.Fatalf("newAnalyzer fails: %v", err)
 			}
 			logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 			monitor, err := newGraphMonitor(sourceAnalyzer, time.Second, logger)
 			if err != nil {
-				step.Fatalf("newGraphMonitor failed: %v", err)
+				step.Fatalf("newGraphMonitor fails: %v", err)
 			}
 			handler = newDashboardHandler(monitor, logger)
 			configuredInterval = handler.keepAliveInterval
@@ -500,7 +504,7 @@ func TestDashboardEventStream_PublishKeepAlive(t *testing.T) {
 			return
 		}
 
-		t.Run("When the stream waits for one keep-alive and is canceled", func(t *testing.T) {
+		t.Run("When the stream waits for one keep-alive and the test cancels it", func(t *testing.T) {
 			go func() {
 				handler.ServeHTTP(recorder, request)
 				close(completed)
@@ -523,12 +527,12 @@ func TestDashboardEventStream_PublishKeepAlive(t *testing.T) {
 			payload = recorder.Body.String()
 		})
 
-		if !t.Run("Then the ready event and keep-alive are flushed before shutdown", func(t *testing.T) {
+		if !t.Run("Then the handler flushes the ready event and keep-alive before shutdown", func(t *testing.T) {
 			if flushCount != 2 {
-				t.Fatalf("event stream flushed %d events, want 2", flushCount)
+				t.Fatalf("event stream flushes %d events, want 2", flushCount)
 			}
 			if !stopped {
-				t.Fatal("the event stream did not stop")
+				t.Fatal("the event stream does not stop")
 			}
 		}) {
 			return
@@ -545,7 +549,7 @@ func TestDashboardEventStream_PublishKeepAlive(t *testing.T) {
 	})
 }
 func TestDashboardEventStream_RejectWriterWithoutFlush(t *testing.T) {
-	t.Run("Scenario: The response writer does not support event flushing", func(t *testing.T) {
+	t.Run("Scenario: The response writer does not support event flush operations", func(t *testing.T) {
 		var handler *dashboardHandler
 		var writer *plainResponseWriter
 		var request *http.Request
@@ -554,12 +558,12 @@ func TestDashboardEventStream_RejectWriterWithoutFlush(t *testing.T) {
 			repositoryRoot := newAnalyzerFixture(t)
 			sourceAnalyzer, err := newAnalyzer(fixtureAnalysisConfiguration(repositoryRoot))
 			if err != nil {
-				step.Fatalf("newAnalyzer failed: %v", err)
+				step.Fatalf("newAnalyzer fails: %v", err)
 			}
 			logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 			monitor, err := newGraphMonitor(sourceAnalyzer, time.Second, logger)
 			if err != nil {
-				step.Fatalf("newGraphMonitor failed: %v", err)
+				step.Fatalf("newGraphMonitor fails: %v", err)
 			}
 			handler = newDashboardHandler(monitor, logger)
 			writer = &plainResponseWriter{header: make(http.Header)}
@@ -572,9 +576,9 @@ func TestDashboardEventStream_RejectWriterWithoutFlush(t *testing.T) {
 			handler.serveEvents(writer, request)
 		})
 
-		t.Run("Then the stream reports that event streaming is unavailable", func(t *testing.T) {
+		t.Run("Then the stream rejects a response writer without flush support", func(t *testing.T) {
 			if writer.status != http.StatusInternalServerError {
-				t.Fatalf("event stream returned status %d", writer.status)
+				t.Fatalf("event stream returns status %d", writer.status)
 			}
 		})
 	})
@@ -586,21 +590,21 @@ func TestDashboard_LogResponseWriteFailure(t *testing.T) {
 		want string
 	}{
 		{
-			name: "an embedded asset cannot be written",
+			name: "the writer rejects an embedded dashboard asset",
 			run: func(handler *dashboardHandler, writer http.ResponseWriter) {
 				handler.serveDashboard(writer, nil)
 			},
 			want: "Cannot write dashboard asset",
 		},
 		{
-			name: "the graph cannot be written",
+			name: "the writer rejects the dependency graph",
 			run: func(handler *dashboardHandler, writer http.ResponseWriter) {
 				handler.serveGraph(writer, nil)
 			},
 			want: "Cannot write dependency graph",
 		},
 		{
-			name: "the health response cannot be written",
+			name: "the writer rejects the health response",
 			run: func(handler *dashboardHandler, writer http.ResponseWriter) {
 				handler.serveHealth(writer, nil)
 			},
@@ -613,11 +617,11 @@ func TestDashboard_LogResponseWriteFailure(t *testing.T) {
 			var handler *dashboardHandler
 			var writer *failingResponseWriter
 
-			if !t.Run("Given a dashboard handler and a failing response writer", func(step *testing.T) {
+			if !t.Run("Given a dashboard handler and a response writer that fails", func(step *testing.T) {
 				repositoryRoot := newAnalyzerFixture(t)
 				sourceAnalyzer, err := newAnalyzer(fixtureAnalysisConfiguration(repositoryRoot))
 				if err != nil {
-					step.Fatalf("newAnalyzer failed: %v", err)
+					step.Fatalf("newAnalyzer fails: %v", err)
 				}
 				logger := slog.New(slog.NewTextHandler(
 					&logs,
@@ -625,7 +629,7 @@ func TestDashboard_LogResponseWriteFailure(t *testing.T) {
 				))
 				monitor, err := newGraphMonitor(sourceAnalyzer, time.Second, logger)
 				if err != nil {
-					step.Fatalf("newGraphMonitor failed: %v", err)
+					step.Fatalf("newGraphMonitor fails: %v", err)
 				}
 				handler = newDashboardHandler(monitor, logger)
 				writer = &failingResponseWriter{header: make(http.Header)}
@@ -640,43 +644,43 @@ func TestDashboard_LogResponseWriteFailure(t *testing.T) {
 			t.Run("Then the structured log records the response failure", func(t *testing.T) {
 				if !strings.Contains(logs.String(), testCase.want) ||
 					!strings.Contains(logs.String(), errResponseWrite.Error()) {
-					t.Fatalf("write failure was not logged: %q", logs.String())
+					t.Fatalf("the structured log omits the write failure: %q", logs.String())
 				}
 			})
 		})
 	}
 }
 func TestDashboard_ReportUnavailableAsset(t *testing.T) {
-	t.Run("Scenario: A requested embedded asset does not exist", func(t *testing.T) {
+	t.Run("Scenario: A client requests an embedded dashboard asset that does not exist", func(t *testing.T) {
 		var logs bytes.Buffer
 		var handler *dashboardHandler
 		var recorder *httptest.ResponseRecorder
 
-		t.Run("Given a dashboard handler and a missing asset path", func(t *testing.T) {
+		t.Run("Given a dashboard handler and an absent asset path", func(t *testing.T) {
 			logger := slog.New(slog.NewTextHandler(&logs, nil))
 			handler = &dashboardHandler{logger: logger}
 			recorder = httptest.NewRecorder()
 		})
 
-		t.Run("When the embedded asset is served", func(t *testing.T) {
+		t.Run("When the handler serves the embedded dashboard asset", func(t *testing.T) {
 			handler.serveEmbeddedAsset(recorder, "_resources/web/missing.txt", "text/plain")
 		})
 
 		t.Run("Then the response reports an internal server error", func(t *testing.T) {
 			if recorder.Code != http.StatusInternalServerError {
-				t.Fatalf("missing asset returned status %d", recorder.Code)
+				t.Fatalf("missing asset returns status %d", recorder.Code)
 			}
 		})
 
-		t.Run("And the missing asset is recorded in the structured log", func(t *testing.T) {
+		t.Run("And the structured log records the absent dashboard asset", func(t *testing.T) {
 			if !strings.Contains(logs.String(), "Cannot read embedded dashboard asset") {
-				t.Errorf("missing asset was not logged: %q", logs.String())
+				t.Errorf("the structured log omits the missing dashboard asset: %q", logs.String())
 			}
 		})
 	})
 }
 func TestHTTPServer_ConfigureSafetyLimits(t *testing.T) {
-	t.Run("Scenario: The dashboard HTTP server is constructed", func(t *testing.T) {
+	t.Run("Scenario: The constructor creates the dashboard HTTP server", func(t *testing.T) {
 		var parentContext context.Context
 		var handler *http.ServeMux
 		var server *http.Server
@@ -688,13 +692,13 @@ func TestHTTPServer_ConfigureSafetyLimits(t *testing.T) {
 			handler = http.NewServeMux()
 		})
 
-		t.Run("When the HTTP server configuration is created", func(t *testing.T) {
+		t.Run("When the constructor creates the HTTP server configuration", func(t *testing.T) {
 			server = newHTTPServer(parentContext, handler)
 			baseContext = server.BaseContext(nil)
 			shutdownTimeout = dashboardShutdownTimeout()
 		})
 
-		t.Run("Then bounded header and idle limits are configured", func(t *testing.T) {
+		t.Run("Then the server contains bounded header and idle limits", func(t *testing.T) {
 			if server.Handler != handler || server.ReadHeaderTimeout != 5*time.Second ||
 				server.IdleTimeout != 75*time.Second || server.MaxHeaderBytes != 1<<20 {
 				t.Fatalf("unexpected HTTP server configuration: %+v", server)
@@ -712,22 +716,22 @@ func TestHTTPServer_ConfigureSafetyLimits(t *testing.T) {
 	})
 }
 func TestDashboard_RunWithCanceledContext(t *testing.T) {
-	t.Run("Scenario: The server context is canceled before dashboard startup", func(t *testing.T) {
+	t.Run("Scenario: The caller cancels the server context before dashboard startup", func(t *testing.T) {
 		var monitor *graphMonitor
 		var logger *slog.Logger
 		var serverContext context.Context
 		var result error
 
-		if !t.Run("Given a graph monitor and an already canceled context", func(step *testing.T) {
+		if !t.Run("Given a graph monitor and a context with an active cancellation", func(step *testing.T) {
 			repositoryRoot := newAnalyzerFixture(t)
 			sourceAnalyzer, err := newAnalyzer(fixtureAnalysisConfiguration(repositoryRoot))
 			if err != nil {
-				step.Fatalf("newAnalyzer failed: %v", err)
+				step.Fatalf("newAnalyzer fails: %v", err)
 			}
 			logger = slog.New(slog.NewTextHandler(io.Discard, nil))
 			monitor, err = newGraphMonitor(sourceAnalyzer, time.Second, logger)
 			if err != nil {
-				step.Fatalf("newGraphMonitor failed: %v", err)
+				step.Fatalf("newGraphMonitor fails: %v", err)
 			}
 			ctx, cancelServer := context.WithCancel(t.Context())
 			cancelServer()
@@ -736,18 +740,18 @@ func TestDashboard_RunWithCanceledContext(t *testing.T) {
 			return
 		}
 
-		t.Run("When the dashboard server runs on an ephemeral port", func(t *testing.T) {
+		t.Run("When the dashboard server runs on a temporary port", func(t *testing.T) {
 			result = runDashboard(serverContext, monitor, "127.0.0.1:0", logger)
 		})
 
 		t.Run("Then dashboard shutdown completes without an error", func(t *testing.T) {
 			if result != nil {
-				t.Fatalf("runDashboard failed during a normal shutdown: %v", result)
+				t.Fatalf("runDashboard fails during a normal shutdown: %v", result)
 			}
 		})
 	})
 }
-func requestDashboardResource(
+func requestDashboardAsset(
 	t *testing.T,
 	client *http.Client,
 	address string,
@@ -759,7 +763,7 @@ func requestDashboardResource(
 	}
 	response, err := client.Do(request)
 	if err != nil {
-		t.Fatalf("request dashboard resource: %v", err)
+		t.Fatalf("request dashboard asset: %v", err)
 	}
 	payload, readError := io.ReadAll(response.Body)
 	closeError := response.Body.Close()

@@ -12,8 +12,8 @@ import (
 )
 
 func TestRootCommand_DefineSafeDefaults(t *testing.T) {
-	t.Run("Scenario: The dependency graph command is created without options", func(t *testing.T) {
-		var sut *cobra.Command
+	t.Run("Scenario: The test creates the dependency graph command without options", func(t *testing.T) {
+		var rootCommand *cobra.Command
 		var commandDefaults map[string]string
 		var silenceErrors bool
 		var silenceUsage bool
@@ -22,21 +22,21 @@ func TestRootCommand_DefineSafeDefaults(t *testing.T) {
 
 		t.Run("Given a root command with a structured logger", func(t *testing.T) {
 			logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-			sut = newRootCommand(logger)
+			rootCommand = newRootCommand(logger)
 			commandDefaults = make(map[string]string)
 		})
 
-		t.Run("When the root command configuration is inspected", func(t *testing.T) {
-			silenceErrors = sut.SilenceErrors
-			silenceUsage = sut.SilenceUsage
+		t.Run("When the test inspects the root command configuration", func(t *testing.T) {
+			silenceErrors = rootCommand.SilenceErrors
+			silenceUsage = rootCommand.SilenceUsage
 			for _, name := range []string{"address", "refresh-interval"} {
-				flag := sut.Flags().Lookup(name)
+				flag := rootCommand.Flags().Lookup(name)
 				if flag != nil {
 					commandDefaults[name] = flag.DefValue
 				}
 			}
 			for _, name := range []string{"configuration", "root", "analysis-path", "ignore-path"} {
-				flag := sut.PersistentFlags().Lookup(name)
+				flag := rootCommand.PersistentFlags().Lookup(name)
 				if flag != nil {
 					commandDefaults[name] = flag.DefValue
 				}
@@ -45,13 +45,13 @@ func TestRootCommand_DefineSafeDefaults(t *testing.T) {
 			minimumInterval = minimumRefreshInterval()
 		})
 
-		t.Run("Then Cobra error and usage output is suppressed", func(t *testing.T) {
+		t.Run("Then the root command suppresses Cobra error and usage output", func(t *testing.T) {
 			if !silenceErrors || !silenceUsage {
 				t.Fatal("the root command does not suppress Cobra error output")
 			}
 		})
 
-		t.Run("And every command option has the expected default", func(t *testing.T) {
+		t.Run("And each command option has the expected default", func(t *testing.T) {
 			want := map[string]string{
 				"address":          "127.0.0.1:6062",
 				"configuration":    "configuration.json",
@@ -67,7 +67,7 @@ func TestRootCommand_DefineSafeDefaults(t *testing.T) {
 			}
 		})
 
-		t.Run("And refresh interval boundaries remain stable", func(t *testing.T) {
+		t.Run("And the refresh interval boundaries have the expected values", func(t *testing.T) {
 			if defaultInterval != 750*time.Millisecond {
 				t.Errorf("unexpected default refresh interval %s", defaultInterval)
 			}
@@ -79,27 +79,27 @@ func TestRootCommand_DefineSafeDefaults(t *testing.T) {
 }
 func TestRootCommand_RejectInvalidArguments(t *testing.T) {
 	testCases := []struct {
-		name string
-		args func(*testing.T) []string
-		want string
+		name      string
+		arguments func(*testing.T) []string
+		want      string
 	}{
 		{
 			name: "a refresh interval is below the minimum",
-			args: func(*testing.T) []string {
+			arguments: func(*testing.T) []string {
 				return []string{"--refresh-interval", "99ms"}
 			},
 			want: "at least 100ms",
 		},
 		{
 			name: "the repository has no module file",
-			args: func(t *testing.T) []string {
+			arguments: func(t *testing.T) []string {
 				return []string{"--root", t.TempDir()}
 			},
 			want: "module file",
 		},
 		{
 			name: "the dashboard address is invalid",
-			args: func(t *testing.T) []string {
+			arguments: func(t *testing.T) []string {
 				return []string{
 					"--root", newAnalyzerFixture(t),
 					"--address", "invalid address",
@@ -109,49 +109,56 @@ func TestRootCommand_RejectInvalidArguments(t *testing.T) {
 		},
 		{
 			name: "a positional argument is present",
-			args: func(*testing.T) []string {
+			arguments: func(*testing.T) []string {
 				return []string{"unexpected"}
 			},
 			want: "unknown command",
 		},
 		{
 			name: "the analysis view is unknown",
-			args: func(*testing.T) []string {
+			arguments: func(*testing.T) []string {
 				return []string{"analyze", "--view", "unknown"}
 			},
 			want: "must be report or graph",
 		},
 		{
 			name: "the finding threshold is unknown",
-			args: func(*testing.T) []string {
+			arguments: func(*testing.T) []string {
 				return []string{"analyze", "--fail-on", "unknown"}
 			},
 			want: "must be none, warning, or error",
 		},
 		{
-			name: "the focused finding severity is unknown",
-			args: func(*testing.T) []string {
+			name: "the filtered finding severity is unknown",
+			arguments: func(*testing.T) []string {
 				return []string{"findings", "--severity", "critical"}
 			},
 			want: "must be all, warning, or error",
 		},
 		{
-			name: "the focused component kind is unknown",
-			args: func(*testing.T) []string {
+			name: "the filtered component kind is unknown",
+			arguments: func(*testing.T) []string {
 				return []string{"components", "--kind", "service"}
 			},
 			want: "component kind",
 		},
 		{
-			name: "the focused component sort is unknown",
-			args: func(*testing.T) []string {
+			name: "the filtered component sort is unknown",
+			arguments: func(*testing.T) []string {
 				return []string{"components", "--sort", "weight"}
 			},
 			want: "component sort",
 		},
 		{
-			name: "a focused query limit is negative",
-			args: func(*testing.T) []string {
+			name: "the filtered function sort is unknown",
+			arguments: func(*testing.T) []string {
+				return []string{"functions", "--sort", "weight"}
+			},
+			want: "function sort",
+		},
+		{
+			name: "a filtered query limit is negative",
+			arguments: func(*testing.T) []string {
 				return []string{"findings", "--limit", "-1"}
 			},
 			want: "must not be negative",
@@ -159,7 +166,7 @@ func TestRootCommand_RejectInvalidArguments(t *testing.T) {
 	}
 	for _, testCase := range testCases {
 		t.Run("Scenario: "+testCase.name, func(t *testing.T) {
-			var commandArgs []string
+			var commandArguments []string
 			var commandContext context.Context
 			var commandError error
 			var command interface {
@@ -169,20 +176,20 @@ func TestRootCommand_RejectInvalidArguments(t *testing.T) {
 			t.Run("Given a root command with the invalid input", func(step *testing.T) {
 				logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 				rootCommand := newRootCommand(logger)
-				commandArgs = testCase.args(t)
-				rootCommand.SetArgs(commandArgs)
+				commandArguments = testCase.arguments(t)
+				rootCommand.SetArgs(commandArguments)
 				commandContext = t.Context()
 				command = rootCommand
 			})
 
-			t.Run("When the command is executed", func(t *testing.T) {
+			t.Run("When the test executes the command", func(t *testing.T) {
 				commandError = command.ExecuteContext(commandContext)
 			})
 
 			t.Run("Then execution returns the expected validation error", func(t *testing.T) {
 				if commandError == nil || !strings.Contains(commandError.Error(), testCase.want) {
 					t.Fatalf(
-						"command error is %v, want a message containing %q",
+						"command error is %v, want a message that contains %q",
 						commandError,
 						testCase.want,
 					)
@@ -192,7 +199,7 @@ func TestRootCommand_RejectInvalidArguments(t *testing.T) {
 	}
 }
 func TestRootCommand_ExecuteAtMinimumInterval(t *testing.T) {
-	t.Run("Scenario: The minimum refresh interval is used with a canceled context", func(t *testing.T) {
+	t.Run("Scenario: The test cancels the context and uses the minimum refresh interval", func(t *testing.T) {
 		var commandContext context.Context
 		var commandError error
 		var command interface {
@@ -208,21 +215,21 @@ func TestRootCommand_ExecuteAtMinimumInterval(t *testing.T) {
 				"--address", "127.0.0.1:0",
 				"--refresh-interval", minimumRefreshInterval().String(),
 			})
-			ctx, cancel := context.WithCancel(t.Context())
+			canceledContext, cancel := context.WithCancel(t.Context())
 			cancel()
-			commandContext = ctx
+			commandContext = canceledContext
 			command = rootCommand
 		}) {
 			return
 		}
 
-		t.Run("When the command is executed", func(t *testing.T) {
+		t.Run("When the test executes the command", func(t *testing.T) {
 			commandError = command.ExecuteContext(commandContext)
 		})
 
 		t.Run("Then the command accepts the boundary and stops cleanly", func(t *testing.T) {
 			if commandError != nil {
-				t.Fatalf("command failed at the minimum refresh interval: %v", commandError)
+				t.Fatalf("the command fails at the minimum refresh interval: %v", commandError)
 			}
 		})
 	})

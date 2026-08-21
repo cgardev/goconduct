@@ -63,7 +63,7 @@ import _ "example.com/cli/packages/shared"
 			return
 		}
 
-		t.Run("When the machine analysis uses only the configuration document", func(t *testing.T) {
+		t.Run("When the JSON analysis uses only the configuration document", func(t *testing.T) {
 			logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 			command := newRootCommand(logger)
 			command.SetOut(&output)
@@ -74,9 +74,9 @@ import _ "example.com/cli/packages/shared"
 			}
 		})
 
-		if !t.Run("Then the configured machine analysis succeeds", func(t *testing.T) {
+		if !t.Run("Then the configured JSON analysis succeeds", func(t *testing.T) {
 			if commandError != nil {
-				t.Fatalf("configured analysis failed: %v", commandError)
+				t.Fatalf("the configured analysis fails: %v", commandError)
 			}
 			if report.Summary.Components != 2 || report.Summary.Relationships != 1 {
 				t.Fatalf("unexpected configured report: %+v", report.Summary)
@@ -97,34 +97,37 @@ import _ "example.com/cli/packages/shared"
 	})
 }
 
-func TestQueryCommands_EmitFocusedJSONWithoutPipes(t *testing.T) {
-	t.Run("Scenario: An agent invokes every focused query through native CLI arguments", func(t *testing.T) {
+func TestQueryCommands_EmitFilteredJSONWithoutPipes(t *testing.T) {
+	t.Run("Scenario: An agent invokes every filtered query through native CLI arguments", func(t *testing.T) {
 		var repositoryRoot string
 		var outputs map[string]map[string]json.RawMessage
 		var queryError error
 
-		t.Run("Given a repository accepted by the default strategic layout", func(*testing.T) {
+		t.Run("Given a repository that the default component layout accepts", func(*testing.T) {
 			repositoryRoot = newAnalyzerFixture(t)
 			outputs = make(map[string]map[string]json.RawMessage)
 		})
 
-		t.Run("When summary, findings, ranking, and component queries execute", func(t *testing.T) {
+		t.Run("When summary, findings, component sort, and component queries execute", func(t *testing.T) {
 			queries := []struct {
-				name string
-				args []string
+				name      string
+				arguments []string
 			}{
-				{name: "summary", args: []string{"summary", "--root", repositoryRoot}},
+				{name: "summary", arguments: []string{"summary", "--root", repositoryRoot}},
 				{
-					name: "findings",
-					args: []string{"findings", "--root", repositoryRoot, "--severity", "error", "--limit", "1"},
+					name:      "findings",
+					arguments: []string{"findings", "--root", repositoryRoot, "--severity", "error", "--limit", "1"},
 				},
 				{
 					name: "components",
-					args: []string{"components", "--root", repositoryRoot, "--kind", "library", "--sort", "afferent", "--limit", "1"},
+					arguments: []string{
+						"components", "--root", repositoryRoot, "--kind", "library",
+						"--sort", "afferent", "--limit", "1",
+					},
 				},
 				{
-					name: "component",
-					args: []string{"component", "internal/library/logging", "--root", repositoryRoot},
+					name:      "component",
+					arguments: []string{"component", "internal/library/logging", "--root", repositoryRoot},
 				},
 			}
 			for _, query := range queries {
@@ -132,7 +135,7 @@ func TestQueryCommands_EmitFocusedJSONWithoutPipes(t *testing.T) {
 				logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 				command := newRootCommand(logger)
 				command.SetOut(&output)
-				command.SetArgs(query.args)
+				command.SetArgs(query.arguments)
 				if err := command.ExecuteContext(t.Context()); err != nil {
 					queryError = err
 					return
@@ -146,18 +149,18 @@ func TestQueryCommands_EmitFocusedJSONWithoutPipes(t *testing.T) {
 			}
 		})
 
-		if !t.Run("Then every focused query emits valid JSON", func(t *testing.T) {
+		if !t.Run("Then every filtered query emits valid JSON", func(t *testing.T) {
 			if queryError != nil {
-				t.Fatalf("focused query failed: %v", queryError)
+				t.Fatalf("the filtered query fails: %v", queryError)
 			}
 			if len(outputs) != 4 {
-				t.Fatalf("focused query outputs are %d, want 4", len(outputs))
+				t.Fatalf("filtered query outputs are %d, want 4", len(outputs))
 			}
 		}) {
 			return
 		}
 
-		t.Run("And each response has its direct resource without external filtering", func(t *testing.T) {
+		t.Run("And each response has its direct resource without an external filter", func(t *testing.T) {
 			for query, field := range map[string]string{
 				"summary":    "summary",
 				"findings":   "findings",
@@ -185,7 +188,7 @@ func TestFindingsCommand_DefineUnlimitedDefault(t *testing.T) {
 			defaultLimit = command.Flag("limit").DefValue
 		})
 
-		t.Run("Then zero requests all matching findings", func(t *testing.T) {
+		t.Run("Then zero requests all applicable findings", func(t *testing.T) {
 			if defaultLimit != "0" {
 				t.Errorf("default finding limit is %q, want 0", defaultLimit)
 			}
@@ -208,7 +211,7 @@ func TestQueryLimit_AcceptUnlimitedValue(t *testing.T) {
 
 		t.Run("Then validation accepts the unlimited value", func(t *testing.T) {
 			if validationError != nil {
-				t.Errorf("zero query limit failed validation: %v", validationError)
+				t.Errorf("zero query limit fails validation: %v", validationError)
 			}
 		})
 	})
@@ -220,27 +223,27 @@ func TestQueryJSON_PreserveTechnicalCharacters(t *testing.T) {
 		var payload map[string]string
 		var encodeError error
 
-		t.Run("Given a machine value with angle brackets and an ampersand", func(t *testing.T) {
+		t.Run("Given a JSON value with angle brackets and an ampersand", func(t *testing.T) {
 			payload = map[string]string{
-				"identifier": "example.com/<machine>&analysis",
+				"identifier": "example.com/<component>&analysis",
 			}
 		})
 
-		t.Run("When the query result is encoded", func(t *testing.T) {
+		t.Run("When the encoder encodes the query result", func(t *testing.T) {
 			encodeError = writeQueryJSON(&output, payload)
 		})
 
-		if !t.Run("Then JSON encoding succeeds", func(t *testing.T) {
+		if !t.Run("Then the JSON encoder returns no error", func(t *testing.T) {
 			if encodeError != nil {
-				t.Fatalf("writeQueryJSON failed: %v", encodeError)
+				t.Fatalf("writeQueryJSON fails: %v", encodeError)
 			}
 		}) {
 			return
 		}
 
 		t.Run("And technical characters remain directly readable", func(t *testing.T) {
-			if !strings.Contains(output.String(), `<machine>&analysis`) {
-				t.Errorf("technical characters were escaped: %s", output.String())
+			if !strings.Contains(output.String(), `<component>&analysis`) {
+				t.Errorf("the encoder escapes technical characters: %s", output.String())
 			}
 		})
 	})
@@ -284,7 +287,7 @@ func TestCommandConfiguration_ApplyExplicitScopeOverrides(t *testing.T) {
 
 		if !t.Run("Then the explicitly configured query succeeds", func(t *testing.T) {
 			if commandError != nil {
-				t.Fatalf("summary with scope overrides failed: %v", commandError)
+				t.Fatalf("summary with scope overrides fails: %v", commandError)
 			}
 		}) {
 			return
@@ -300,7 +303,7 @@ func TestCommandConfiguration_ApplyExplicitScopeOverrides(t *testing.T) {
 	})
 }
 
-var errAnalysisWrite = errors.New("analysis write failed")
+var errAnalysisWrite = errors.New("analysis write failure")
 
 type failingAnalysisWriter struct{}
 
@@ -309,7 +312,7 @@ func (failingAnalysisWriter) Write([]byte) (int, error) {
 }
 
 func TestAnalyzeCommand_EmitDeterministicReport(t *testing.T) {
-	t.Run("Scenario: The same repository is analyzed twice through the CLI", func(t *testing.T) {
+	t.Run("Scenario: The CLI analyzes the same repository twice", func(t *testing.T) {
 		var repositoryRoot string
 		var firstOutput bytes.Buffer
 		var secondOutput bytes.Buffer
@@ -317,7 +320,7 @@ func TestAnalyzeCommand_EmitDeterministicReport(t *testing.T) {
 		var secondError error
 		var report analysisReport
 
-		t.Run("Given two machine-analysis commands for one repository", func(*testing.T) {
+		t.Run("Given two JSON analysis commands for one repository", func(*testing.T) {
 			repositoryRoot = newAnalyzerFixture(t)
 		})
 
@@ -339,7 +342,7 @@ func TestAnalyzeCommand_EmitDeterministicReport(t *testing.T) {
 				t.Fatalf("analysis errors are %v and %v", firstError, secondError)
 			}
 			if !bytes.Equal(firstOutput.Bytes(), secondOutput.Bytes()) {
-				t.Fatal("unchanged source produced different CLI reports")
+				t.Fatal("unchanged source produces different CLI reports")
 			}
 			if err := json.Unmarshal(firstOutput.Bytes(), &report); err != nil {
 				t.Fatalf("decode CLI report: %v", err)
@@ -348,61 +351,68 @@ func TestAnalyzeCommand_EmitDeterministicReport(t *testing.T) {
 			return
 		}
 
-		t.Run("And the report contains the stable revision and detected risks", func(t *testing.T) {
+		t.Run("And the report contains the stable revision and findings", func(t *testing.T) {
 			if report.SchemaVersion != graphSchemaVersion || report.Revision == "" {
 				t.Errorf("unexpected report identity: %+v", report)
 			}
 			if report.Summary.Findings != 3 || len(report.Findings) != 3 {
-				t.Errorf("report has %d summary findings and %d details, want 3 and 3", report.Summary.Findings, len(report.Findings))
+				t.Errorf(
+					"report has %d summary findings and %d details, want 3 and 3",
+					report.Summary.Findings,
+					len(report.Findings),
+				)
 			}
-			if report.Policy.ZoneOfPain.MinimumAfferentCoupling != 1 {
+			if report.Policy.StableLowAbstraction.MinimumAfferentCoupling != 1 {
 				t.Errorf("report has an unexpected policy: %+v", report.Policy)
 			}
 			if strings.Contains(firstOutput.String(), "\n  \"") {
-				t.Error("the default machine report is unexpectedly indented")
+				t.Error("the default JSON report has unexpected indentation")
 			}
 		})
 	})
 }
 
 func TestAnalyzeCommand_ApplyFailureThreshold(t *testing.T) {
-	t.Run("Scenario: The repository has an architectural error and the error gate is active", func(t *testing.T) {
-		var output bytes.Buffer
-		var commandError error
-		var command *cobra.Command
+	t.Run(
+		"Scenario: The repository has an architecture error and the failure threshold is active",
+		func(t *testing.T) {
+			var output bytes.Buffer
+			var commandError error
+			var command *cobra.Command
 
-		t.Run("Given a machine-analysis command with fail-on error", func(*testing.T) {
-			repositoryRoot := newAnalyzerFixture(t)
-			logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-			command = newRootCommand(logger)
-			command.SetOut(&output)
-			command.SetArgs([]string{
-				"analyze",
-				"--root", repositoryRoot,
-				"--fail-on", "error",
+			t.Run("Given a JSON analysis command with fail-on error", func(*testing.T) {
+				repositoryRoot := newAnalyzerFixture(t)
+				logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+				command = newRootCommand(logger)
+				command.SetOut(&output)
+				command.SetArgs([]string{
+					"analyze",
+					"--root", repositoryRoot,
+					"--fail-on", "error",
+				})
 			})
-		})
 
-		t.Run("When the deterministic quality gate is evaluated", func(t *testing.T) {
-			commandError = command.ExecuteContext(t.Context())
-		})
+			t.Run("When the command evaluates the deterministic failure threshold", func(t *testing.T) {
+				commandError = command.ExecuteContext(t.Context())
+			})
 
-		t.Run("Then the command returns the typed finding error", func(t *testing.T) {
-			if !errors.Is(commandError, errArchitectureFindings) {
-				t.Fatalf("command error is %v, want errArchitectureFindings", commandError)
-			}
-		})
+			t.Run("Then the command returns the typed finding error", func(t *testing.T) {
+				if !errors.Is(commandError, errArchitectureFindings) {
+					t.Fatalf("command error is %v, want errArchitectureFindings", commandError)
+				}
+			})
 
-		t.Run("And the JSON report remains available for automated diagnosis", func(t *testing.T) {
-			var report analysisReport
-			if err := json.Unmarshal(output.Bytes(), &report); err != nil {
-				t.Fatalf("decode gated CLI report: %v", err)
-			}
-			if report.Summary.Errors != 1 {
-				t.Errorf("error findings are %d, want 1", report.Summary.Errors)
-			}
-		})
-	})
+			t.Run("And the JSON report remains available for automated diagnosis", func(t *testing.T) {
+				var report analysisReport
+				if err := json.Unmarshal(output.Bytes(), &report); err != nil {
+					t.Fatalf("decode gated CLI report: %v", err)
+				}
+				if report.Summary.Errors != 1 {
+					t.Errorf("error findings are %d, want 1", report.Summary.Errors)
+				}
+			})
+		},
+	)
 }
 
 func TestAnalyzeCommand_EmitCompleteGraph(t *testing.T) {
@@ -421,17 +431,17 @@ func TestAnalyzeCommand_EmitCompleteGraph(t *testing.T) {
 				"analyze",
 				"--root", repositoryRoot,
 				"--view", "graph",
-				"--pretty",
+				"--indent",
 			})
 		})
 
-		t.Run("When the graph view is emitted", func(t *testing.T) {
+		t.Run("When the command emits the graph view", func(t *testing.T) {
 			commandError = command.ExecuteContext(t.Context())
 		})
 
 		if !t.Run("Then the command emits valid JSON", func(t *testing.T) {
 			if commandError != nil {
-				t.Fatalf("graph analysis failed: %v", commandError)
+				t.Fatalf("graph analysis fails: %v", commandError)
 			}
 			if err := json.Unmarshal(output.Bytes(), &graph); err != nil {
 				t.Fatalf("decode complete graph: %v", err)
@@ -442,10 +452,14 @@ func TestAnalyzeCommand_EmitCompleteGraph(t *testing.T) {
 
 		t.Run("And the complete view contains relationships and indentation", func(t *testing.T) {
 			if len(graph.Relationships) != 10 || len(graph.Findings) != 3 {
-				t.Errorf("complete graph has %d relationships and %d findings", len(graph.Relationships), len(graph.Findings))
+				t.Errorf(
+					"complete graph has %d relationships and %d findings",
+					len(graph.Relationships),
+					len(graph.Findings),
+				)
 			}
 			if !strings.Contains(output.String(), "\n  \"schemaVersion\"") {
-				t.Error("pretty graph output is not indented")
+				t.Error("indented graph output is not indented")
 			}
 		})
 	})
@@ -492,13 +506,13 @@ func TestFindingThreshold_FilterSeverity(t *testing.T) {
 				threshold = testCase.threshold
 			})
 
-			t.Run("When the finding threshold is enforced", func(t *testing.T) {
+			t.Run("When the function enforces the finding threshold", func(t *testing.T) {
 				result = enforceFindingThreshold(findings, threshold)
 			})
 
-			t.Run("Then the gate returns the expected typed result", func(t *testing.T) {
-				failed := errors.Is(result, errArchitectureFindings)
-				if failed != testCase.wantFailure {
+			t.Run("Then the failure threshold returns the expected typed result", func(t *testing.T) {
+				hasFailure := errors.Is(result, errArchitectureFindings)
+				if hasFailure != testCase.wantFailure {
 					t.Fatalf("threshold error is %v, want failure %t", result, testCase.wantFailure)
 				}
 			})
@@ -507,11 +521,11 @@ func TestFindingThreshold_FilterSeverity(t *testing.T) {
 }
 
 func TestAnalysisJSON_ReportWriteFailure(t *testing.T) {
-	t.Run("Scenario: The machine output writer rejects the JSON report", func(t *testing.T) {
+	t.Run("Scenario: The JSON output writer rejects the JSON report", func(t *testing.T) {
 		var writer io.Writer
 		var result error
 
-		t.Run("Given a failing writer and an empty deterministic graph", func(t *testing.T) {
+		t.Run("Given a writer that fails and an empty deterministic graph", func(t *testing.T) {
 			writer = failingAnalysisWriter{}
 		})
 
@@ -519,39 +533,39 @@ func TestAnalysisJSON_ReportWriteFailure(t *testing.T) {
 			result = writeAnalysisJSON(writer, Graph{}, analysisViewReport, false)
 		})
 
-		t.Run("Then the underlying output error remains classified", func(t *testing.T) {
+		t.Run("Then the result retains the output error category", func(t *testing.T) {
 			if !errors.Is(result, errAnalysisWrite) {
-				t.Fatalf("writeAnalysisJSON returned %v, want errAnalysisWrite", result)
+				t.Fatalf("writeAnalysisJSON returns %v, want errAnalysisWrite", result)
 			}
 		})
 	})
 }
 
 func TestAnalysisJSON_PreserveTechnicalCharacters(t *testing.T) {
-	t.Run("Scenario: The module path contains characters escaped by HTML encoders", func(t *testing.T) {
+	t.Run("Scenario: HTML encoders escape characters in the module path", func(t *testing.T) {
 		var output bytes.Buffer
 		var graph Graph
 		var result error
 
 		t.Run("Given a graph with angle and ampersand characters", func(t *testing.T) {
-			graph = Graph{ModulePath: "example.com/<machine>&analysis"}
+			graph = Graph{ModulePath: "example.com/<component>&analysis"}
 		})
 
-		t.Run("When the machine report is encoded", func(t *testing.T) {
+		t.Run("When the encoder encodes the JSON report", func(t *testing.T) {
 			result = writeAnalysisJSON(&output, graph, analysisViewReport, false)
 		})
 
-		if !t.Run("Then JSON encoding succeeds", func(t *testing.T) {
+		if !t.Run("Then the JSON encoder returns no error", func(t *testing.T) {
 			if result != nil {
-				t.Fatalf("writeAnalysisJSON failed: %v", result)
+				t.Fatalf("writeAnalysisJSON fails: %v", result)
 			}
 		}) {
 			return
 		}
 
 		t.Run("And technical characters remain directly readable", func(t *testing.T) {
-			if !strings.Contains(output.String(), "example.com/<machine>&analysis") {
-				t.Errorf("technical characters were escaped: %s", output.String())
+			if !strings.Contains(output.String(), "example.com/<component>&analysis") {
+				t.Errorf("the encoder escapes technical characters: %s", output.String())
 			}
 		})
 	})

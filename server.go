@@ -14,7 +14,7 @@ import (
 type dashboardHandler struct {
 	monitor           *graphMonitor
 	logger            *slog.Logger
-	mux               *http.ServeMux
+	router            *http.ServeMux
 	keepAliveInterval time.Duration
 }
 
@@ -22,15 +22,15 @@ func newDashboardHandler(monitor *graphMonitor, logger *slog.Logger) *dashboardH
 	handler := &dashboardHandler{
 		monitor:           monitor,
 		logger:            logger,
-		mux:               http.NewServeMux(),
+		router:            http.NewServeMux(),
 		keepAliveInterval: 20 * time.Second,
 	}
-	handler.mux.HandleFunc("GET /{$}", handler.serveDashboard)
-	handler.mux.HandleFunc("GET /assets/app.css", handler.serveStyle)
-	handler.mux.HandleFunc("GET /assets/app.js", handler.serveScript)
-	handler.mux.HandleFunc("GET /api/graph", handler.serveGraph)
-	handler.mux.HandleFunc("GET /api/events", handler.serveEvents)
-	handler.mux.HandleFunc("GET /healthz", handler.serveHealth)
+	handler.router.HandleFunc("GET /{$}", handler.serveDashboard)
+	handler.router.HandleFunc("GET /assets/dashboard.css", handler.serveStyle)
+	handler.router.HandleFunc("GET /assets/dashboard.js", handler.serveScript)
+	handler.router.HandleFunc("GET /api/graph", handler.serveGraph)
+	handler.router.HandleFunc("GET /api/events", handler.serveEvents)
+	handler.router.HandleFunc("GET /healthz", handler.serveHealth)
 	return handler
 }
 
@@ -39,7 +39,7 @@ func (handler *dashboardHandler) ServeHTTP(response http.ResponseWriter, request
 	response.Header().Set("Referrer-Policy", "no-referrer")
 	response.Header().Set("X-Content-Type-Options", "nosniff")
 	response.Header().Set("X-Frame-Options", "DENY")
-	handler.mux.ServeHTTP(response, request)
+	handler.router.ServeHTTP(response, request)
 }
 
 func (handler *dashboardHandler) serveDashboard(response http.ResponseWriter, _ *http.Request) {
@@ -211,3 +211,7 @@ func runDashboard(
 		return nil
 	}
 }
+
+// mutate4go-manifest-begin
+// {"version":1,"tested_at":"2026-08-21T09:16:52Z","module_hash":"f6d254074550b4a01c22da5db4aac334f7585ccf138e57a392c6031e3ccddedb","functions":[{"id":"func/newDashboardHandler","name":"newDashboardHandler","line":21,"end_line":35,"hash":"08e8dbcea67431289267e1bbaab0a829a943eeb7ab5cef7ceda8d2d9a69ad5aa"},{"id":"func/dashboardHandler.ServeHTTP","name":"dashboardHandler.ServeHTTP","line":37,"end_line":43,"hash":"2374fbb047d6a67e7a693e2a1c1f0953efb90cfc1d6a614362acfa2f2df9862a"},{"id":"func/dashboardHandler.serveDashboard","name":"dashboardHandler.serveDashboard","line":45,"end_line":47,"hash":"83dda4230e250d7b1152e9f1fc035505caffeb3d282bc132b741671f0643546b"},{"id":"func/dashboardHandler.serveStyle","name":"dashboardHandler.serveStyle","line":49,"end_line":51,"hash":"c609a4534a3746af4592c5c6b1de5ff51a31d78967b97511d0bdc0eb58b790c0"},{"id":"func/dashboardHandler.serveScript","name":"dashboardHandler.serveScript","line":53,"end_line":55,"hash":"4fd16509b7d53e5368bd3784de04021c31e59e55d4ff047a98ff76a826a00989"},{"id":"func/dashboardHandler.serveEmbeddedAsset","name":"dashboardHandler.serveEmbeddedAsset","line":57,"end_line":73,"hash":"e80daf0219a2774250ff3bd346fa5c65aa502c5e4d41c68629640649b16f0cfa"},{"id":"func/dashboardHandler.serveGraph","name":"dashboardHandler.serveGraph","line":75,"end_line":87,"hash":"326cf30998d56d21c6b9907cdcca86c9b85b7609ab04041451a50e4e4b34fb93"},{"id":"func/dashboardHandler.serveEvents","name":"dashboardHandler.serveEvents","line":89,"end_line":125,"hash":"dcda3cfd832d47227148aef5df1e33b55334bcd8b1c98de43507c92b20f46577"},{"id":"func/writeServerEvent","name":"writeServerEvent","line":127,"end_line":132,"hash":"3f41198f8da8187b8969223241cdc8c29324d59411785db59dd212d6db0fde62"},{"id":"func/dashboardHandler.serveHealth","name":"dashboardHandler.serveHealth","line":134,"end_line":140,"hash":"d329f635419b99fe62415f10ece1cf3c3bf76e502ea1b27fe87475402a3e6195"},{"id":"func/dashboardContentSecurityPolicy","name":"dashboardContentSecurityPolicy","line":142,"end_line":146,"hash":"ca7c443f057c7b5035f43cb1d42c3ee9ff7e4f7f761596bcbbebad1f5b56c7a6"},{"id":"func/newHTTPServer","name":"newHTTPServer","line":148,"end_line":158,"hash":"561d3af6686eea242162aec5934aafa64ab4f3df0fcb52675e65117f4363a27f"},{"id":"func/dashboardShutdownTimeout","name":"dashboardShutdownTimeout","line":160,"end_line":162,"hash":"c377fd4829227d7213017c071237a2f59bdd8919a5bd5e9d315f97688ec33d6f"},{"id":"func/runDashboard","name":"runDashboard","line":164,"end_line":213,"hash":"39834d01dd9f593d7484c6f4d68e40c39f98d288e3ffb05bb40597a6bd06eef8"}]}
+// mutate4go-manifest-end

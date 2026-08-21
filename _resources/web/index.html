@@ -4,9 +4,9 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="dark light">
-  <title>Strategic design map</title>
-  <link rel="stylesheet" href="/assets/app.css">
-  <script src="/assets/app.js" defer></script>
+  <title>Go component dependency analysis</title>
+  <link rel="stylesheet" href="/assets/dashboard.css">
+  <script src="/assets/dashboard.js" defer></script>
 </head>
 <body>
   <main class="dashboard">
@@ -14,13 +14,13 @@
       <div class="brand">
         <span class="brand__mark" aria-hidden="true">01</span>
         <div class="brand__copy">
-          <p class="brand__eyebrow">Architecture observatory / System 01</p>
-          <h1 class="brand__title">Strategic design map</h1>
-          <p class="brand__module" id="modulePath">Loading module…</p>
+          <p class="brand__eyebrow">Dependency analysis / System 01</p>
+          <h1 class="brand__title">Go component dependency map</h1>
+          <p class="brand__module" id="modulePath">The module loads…</p>
         </div>
       </div>
       <div class="dashboard__status">
-        <div class="theme-switch" role="group" aria-label="Colour theme">
+        <div class="theme-switch" role="group" aria-label="Color theme">
           <button
             class="theme-switch__button"
             id="lightTheme"
@@ -40,17 +40,17 @@
         </div>
         <div class="connection-status" id="connectionStatus" data-state="connecting">
           <span class="connection-status__indicator" aria-hidden="true"></span>
-          <span class="connection-status__label" id="connectionLabel">Connecting</span>
+          <span class="connection-status__label" id="connectionLabel">The client connects</span>
           <span class="connection-status__revision" id="revisionLabel"></span>
         </div>
       </div>
     </header>
 
-    <section class="summary" id="summary" aria-label="Design summary">
+    <section class="summary" id="summary" aria-label="Analysis summary">
       <article class="summary__card">
         <span class="summary__label">Components</span>
         <strong class="summary__value" id="summaryComponents">—</strong>
-        <span class="summary__note" id="summaryKinds">Analyzing components</span>
+        <span class="summary__note" id="summaryKinds">The analyzer checks components</span>
       </article>
       <article class="summary__card">
         <span class="summary__label">Relationships</span>
@@ -58,18 +58,25 @@
         <span class="summary__note" id="summaryTests">Production and test code</span>
       </article>
       <article class="summary__card">
-        <span class="summary__label">Largest reach</span>
-        <strong class="summary__value summary__value--name" id="summaryReach">—</strong>
-        <span class="summary__note" id="summaryReachNote">Applications reached</span>
+        <span class="summary__label">Functions</span>
+        <strong class="summary__value" id="summaryFunctions">—</strong>
+        <span class="summary__note" id="summaryFunctionCalls">Resolved static calls</span>
       </article>
       <article class="summary__card">
-        <span class="summary__label">Design alerts</span>
-        <strong class="summary__value" id="summaryConcerns">—</strong>
-        <span class="summary__note" id="summaryCycles">Cycles and layer alerts</span>
+        <span class="summary__label">Most applications</span>
+        <strong class="summary__value summary__value--name" id="summaryUsingApplications">—</strong>
+        <span class="summary__note" id="summaryUsingApplicationsNote">
+          Applications that use this component
+        </span>
+      </article>
+      <article class="summary__card">
+        <span class="summary__label">Findings</span>
+        <strong class="summary__value" id="summaryFindings">—</strong>
+        <span class="summary__note" id="summaryCycles">Errors and warnings</span>
       </article>
     </section>
 
-    <section class="toolbar" aria-label="Map filters">
+    <section class="toolbar" aria-label="Component filters">
       <label class="toolbar__search">
         <span class="toolbar__search-label">Search</span>
         <input
@@ -81,7 +88,7 @@
         >
         <span class="toolbar__shortcut" aria-hidden="true">/</span>
       </label>
-      <div class="toolbar__kinds" id="kindFilters" aria-label="Component types"></div>
+      <div class="toolbar__kinds" id="kindFilters" aria-label="Component kinds"></div>
       <label class="toolbar__toggle">
         <input class="toolbar__toggle-input" id="testToggle" type="checkbox" checked>
         <span class="toolbar__toggle-control" aria-hidden="true"></span>
@@ -93,34 +100,53 @@
       <section class="graph-panel" aria-labelledby="graphTitle">
         <header class="graph-panel__header">
           <div class="graph-panel__heading">
-            <p class="graph-panel__eyebrow" id="graphEyebrow">Strategic weight</p>
-            <h2 class="graph-panel__title" id="graphTitle">Dependency mass map</h2>
+            <p class="graph-panel__eyebrow" id="graphEyebrow">Component import count</p>
+            <h2 class="graph-panel__title" id="graphTitle">Component usage map</h2>
             <p class="graph-panel__description" id="graphDescription">
-              Area represents direct production consumers. Larger components have more architectural reuse.
+              The tile area represents direct production importing components.
+              A larger area means a larger count.
             </p>
           </div>
           <div class="graph-panel__actions">
             <div class="view-switch" role="group" aria-label="Visualization">
-              <button class="view-switch__button" id="impactView" type="button" aria-pressed="true">
-                Impact
+              <button class="view-switch__button" id="componentMetricView" type="button" aria-pressed="true">
+                Component counts
+              </button>
+              <button class="view-switch__button" id="functionMetricView" type="button" aria-pressed="false">
+                Function counts
               </button>
               <button class="view-switch__button" id="dependencyView" type="button" aria-pressed="false">
-                Dependencies
+                Imports
               </button>
             </div>
-            <label class="impact-metric" id="impactMetricControl">
-              <span class="impact-metric__label">Size by</span>
-              <select class="impact-metric__select" id="impactMetric">
-                <option value="consumers">Afferent coupling (Cₐ)</option>
+            <label class="component-metric" id="componentMetricControl">
+              <span class="component-metric__label">Area by</span>
+              <select class="component-metric__select" id="componentMetric">
+                <option value="importingComponents">Afferent coupling (Cₐ)</option>
                 <option value="efferent">Efferent coupling (Cₑ)</option>
                 <option value="packages">Importer packages</option>
-                <option value="transitive">Indirect impact</option>
+                <option value="transitive">Transitive importing components</option>
                 <option value="files">Go files</option>
               </select>
             </label>
+            <label class="component-metric" id="functionMetricControl" hidden>
+              <span class="component-metric__label">Area by</span>
+              <select class="component-metric__select" id="functionMetric">
+                <option value="incomingCalls">Incoming call sites</option>
+                <option value="afferent">Afferent coupling (Cₐ)</option>
+                <option value="efferent">Efferent coupling (Cₑ)</option>
+                <option value="outgoingCalls">Outgoing call sites</option>
+                <option value="transitiveCallers">Transitive caller functions</option>
+              </select>
+            </label>
             <div class="graph-controls" id="dependencyControls" aria-label="Map controls" hidden>
-              <button class="graph-controls__button" id="zoomOut" type="button" aria-label="Zoom out">−</button>
-              <button class="graph-controls__button" id="fitGraph" type="button">Fit</button>
+              <button
+                class="graph-controls__button"
+                id="zoomOut"
+                type="button"
+                aria-label="Zoom out"
+              >−</button>
+              <button class="graph-controls__button" id="showAllComponents" type="button">Show all</button>
               <button class="graph-controls__button" id="zoomIn" type="button" aria-label="Zoom in">+</button>
             </div>
           </div>
@@ -129,13 +155,25 @@
           class="graph-panel__viewport"
           id="graphViewport"
           tabindex="0"
-          data-view="impact"
-          aria-label="Dependency impact map. Larger areas indicate greater architectural use."
+          data-view="metrics"
+          aria-label="Component count map. A larger area means a larger value."
         >
-          <svg class="impact-map" id="impactMap" role="img" aria-labelledby="graphTitle"></svg>
+          <svg
+            class="component-metric-map"
+            id="componentMetricMap"
+            role="img"
+            aria-labelledby="graphTitle"
+          ></svg>
           <svg
             class="dependency-map"
             id="dependencyMap"
+            role="img"
+            aria-labelledby="graphTitle"
+            hidden
+          ></svg>
+          <svg
+            class="function-metric-map"
+            id="functionMetricMap"
             role="img"
             aria-labelledby="graphTitle"
             hidden
@@ -146,10 +184,12 @@
         </div>
         <footer class="graph-panel__footer">
           <div class="legend" id="legend" aria-label="Legend"></div>
-          <div class="impact-legend" id="impactLegend" aria-label="Area scale">
-            <span class="impact-legend__area" aria-hidden="true"></span>
-            <span id="impactLegendText">Larger area means more direct production consumers.</span>
-            <span class="impact-legend__minimum">Zero values keep a minimum tile.</span>
+          <div class="component-metric-legend" id="componentMetricLegend" aria-label="Area scale">
+            <span class="component-metric-legend__area" aria-hidden="true"></span>
+            <span id="componentMetricLegendText">
+              A larger area means more direct production importing components.
+            </span>
+            <span class="component-metric-legend__minimum">Zero values keep a minimum tile.</span>
           </div>
           <div class="edge-legend" id="edgeLegend" aria-label="Relationship types" hidden>
             <span class="edge-legend__item">
@@ -161,8 +201,8 @@
               Test only
             </span>
             <span class="edge-legend__item">
-              <span class="edge-legend__line edge-legend__line--concern" aria-hidden="true"></span>
-              Design alert
+              <span class="edge-legend__line edge-legend__line--rule-violation" aria-hidden="true"></span>
+              Rule violation
             </span>
           </div>
         </footer>
@@ -174,33 +214,43 @@
             <span class="detail__empty-mark" aria-hidden="true">↗</span>
             <h2 class="detail__empty-title">Select a component</h2>
             <p class="detail__empty-copy">
-              Review its dependencies, consumers, and application impact.
+              Review the imports and importers of the selected component.
             </p>
           </div>
         </section>
 
         <section class="ranking" aria-labelledby="rankingTitle">
           <header class="ranking__header">
-            <p class="ranking__eyebrow">Reuse</p>
-            <h2 class="ranking__title" id="rankingTitle">Most used components</h2>
+            <p class="ranking__eyebrow">Importing components</p>
+            <h2 class="ranking__title" id="rankingTitle">Most imported components</h2>
           </header>
           <ol class="ranking__list" id="usageRanking"></ol>
+        </section>
+
+        <section class="ranking" aria-labelledby="functionRankingTitle">
+          <header class="ranking__header">
+            <p class="ranking__eyebrow">Resolved static calls</p>
+            <h2 class="ranking__title" id="functionRankingTitle">Most called functions</h2>
+          </header>
+          <ol class="ranking__list" id="functionUsageRanking"></ol>
         </section>
 
         <section class="ranking" aria-labelledby="unusedTitle">
           <header class="ranking__header">
             <p class="ranking__eyebrow">Review</p>
-            <h2 class="ranking__title" id="unusedTitle">No production consumers</h2>
+            <h2 class="ranking__title" id="unusedTitle">No production importing components</h2>
           </header>
           <ul class="ranking__list" id="unusedRanking"></ul>
         </section>
 
-        <section class="ranking" aria-labelledby="painTitle">
+        <section class="ranking" aria-labelledby="stableLowAbstractionTitle">
           <header class="ranking__header">
-            <p class="ranking__eyebrow">Stable abstractions</p>
-            <h2 class="ranking__title" id="painTitle">Zone of pain</h2>
+            <p class="ranking__eyebrow">Stability and abstraction</p>
+            <h2 class="ranking__title" id="stableLowAbstractionTitle">
+              Stable components with low abstraction
+            </h2>
           </header>
-          <ul class="ranking__list" id="zoneOfPainRanking"></ul>
+          <ul class="ranking__list" id="stableLowAbstractionRanking"></ul>
         </section>
       </aside>
     </section>
@@ -213,8 +263,8 @@
     </section>
 
     <footer class="dashboard__footer">
-      <span>Local analysis · Deterministic revision</span>
-      <span>The arrow points to the imported component</span>
+      <span>Local analysis · Graph revision</span>
+      <span>An arrow starts at the importing component and ends at the imported component</span>
     </footer>
   </main>
 </body>

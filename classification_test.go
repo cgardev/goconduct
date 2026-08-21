@@ -39,7 +39,7 @@ func TestComponentClassifier_ClassifyCustomLayout(t *testing.T) {
 		t.Run("Scenario: "+testCase.name, func(t *testing.T) {
 			var classifier componentClassifier
 			var descriptor componentDescriptor
-			var modeled bool
+			var classified bool
 
 			t.Run("Given component templates unrelated to the repository default layout", func(t *testing.T) {
 				var err error
@@ -49,23 +49,23 @@ func TestComponentClassifier_ClassifyCustomLayout(t *testing.T) {
 					Libraries:          []string{"packages/{component}"},
 				})
 				if err != nil {
-					t.Fatalf("newComponentClassifier failed: %v", err)
+					t.Fatalf("newComponentClassifier fails: %v", err)
 				}
 			})
 
-			t.Run("When the configured path is classified", func(t *testing.T) {
-				descriptor, modeled = classifier.classify(testCase.path)
+			t.Run("When the classifier classifies the configured path", func(t *testing.T) {
+				descriptor, classified = classifier.classify(testCase.path)
 			})
 
-			if !t.Run("Then the path is modeled", func(t *testing.T) {
-				if !modeled {
-					t.Fatal("custom path was not modeled")
+			if !t.Run("Then the classifier identifies the path", func(t *testing.T) {
+				if !classified {
+					t.Fatal("the classifier does not identify the custom path")
 				}
 			}) {
 				return
 			}
 
-			t.Run("And captures define its generic strategic identity", func(t *testing.T) {
+			t.Run("And placeholders define its generic component identity", func(t *testing.T) {
 				if descriptor.identifier != testCase.identifier ||
 					descriptor.name != testCase.component ||
 					descriptor.kind != testCase.kind ||
@@ -82,7 +82,7 @@ func TestComponentClassifier_RejectInvalidTemplates(t *testing.T) {
 		name  string
 		rules ComponentRules
 	}{
-		{name: "no component template is configured", rules: ComponentRules{}},
+		{name: "the rule set has no component template", rules: ComponentRules{}},
 		{
 			name:  "a component template is empty",
 			rules: ComponentRules{Libraries: []string{""}},
@@ -100,25 +100,25 @@ func TestComponentClassifier_RejectInvalidTemplates(t *testing.T) {
 			rules: ComponentRules{Libraries: []string{`packages\{component}`}},
 		},
 		{
-			name:  "an application template omits its application capture",
+			name:  "an application template omits its application placeholder",
 			rules: ComponentRules{Applications: []string{"services/control"}},
 		},
 		{
-			name: "an application-module template omits its application capture",
+			name: "an application-module template omits its application placeholder",
 			rules: ComponentRules{
 				ApplicationModules: []string{"features/{component}"},
 			},
 		},
 		{
-			name:  "a template contains an unknown capture",
+			name:  "a template contains an unknown placeholder",
 			rules: ComponentRules{Libraries: []string{"packages/{library}"}},
 		},
 		{
-			name:  "a component capture has no closing brace",
+			name:  "a component placeholder has no closing brace",
 			rules: ComponentRules{Libraries: []string{"packages/{component"}},
 		},
 		{
-			name:  "a component capture has no opening brace",
+			name:  "a component placeholder has no opening brace",
 			rules: ComponentRules{Libraries: []string{"packages/component}"}},
 		},
 		{
@@ -142,13 +142,13 @@ func TestComponentClassifier_RejectInvalidTemplates(t *testing.T) {
 				rules = testCase.rules
 			})
 
-			t.Run("When the component classifier is built", func(t *testing.T) {
+			t.Run("When the constructor builds the component classifier", func(t *testing.T) {
 				_, classifierError = newComponentClassifier(rules)
 			})
 
 			t.Run("Then startup rejects the ambiguous classification policy", func(t *testing.T) {
 				if classifierError == nil {
-					t.Fatal("invalid component templates were accepted")
+					t.Fatal("the classifier accepts invalid component templates")
 				}
 			})
 		})
@@ -160,23 +160,23 @@ func TestComponentPathRule_MatchStrictPrefix(t *testing.T) {
 		var rule componentPathRule
 		var matches bool
 
-		t.Run("Given a component rule and an exact matching path", func(t *testing.T) {
+		t.Run("Given a component rule and an exact path that matches", func(t *testing.T) {
 			rule = componentPathRule{
 				kind: componentKindLibrary,
 				segments: []componentPathSegment{
 					{literal: "packages"},
-					{capture: "component"},
+					{placeholder: "component"},
 				},
 			}
 		})
 
-		t.Run("When the path is checked as a strict prefix", func(t *testing.T) {
+		t.Run("When the rule checks the path as a strict prefix", func(t *testing.T) {
 			matches = rule.matchesStrictPrefix([]string{"packages", "telemetry"})
 		})
 
-		t.Run("Then the exact path is not a strict prefix", func(t *testing.T) {
+		t.Run("Then the rule rejects the exact path as a strict prefix", func(t *testing.T) {
 			if matches {
-				t.Error("an exact path was accepted as a strict prefix")
+				t.Error("the rule accepts an exact path as a strict prefix")
 			}
 		})
 	})

@@ -23,15 +23,15 @@ func TestApplicationConfiguration_LoadDefaults(t *testing.T) {
 			configuration = ApplicationConfiguration{}
 		})
 
-		t.Run("When the application configuration is loaded", func(t *testing.T) {
+		t.Run("When the loader reads the application configuration", func(t *testing.T) {
 			configuration, loadError = loadApplicationConfiguration(
 				filepath.Join(t.TempDir(), "absent.json"),
 			)
 		})
 
-		if !t.Run("Then loading succeeds with the server defaults", func(t *testing.T) {
+		if !t.Run("Then the loader returns the server defaults", func(t *testing.T) {
 			if loadError != nil {
-				t.Fatalf("loadApplicationConfiguration failed: %v", loadError)
+				t.Fatalf("loadApplicationConfiguration fails: %v", loadError)
 			}
 			if configuration.Server.Address != defaultAddress ||
 				configuration.Server.RefreshInterval != defaultRefreshInterval() {
@@ -41,7 +41,7 @@ func TestApplicationConfiguration_LoadDefaults(t *testing.T) {
 			return
 		}
 
-		t.Run("And the complete repository scope remains available", func(t *testing.T) {
+		t.Run("And the defaults contain the complete repository scope", func(t *testing.T) {
 			if !slices.Equal(configuration.Analysis.Paths, []string{"."}) ||
 				configuration.Analysis.RepositoryRoot != "." ||
 				len(configuration.Analysis.IgnoredPaths) == 0 ||
@@ -52,17 +52,19 @@ func TestApplicationConfiguration_LoadDefaults(t *testing.T) {
 	})
 }
 
-func TestApplicationConfiguration_OverlayDocument(t *testing.T) {
+func TestApplicationConfiguration_ApplyDocument(t *testing.T) {
 	t.Run("Scenario: A document selects a custom generic Go layout", func(t *testing.T) {
 		var configurationPath string
 		var configuration ApplicationConfiguration
 		var loadError error
 
-		t.Run("Given a JSON document with placeholders, paths, exclusions, and component templates", func(step *testing.T) {
-			repositoryRoot := t.TempDir()
-			t.Setenv("DEPENDENCY_GRAPH_ROOT", repositoryRoot)
-			configurationPath = filepath.Join(t.TempDir(), "configuration.json")
-			writeFixtureFile(step, filepath.Dir(configurationPath), filepath.Base(configurationPath), `{
+		t.Run(
+			"Given a JSON document with placeholders, paths, exclusions, and component templates",
+			func(step *testing.T) {
+				repositoryRoot := t.TempDir()
+				t.Setenv("DEPENDENCY_GRAPH_ROOT", repositoryRoot)
+				configurationPath = filepath.Join(t.TempDir(), "configuration.json")
+				writeFixtureFile(step, filepath.Dir(configurationPath), filepath.Base(configurationPath), `{
   "server": {
     "address": "127.0.0.1:7000",
     "refreshInterval": "2s"
@@ -81,15 +83,16 @@ func TestApplicationConfiguration_OverlayDocument(t *testing.T) {
     }
   }
 }`)
-		})
+			},
+		)
 
-		t.Run("When the document overlays the code defaults", func(t *testing.T) {
+		t.Run("When the loader applies the document to the code defaults", func(t *testing.T) {
 			configuration, loadError = loadApplicationConfiguration(configurationPath)
 		})
 
-		if !t.Run("Then the server and repository values are bound", func(t *testing.T) {
+		if !t.Run("Then the configuration contains the server and repository values", func(t *testing.T) {
 			if loadError != nil {
-				t.Fatalf("loadApplicationConfiguration failed: %v", loadError)
+				t.Fatalf("loadApplicationConfiguration fails: %v", loadError)
 			}
 			if configuration.Server.Address != "127.0.0.1:7000" ||
 				configuration.Server.RefreshInterval != 2*time.Second ||
@@ -100,7 +103,7 @@ func TestApplicationConfiguration_OverlayDocument(t *testing.T) {
 			return
 		}
 
-		t.Run("And arrays replace defaults without retaining project-specific paths", func(t *testing.T) {
+		t.Run("And arrays replace defaults and do not retain project-specific paths", func(t *testing.T) {
 			if !slices.Equal(configuration.Analysis.Paths, []string{"services", "packages"}) ||
 				!slices.Equal(
 					configuration.Analysis.IgnoredPaths,
@@ -111,7 +114,7 @@ func TestApplicationConfiguration_OverlayDocument(t *testing.T) {
 					[]string{"packages/{component}"},
 				) ||
 				len(configuration.Analysis.Components.SharedModules) != 0 {
-				t.Errorf("document arrays were not applied exactly: %+v", configuration.Analysis)
+				t.Errorf("the loader does not apply document arrays exactly: %+v", configuration.Analysis)
 			}
 		})
 	})
@@ -123,7 +126,7 @@ func TestApplicationConfiguration_RejectInvalidDocument(t *testing.T) {
 		document       string
 		wantUnknownKey bool
 	}{
-		{name: "the JSON syntax is malformed", document: `{"analysis":`},
+		{name: "the JSON syntax is invalid", document: `{"analysis":`},
 		{
 			name:           "an unknown analysis key is present",
 			document:       `{"analysis":{"ignoredPath":["vendor"]}}`,
@@ -145,13 +148,13 @@ func TestApplicationConfiguration_RejectInvalidDocument(t *testing.T) {
 				)
 			})
 
-			t.Run("When the application configuration is loaded", func(t *testing.T) {
+			t.Run("When the loader reads the application configuration", func(t *testing.T) {
 				_, loadError = loadApplicationConfiguration(configurationPath)
 			})
 
 			t.Run("Then startup rejects the document with the expected category", func(t *testing.T) {
 				if loadError == nil {
-					t.Fatal("invalid configuration document was accepted")
+					t.Fatal("the loader accepts the invalid configuration document")
 				}
 				if testCase.wantUnknownKey && !errors.Is(loadError, conf.ErrUnknownKey) {
 					t.Fatalf("configuration error is %v, want ErrUnknownKey", loadError)
@@ -162,7 +165,7 @@ func TestApplicationConfiguration_RejectInvalidDocument(t *testing.T) {
 }
 
 func TestConfigurationSchema_DescribeExternalContract(t *testing.T) {
-	t.Run("Scenario: An editor requests the dependency graph configuration schema", func(t *testing.T) {
+	t.Run("Scenario: An editor requests the configuration schema for the dependency graph", func(t *testing.T) {
 		var output bytes.Buffer
 		var commandError error
 		var schema map[string]any
@@ -175,16 +178,16 @@ func TestConfigurationSchema_DescribeExternalContract(t *testing.T) {
 			commandError = command.ExecuteContext(t.Context())
 		})
 
-		t.Run("When the generated document is decoded", func(t *testing.T) {
+		t.Run("When the decoder reads the generated document", func(t *testing.T) {
 			if commandError != nil {
 				return
 			}
 			commandError = json.Unmarshal(output.Bytes(), &schema)
 		})
 
-		if !t.Run("Then schema generation succeeds", func(t *testing.T) {
+		if !t.Run("Then the command generates the schema", func(t *testing.T) {
 			if commandError != nil {
-				t.Fatalf("configuration-schema failed: %v", commandError)
+				t.Fatalf("configuration-schema fails: %v", commandError)
 			}
 		}) {
 			return

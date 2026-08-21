@@ -5,45 +5,48 @@ import (
 	"testing"
 )
 
-func TestFindings_DetectMathematicalRisks(t *testing.T) {
-	t.Run("Scenario: A graph contains every deterministic architectural risk", func(t *testing.T) {
+func TestFindings_DetectArchitectureFindings(t *testing.T) {
+	t.Run("Scenario: A graph contains each deterministic architecture finding", func(t *testing.T) {
 		var graph Graph
 		var findings []Finding
 		var summary GraphSummary
 
-		t.Run("Given a cycle, a diagnostic, an SDP violation, and a pain-zone component", func(t *testing.T) {
-			graph = Graph{
-				Components: []Component{
-					{
-						Identifier:           "foundation",
-						AfferentCoupling:     4,
-						Instability:          0,
-						Abstractness:         0,
-						MainSequenceDistance: 1,
-						InZoneOfPain:         true,
+		t.Run(
+			"Given a cycle, a diagnostic, a stability violation, and a stable component with low abstraction",
+			func(t *testing.T) {
+				graph = Graph{
+					Components: []Component{
+						{
+							Identifier:                 "foundation",
+							AfferentCoupling:           4,
+							Instability:                0,
+							Abstractness:               0,
+							MainSequenceDistance:       1,
+							IsStableWithLowAbstraction: true,
+						},
+						{Identifier: "origin", Instability: 0.2},
+						{Identifier: "dependency", Instability: 0.8},
 					},
-					{Identifier: "origin", Instability: 0.2},
-					{Identifier: "dependency", Instability: 0.8},
-				},
-				Relationships: []Relationship{
-					{
-						Source:   "origin",
-						Target:   "dependency",
-						Concerns: []string{"stable-dependency-principle"},
+					Relationships: []Relationship{
+						{
+							Source:         "origin",
+							Target:         "dependency",
+							RuleViolations: []string{"stable-dependency-principle"},
+						},
 					},
-				},
-				Cycles:      [][]string{{"cycle-a", "cycle-b"}},
-				Diagnostics: []Diagnostic{{Path: "broken.go", Message: "invalid import block"}},
-			}
-		})
+					Cycles:      [][]string{{"cycle-a", "cycle-b"}},
+					Diagnostics: []Diagnostic{{Path: "broken.go", Message: "invalid import block"}},
+				}
+			},
+		)
 
-		t.Run("When findings and their summary are calculated", func(t *testing.T) {
+		t.Run("When the calculator creates findings and summary counts", func(t *testing.T) {
 			findings = detectFindings(graph)
 			graph.Findings = findings
 			summary = summarizeGraph(graph)
 		})
 
-		t.Run("Then every risk has a stable sorted rule identifier", func(t *testing.T) {
+		t.Run("Then each finding has a sorted rule identifier", func(t *testing.T) {
 			rules := make([]string, 0, len(findings))
 			for _, finding := range findings {
 				rules = append(rules, finding.Rule)
@@ -51,22 +54,24 @@ func TestFindings_DetectMathematicalRisks(t *testing.T) {
 			want := []string{
 				"dependency-cycle",
 				"source-diagnostic",
+				"stable-component-low-abstraction",
 				"stable-dependency-principle",
-				"zone-of-pain",
 			}
 			if !slices.Equal(rules, want) {
 				t.Fatalf("finding rules are %v, want %v", rules, want)
 			}
 		})
 
-		t.Run("And mathematical evidence is retained without prose parsing", func(t *testing.T) {
-			sdp := findingWithRule(t, findings, "stable-dependency-principle")
-			if sdp.Metrics["sourceInstability"] != 0.2 || sdp.Metrics["targetInstability"] != 0.8 {
-				t.Errorf("unexpected SDP metrics: %v", sdp.Metrics)
+		t.Run("And each finding contains its numeric evidence", func(t *testing.T) {
+			stableDependencyFinding := findingWithRule(t, findings, "stable-dependency-principle")
+			if stableDependencyFinding.Metrics["sourceInstability"] != 0.2 ||
+				stableDependencyFinding.Metrics["targetInstability"] != 0.8 {
+				t.Errorf("unexpected stable dependency principle metrics: %v", stableDependencyFinding.Metrics)
 			}
-			pain := findingWithRule(t, findings, "zone-of-pain")
-			if pain.Metrics["afferentCoupling"] != 4 || pain.Metrics["mainSequenceDistance"] != 1 {
-				t.Errorf("unexpected pain-zone metrics: %v", pain.Metrics)
+			stableLowAbstractionFinding := findingWithRule(t, findings, "stable-component-low-abstraction")
+			if stableLowAbstractionFinding.Metrics["afferentCoupling"] != 4 ||
+				stableLowAbstractionFinding.Metrics["mainSequenceDistance"] != 1 {
+				t.Errorf("unexpected stable-low-abstraction metrics: %v", stableLowAbstractionFinding.Metrics)
 			}
 			if summary.Findings != 4 || summary.Errors != 2 || summary.Warnings != 2 {
 				t.Errorf("unexpected finding summary: %+v", summary)
@@ -86,34 +91,34 @@ func findingWithRule(t *testing.T, findings []Finding, rule string) Finding {
 	return Finding{}
 }
 
-func TestFindingMessage_NormalizeRule(t *testing.T) {
+func TestFindingMessage_ReturnRuleMessage(t *testing.T) {
 	testCases := []struct {
 		rule string
 		want string
 	}{
 		{
-			rule: "cross-application-module-dependency",
-			want: "An application module depends on a module owned by another application.",
+			rule: "cross-application-module-import",
+			want: "An application module imports a module from another application.",
 		},
 		{
-			rule: "library-depends-on-feature",
-			want: "A shared library depends on a feature module.",
+			rule: "library-imports-feature",
+			want: "A shared library imports a feature module.",
 		},
 		{
-			rule: "production-depends-on-development",
-			want: "Production code depends on development-only tooling.",
+			rule: "production-imports-development",
+			want: "Production code imports development code.",
 		},
 		{
-			rule: "shared-foundation-depends-on-application",
-			want: "Shared foundation code depends on application-specific code.",
+			rule: "shared-component-imports-application",
+			want: "A shared component imports application-specific code.",
 		},
 		{
 			rule: "stable-dependency-principle",
-			want: "A dependency points to a less stable component.",
+			want: "The source component imports a less stable target component.",
 		},
 		{
 			rule: "unknown-rule",
-			want: "A strategic dependency rule is violated.",
+			want: "The dependency violates an architecture rule.",
 		},
 	}
 	for _, testCase := range testCases {
@@ -121,15 +126,15 @@ func TestFindingMessage_NormalizeRule(t *testing.T) {
 			var rule string
 			var message string
 
-			t.Run("Given a stable machine-readable rule identifier", func(t *testing.T) {
+			t.Run("Given a stable rule identifier", func(t *testing.T) {
 				rule = testCase.rule
 			})
 
-			t.Run("When its human message is normalized", func(t *testing.T) {
+			t.Run("When the function creates the user message", func(t *testing.T) {
 				message = findingMessage(rule)
 			})
 
-			t.Run("Then the exact technical message is returned", func(t *testing.T) {
+			t.Run("Then the message matches the rule", func(t *testing.T) {
 				if message != testCase.want {
 					t.Fatalf("message is %q, want %q", message, testCase.want)
 				}
