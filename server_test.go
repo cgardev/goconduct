@@ -74,7 +74,7 @@ func TestDashboard_ServeHTTPResources(t *testing.T) {
 
 		if !t.Run("Given a dashboard server with a current graph", func(step *testing.T) {
 			repositoryRoot := newAnalyzerFixture(t)
-			sourceAnalyzer, err := newAnalyzer(repositoryRoot)
+			sourceAnalyzer, err := newAnalyzer(fixtureAnalysisConfiguration(repositoryRoot))
 			if err != nil {
 				step.Fatalf("newAnalyzer failed: %v", err)
 			}
@@ -153,7 +153,7 @@ func TestDashboard_ServeHTTPResources(t *testing.T) {
 
 		if !t.Run("Given a dashboard server with embedded assets", func(step *testing.T) {
 			repositoryRoot := newAnalyzerFixture(t)
-			sourceAnalyzer, err := newAnalyzer(repositoryRoot)
+			sourceAnalyzer, err := newAnalyzer(fixtureAnalysisConfiguration(repositoryRoot))
 			if err != nil {
 				step.Fatalf("newAnalyzer failed: %v", err)
 			}
@@ -229,7 +229,7 @@ func TestDashboard_ServeHTTPResources(t *testing.T) {
 
 		if !t.Run("Given a dashboard server with a current graph", func(step *testing.T) {
 			repositoryRoot := newAnalyzerFixture(t)
-			sourceAnalyzer, err := newAnalyzer(repositoryRoot)
+			sourceAnalyzer, err := newAnalyzer(fixtureAnalysisConfiguration(repositoryRoot))
 			if err != nil {
 				step.Fatalf("newAnalyzer failed: %v", err)
 			}
@@ -285,7 +285,7 @@ func TestDashboard_ServeHTTPResources(t *testing.T) {
 
 		if !t.Run("Given a dashboard server with a current graph", func(step *testing.T) {
 			repositoryRoot := newAnalyzerFixture(t)
-			sourceAnalyzer, err := newAnalyzer(repositoryRoot)
+			sourceAnalyzer, err := newAnalyzer(fixtureAnalysisConfiguration(repositoryRoot))
 			if err != nil {
 				step.Fatalf("newAnalyzer failed: %v", err)
 			}
@@ -357,7 +357,7 @@ func TestDashboardEventStream_PublishGraphChanges(t *testing.T) {
 
 		if !t.Run("Given an event stream request and a monitored repository", func(step *testing.T) {
 			repositoryRoot = newAnalyzerFixture(t)
-			sourceAnalyzer, err := newAnalyzer(repositoryRoot)
+			sourceAnalyzer, err := newAnalyzer(fixtureAnalysisConfiguration(repositoryRoot))
 			if err != nil {
 				step.Fatalf("newAnalyzer failed: %v", err)
 			}
@@ -471,7 +471,7 @@ func TestDashboardEventStream_PublishKeepAlive(t *testing.T) {
 
 		if !t.Run("Given an event stream with a short test keep-alive interval", func(step *testing.T) {
 			repositoryRoot := newAnalyzerFixture(t)
-			sourceAnalyzer, err := newAnalyzer(repositoryRoot)
+			sourceAnalyzer, err := newAnalyzer(fixtureAnalysisConfiguration(repositoryRoot))
 			if err != nil {
 				step.Fatalf("newAnalyzer failed: %v", err)
 			}
@@ -552,7 +552,7 @@ func TestDashboardEventStream_RejectWriterWithoutFlush(t *testing.T) {
 
 		if !t.Run("Given an event request with a plain response writer", func(step *testing.T) {
 			repositoryRoot := newAnalyzerFixture(t)
-			sourceAnalyzer, err := newAnalyzer(repositoryRoot)
+			sourceAnalyzer, err := newAnalyzer(fixtureAnalysisConfiguration(repositoryRoot))
 			if err != nil {
 				step.Fatalf("newAnalyzer failed: %v", err)
 			}
@@ -615,7 +615,7 @@ func TestDashboard_LogResponseWriteFailure(t *testing.T) {
 
 			if !t.Run("Given a dashboard handler and a failing response writer", func(step *testing.T) {
 				repositoryRoot := newAnalyzerFixture(t)
-				sourceAnalyzer, err := newAnalyzer(repositoryRoot)
+				sourceAnalyzer, err := newAnalyzer(fixtureAnalysisConfiguration(repositoryRoot))
 				if err != nil {
 					step.Fatalf("newAnalyzer failed: %v", err)
 				}
@@ -720,7 +720,7 @@ func TestDashboard_RunWithCanceledContext(t *testing.T) {
 
 		if !t.Run("Given a graph monitor and an already canceled context", func(step *testing.T) {
 			repositoryRoot := newAnalyzerFixture(t)
-			sourceAnalyzer, err := newAnalyzer(repositoryRoot)
+			sourceAnalyzer, err := newAnalyzer(fixtureAnalysisConfiguration(repositoryRoot))
 			if err != nil {
 				step.Fatalf("newAnalyzer failed: %v", err)
 			}

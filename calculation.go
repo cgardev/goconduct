@@ -27,10 +27,15 @@ type sourceFile struct {
 	packagePath   string
 	component     componentDescriptor
 	test          bool
-	imports       []string
+	imports       []sourceImport
 	abstractTypes int
 	concreteTypes int
 	diagnostics   []Diagnostic
+}
+
+type sourceImport struct {
+	packagePath string
+	component   componentDescriptor
 }
 
 type componentAccumulator struct {
@@ -75,13 +80,11 @@ func collectComponentFile(components map[string]*componentAccumulator, file sour
 func collectRelationships(
 	components map[string]*componentAccumulator,
 	relationships map[relationshipKey]*relationshipAccumulator,
-	modulePath string,
 	file sourceFile,
 ) {
-	for _, importPath := range file.imports {
-		targetPackage := strings.TrimPrefix(importPath, modulePath+"/")
-		target, modeled := classifyComponent(targetPackage)
-		if !modeled || target.identifier == file.component.identifier {
+	for _, imported := range file.imports {
+		target := imported.component
+		if target.identifier == file.component.identifier {
 			continue
 		}
 		ensureComponent(components, target)
@@ -99,7 +102,7 @@ func collectRelationships(
 			relationships[key] = relationship
 		}
 		relationship.sourcePackages.add(file.packagePath)
-		relationship.targetPackages.add(targetPackage)
+		relationship.targetPackages.add(imported.packagePath)
 		if file.test {
 			relationship.testFiles.add(file.relativePath)
 			relationship.testSourcePackages.add(file.packagePath)

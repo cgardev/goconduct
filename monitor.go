@@ -48,7 +48,7 @@ func newGraphMonitor(
 }
 
 func (analyzer *analyzer) snapshot() (string, error) {
-	paths, err := goSourcePaths(analyzer.repositoryRoot)
+	paths, err := analyzer.sourcePaths()
 	if err != nil {
 		return "", err
 	}

@@ -29,7 +29,7 @@ func TestMonitor_PublishChangedRevision(t *testing.T) {
 				"internal/library/logging/logging.go",
 				"package logging\n",
 			)
-			sourceAnalyzer, analyzerError := newAnalyzer(repositoryRoot)
+			sourceAnalyzer, analyzerError := newAnalyzer(fixtureAnalysisConfiguration(repositoryRoot))
 			if analyzerError != nil {
 				step.Fatalf("newAnalyzer failed: %v", analyzerError)
 			}
@@ -102,7 +102,7 @@ func TestMonitor_ManageSubscriptionDelivery(t *testing.T) {
 				"internal/library/logging/logging.go",
 				"package logging\n",
 			)
-			sourceAnalyzer, err := newAnalyzer(repositoryRoot)
+			sourceAnalyzer, err := newAnalyzer(fixtureAnalysisConfiguration(repositoryRoot))
 			if err != nil {
 				step.Fatalf("newAnalyzer failed: %v", err)
 			}
@@ -162,7 +162,7 @@ func TestMonitor_ManageSubscriptionDelivery(t *testing.T) {
 			repositoryRoot := t.TempDir()
 			writeFixtureFile(step, repositoryRoot, "go.mod", "module example.com/live\n\ngo 1.26\n")
 			writeFixtureFile(step, repositoryRoot, "cmd/control/main.go", "package main\n")
-			sourceAnalyzer, err := newAnalyzer(repositoryRoot)
+			sourceAnalyzer, err := newAnalyzer(fixtureAnalysisConfiguration(repositoryRoot))
 			if err != nil {
 				step.Fatalf("newAnalyzer failed: %v", err)
 			}

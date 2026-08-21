@@ -11,6 +11,12 @@ import (
 	"testing"
 )
 
+func fixtureAnalysisConfiguration(repositoryRoot string) AnalysisConfiguration {
+	configuration := DefaultApplicationConfiguration().Analysis
+	configuration.RepositoryRoot = repositoryRoot
+	return configuration
+}
+
 func TestAnalyzer_AnalyzeStableStrategicMetrics(t *testing.T) {
 	t.Run("Scenario: Production and test imports produce a deterministic strategic graph", func(t *testing.T) {
 		var sut *analyzer
@@ -20,7 +26,7 @@ func TestAnalyzer_AnalyzeStableStrategicMetrics(t *testing.T) {
 
 		if !t.Run("Given a repository with production, test, and cyclic imports", func(step *testing.T) {
 			repositoryRoot := newAnalyzerFixture(t)
-			sut, err = newAnalyzer(repositoryRoot)
+			sut, err = newAnalyzer(fixtureAnalysisConfiguration(repositoryRoot))
 			if err != nil {
 				step.Fatalf("newAnalyzer failed: %v", err)
 			}
@@ -59,7 +65,7 @@ func TestAnalyzer_AnalyzeStableStrategicMetrics(t *testing.T) {
 			if first.SchemaVersion != graphSchemaVersion {
 				t.Fatalf("schema version %d does not match the configured version", first.SchemaVersion)
 			}
-			if first.SchemaVersion != 3 {
+			if first.SchemaVersion != 4 {
 				t.Fatalf("unexpected graph schema version %d", first.SchemaVersion)
 			}
 		}) {
@@ -206,6 +212,15 @@ func TestAnalyzer_AnalyzeStableStrategicMetrics(t *testing.T) {
 				t.Errorf("unexpected mathematical policy: %+v", first.Policy)
 			}
 		})
+
+		t.Run("And the graph declares the exact configured analysis scope", func(t *testing.T) {
+			defaults := DefaultApplicationConfiguration().Analysis
+			if !slices.Equal(first.Scope.Paths, defaults.Paths) ||
+				!slices.Equal(first.Scope.IgnoredPaths, defaults.IgnoredPaths) ||
+				!slices.Equal(first.Scope.Components.Libraries, defaults.Components.Libraries) {
+				t.Errorf("unexpected analysis scope: %+v", first.Scope)
+			}
+		})
 	})
 }
 func TestAnalyzer_AnalyzeInvalidImportBlock(t *testing.T) {
@@ -223,7 +238,7 @@ func TestAnalyzer_AnalyzeInvalidImportBlock(t *testing.T) {
 				"internal/library/broken/broken.go",
 				"package broken\n\nimport \"example.com/invalid/internal/library/missing\n",
 			)
-			sut, err = newAnalyzer(repositoryRoot)
+			sut, err = newAnalyzer(fixtureAnalysisConfiguration(repositoryRoot))
 			if err != nil {
 				step.Fatalf("newAnalyzer failed: %v", err)
 			}
@@ -257,6 +272,225 @@ func TestAnalyzer_AnalyzeInvalidImportBlock(t *testing.T) {
 			}
 		})
 	})
+}
+
+func TestAnalyzer_ApplyConfiguredScope(t *testing.T) {
+	t.Run("Scenario: A generic repository layout selects and excludes explicit paths", func(t *testing.T) {
+		var sut *analyzer
+		var graph Graph
+		var analysisError error
+
+		if !t.Run("Given custom service and package paths with one excluded package", func(step *testing.T) {
+			repositoryRoot := t.TempDir()
+			writeFixtureFile(step, repositoryRoot, "go.mod", "module example.com/generic\n\ngo 1.26\n")
+			writeFixtureFile(
+				step,
+				repositoryRoot,
+				"services/control/features/orders/orders.go",
+				`package orders
+
+import (
+	_ "example.com/generic/packages/legacy"
+	_ "example.com/generic/packages/shared"
+)
+`,
+			)
+			writeFixtureFile(
+				step,
+				repositoryRoot,
+				"packages/shared/shared.go",
+				"package shared\n",
+			)
+			writeFixtureFile(
+				step,
+				repositoryRoot,
+				"packages/legacy/legacy.go",
+				"package legacy\n",
+			)
+			writeFixtureFile(
+				step,
+				repositoryRoot,
+				"tools/generator/main.go",
+				"package main\n",
+			)
+			configuration := AnalysisConfiguration{
+				RepositoryRoot: repositoryRoot,
+				Paths:          []string{"services", "packages"},
+				IgnoredPaths:   []string{"packages/legacy"},
+				Components: ComponentRulesConfiguration{
+					Applications:       []string{"services/{application}"},
+					ApplicationModules: []string{"services/{application}/features/{component}"},
+					Libraries:          []string{"packages/{component}"},
+					DevelopmentTools:   []string{"tools/{component}"},
+				},
+			}
+			var err error
+			sut, err = newAnalyzer(configuration)
+			if err != nil {
+				step.Fatalf("newAnalyzer failed: %v", err)
+			}
+		}) {
+			return
+		}
+
+		t.Run("When the configured repository scope is analyzed", func(t *testing.T) {
+			graph, analysisError = sut.analyze()
+		})
+
+		if !t.Run("Then only selected non-ignored components are present", func(t *testing.T) {
+			if analysisError != nil {
+				t.Fatalf("analyze failed: %v", analysisError)
+			}
+			if graph.Summary.Components != 2 || graph.Summary.Relationships != 1 {
+				t.Fatalf("unexpected configured graph summary: %+v", graph.Summary)
+			}
+			componentWithIdentifier(t, graph, "services/control/features/orders")
+			componentWithIdentifier(t, graph, "packages/shared")
+		}) {
+			return
+		}
+
+		t.Run("And excluded and unselected components do not leak into the graph", func(t *testing.T) {
+			for _, identifier := range []string{"packages/legacy", "tools/generator"} {
+				for _, component := range graph.Components {
+					if component.Identifier == identifier {
+						t.Errorf("excluded component %q is present", identifier)
+					}
+				}
+			}
+		})
+
+		t.Run("And machine output declares the normalized configured scope", func(t *testing.T) {
+			if !slices.Equal(graph.Scope.Paths, []string{"packages", "services"}) ||
+				!slices.Equal(graph.Scope.IgnoredPaths, []string{"packages/legacy"}) ||
+				!slices.Equal(
+					graph.Scope.Components.ApplicationModules,
+					[]string{"services/{application}/features/{component}"},
+				) {
+				t.Errorf("unexpected graph scope: %+v", graph.Scope)
+			}
+		})
+	})
+}
+
+func TestAnalyzer_RejectInvalidConfiguredScope(t *testing.T) {
+	testCases := []struct {
+		name      string
+		configure func(*testing.T, AnalysisConfiguration, string) AnalysisConfiguration
+	}{
+		{
+			name: "the analysis path list is empty",
+			configure: func(_ *testing.T, configuration AnalysisConfiguration, _ string) AnalysisConfiguration {
+				configuration.Paths = nil
+				return configuration
+			},
+		},
+		{
+			name: "an analysis path is absolute",
+			configure: func(_ *testing.T, configuration AnalysisConfiguration, repositoryRoot string) AnalysisConfiguration {
+				configuration.Paths = []string{repositoryRoot}
+				return configuration
+			},
+		},
+		{
+			name: "an analysis path is empty",
+			configure: func(_ *testing.T, configuration AnalysisConfiguration, _ string) AnalysisConfiguration {
+				configuration.Paths = []string{""}
+				return configuration
+			},
+		},
+		{
+			name: "an analysis path has surrounding space",
+			configure: func(_ *testing.T, configuration AnalysisConfiguration, _ string) AnalysisConfiguration {
+				configuration.Paths = []string{" internal"}
+				return configuration
+			},
+		},
+		{
+			name: "an analysis path escapes the repository",
+			configure: func(_ *testing.T, configuration AnalysisConfiguration, _ string) AnalysisConfiguration {
+				configuration.Paths = []string{"../outside"}
+				return configuration
+			},
+		},
+		{
+			name: "an analysis path is the parent directory",
+			configure: func(_ *testing.T, configuration AnalysisConfiguration, _ string) AnalysisConfiguration {
+				configuration.Paths = []string{".."}
+				return configuration
+			},
+		},
+		{
+			name: "an ignored path pattern has surrounding space",
+			configure: func(_ *testing.T, configuration AnalysisConfiguration, _ string) AnalysisConfiguration {
+				configuration.IgnoredPaths = []string{" vendor"}
+				return configuration
+			},
+		},
+		{
+			name: "an ignored path pattern contains a backslash",
+			configure: func(_ *testing.T, configuration AnalysisConfiguration, _ string) AnalysisConfiguration {
+				configuration.IgnoredPaths = []string{`internal\generated`}
+				return configuration
+			},
+		},
+		{
+			name: "an ignored path pattern has invalid syntax",
+			configure: func(_ *testing.T, configuration AnalysisConfiguration, _ string) AnalysisConfiguration {
+				configuration.IgnoredPaths = []string{"[invalid"}
+				return configuration
+			},
+		},
+		{
+			name: "the component layout has no templates",
+			configure: func(_ *testing.T, configuration AnalysisConfiguration, _ string) AnalysisConfiguration {
+				configuration.Components = ComponentRulesConfiguration{}
+				return configuration
+			},
+		},
+		{
+			name: "a selected source path does not exist",
+			configure: func(_ *testing.T, configuration AnalysisConfiguration, _ string) AnalysisConfiguration {
+				configuration.Paths = []string{"absent"}
+				return configuration
+			},
+		},
+		{
+			name: "a selected source path is not Go source",
+			configure: func(step *testing.T, configuration AnalysisConfiguration, repositoryRoot string) AnalysisConfiguration {
+				writeFixtureFile(step, repositoryRoot, "README.md", "documentation\n")
+				configuration.Paths = []string{"README.md"}
+				return configuration
+			},
+		},
+	}
+	for _, testCase := range testCases {
+		t.Run("Scenario: "+testCase.name, func(t *testing.T) {
+			var configuration AnalysisConfiguration
+			var startupError error
+
+			t.Run("Given a repository and the invalid scope configuration", func(step *testing.T) {
+				repositoryRoot := t.TempDir()
+				writeFixtureFile(step, repositoryRoot, "go.mod", "module example.com/invalidscope\n\ngo 1.26\n")
+				configuration = fixtureAnalysisConfiguration(repositoryRoot)
+				configuration = testCase.configure(step, configuration, repositoryRoot)
+			})
+
+			t.Run("When the analyzer validates and discovers its source scope", func(t *testing.T) {
+				sut, err := newAnalyzer(configuration)
+				startupError = err
+				if err == nil {
+					_, startupError = sut.sourcePaths()
+				}
+			})
+
+			t.Run("Then startup rejects the invalid configuration", func(t *testing.T) {
+				if startupError == nil {
+					t.Fatal("invalid analysis scope was accepted")
+				}
+			})
+		})
+	}
 }
 func TestModulePath_ReadAbsentDeclaration(t *testing.T) {
 	t.Run("Scenario: A module file has no module declaration", func(t *testing.T) {
@@ -317,6 +551,7 @@ func TestModulePath_ReadQuotedDeclaration(t *testing.T) {
 func TestSourcePaths_FindModeledGoFiles(t *testing.T) {
 	t.Run("Scenario: A repository contains ignored directories and non-Go entries", func(t *testing.T) {
 		var repositoryRoot string
+		var sut *analyzer
 		var paths []string
 		var err error
 
@@ -333,12 +568,17 @@ func TestSourcePaths_FindModeledGoFiles(t *testing.T) {
 			for _, directory := range []string{".cache", "node_modules", "vendor", "testdata", "target", "_resources"} {
 				writeFixtureFile(step, repositoryRoot, directory+"/ignored.go", "package ignored\n")
 			}
+			writeFixtureFile(step, repositoryRoot, "go.mod", "module example.com/sourcepaths\n\ngo 1.26\n")
+			sut, err = newAnalyzer(fixtureAnalysisConfiguration(repositoryRoot))
+			if err != nil {
+				step.Fatalf("newAnalyzer failed: %v", err)
+			}
 		}) {
 			return
 		}
 
 		t.Run("When Go source paths are collected", func(t *testing.T) {
-			paths, err = goSourcePaths(repositoryRoot)
+			paths, err = sut.sourcePaths()
 		})
 
 		if !t.Run("Then source discovery succeeds", func(t *testing.T) {
@@ -357,7 +597,7 @@ func TestSourcePaths_FindModeledGoFiles(t *testing.T) {
 		})
 	})
 }
-func TestIgnoredDirectory_ClassifyName(t *testing.T) {
+func TestIgnoredPaths_MatchConfiguredPatterns(t *testing.T) {
 	testCases := []struct {
 		name    string
 		ignored bool
@@ -371,21 +611,33 @@ func TestIgnoredDirectory_ClassifyName(t *testing.T) {
 		{name: "internal", ignored: false},
 	}
 	for _, testCase := range testCases {
-		t.Run("Scenario: The directory name is "+testCase.name, func(t *testing.T) {
+		t.Run("Scenario: The repository path contains "+testCase.name, func(t *testing.T) {
 			var name string
 			var result bool
+			var matchError error
+			var matcher ignoredPathMatcher
 
-			t.Run("Given a repository directory name", func(t *testing.T) {
+			t.Run("Given the default configured ignore patterns", func(t *testing.T) {
 				name = testCase.name
+				var err error
+				matcher, err = newIgnoredPathMatcher(
+					DefaultApplicationConfiguration().Analysis.IgnoredPaths,
+				)
+				if err != nil {
+					t.Fatalf("newIgnoredPathMatcher failed: %v", err)
+				}
 			})
 
-			t.Run("When the directory ignore rule is evaluated", func(t *testing.T) {
-				result = ignoredDirectory(name)
+			t.Run("When the configured path rule is evaluated", func(t *testing.T) {
+				result, matchError = matcher.matches(name)
 			})
 
-			t.Run("Then the closed ignore rule returns the expected decision", func(t *testing.T) {
+			t.Run("Then matching succeeds with the expected decision", func(t *testing.T) {
+				if matchError != nil {
+					t.Fatalf("match ignored path: %v", matchError)
+				}
 				if result != testCase.ignored {
-					t.Fatalf("ignoredDirectory(%q) is %t, want %t", name, result, testCase.ignored)
+					t.Fatalf("ignored path %q is %t, want %t", name, result, testCase.ignored)
 				}
 			})
 		})
@@ -489,20 +741,29 @@ func TestComponent_Classification(t *testing.T) {
 		{name: "an incomplete module root", path: "internal/module", modeled: false},
 		{name: "an incomplete library root", path: "internal/library", modeled: false},
 		{name: "an incomplete development root", path: "internal/devtool", modeled: false},
+		{name: "an incomplete command root", path: "cmd", modeled: false},
 		{name: "an unrelated top-level package", path: "generate/protobuf/main.go", modeled: false},
 	}
 	for _, testCase := range testCases {
 		t.Run("Scenario: The source path is "+testCase.name, func(t *testing.T) {
 			var path string
+			var classifier componentClassifier
 			var descriptor componentDescriptor
 			var modeled bool
 
-			t.Run("Given a repository-relative source or import path", func(t *testing.T) {
+			t.Run("Given a repository-relative path and configured component templates", func(t *testing.T) {
 				path = testCase.path
+				var err error
+				classifier, err = newComponentClassifier(
+					DefaultApplicationConfiguration().Analysis.Components.domainRules(),
+				)
+				if err != nil {
+					t.Fatalf("newComponentClassifier failed: %v", err)
+				}
 			})
 
 			t.Run("When the component is classified", func(t *testing.T) {
-				descriptor, modeled = classifyComponent(path)
+				descriptor, modeled = classifier.classify(path)
 			})
 
 			if !t.Run("Then the path has the expected modeled state", func(t *testing.T) {
@@ -524,29 +785,11 @@ func TestComponent_Classification(t *testing.T) {
 			})
 		})
 	}
-
-	t.Run("Scenario: A command path has no application segment", func(t *testing.T) {
-		var parts []string
-		var modeled bool
-
-		t.Run("Given only the command root segment", func(t *testing.T) {
-			parts = []string{"cmd"}
-		})
-
-		t.Run("When the command component is classified", func(t *testing.T) {
-			_, modeled = classifyCommandComponent(parts)
-		})
-
-		t.Run("Then the incomplete command path is not modeled", func(t *testing.T) {
-			if modeled {
-				t.Fatal("an incomplete command path was modeled")
-			}
-		})
-	})
 }
 func TestSourceFile_InspectImports(t *testing.T) {
 	t.Run("Scenario: A modeled source imports internal and external packages", func(t *testing.T) {
 		var repositoryRoot string
+		var sut *analyzer
 		var sourcePath string
 		var file *sourceFile
 		var err error
@@ -567,11 +810,17 @@ import (
 )
 `,
 			)
+			writeFixtureFile(step, repositoryRoot, "go.mod", "module example.com/current\n\ngo 1.26\n")
+			var analyzerError error
+			sut, analyzerError = newAnalyzer(fixtureAnalysisConfiguration(repositoryRoot))
+			if analyzerError != nil {
+				step.Fatalf("newAnalyzer failed: %v", analyzerError)
+			}
 			sourcePath = filepath.Join(repositoryRoot, filepath.FromSlash(relativePath))
 		})
 
 		t.Run("When the source file is inspected", func(t *testing.T) {
-			file, err = inspectSourceFile(repositoryRoot, "example.com/current", sourcePath)
+			file, err = sut.inspectSourceFile("example.com/current", sourcePath)
 		})
 
 		if !t.Run("Then source inspection succeeds", func(t *testing.T) {
@@ -586,9 +835,13 @@ import (
 		}
 
 		t.Run("And only current-module imports are retained", func(t *testing.T) {
-			want := []string{"example.com/current", "example.com/current/internal/module/audit"}
-			if !slices.Equal(file.imports, want) {
-				t.Errorf("internal imports are %v, want %v", file.imports, want)
+			var importedPackages []string
+			for _, imported := range file.imports {
+				importedPackages = append(importedPackages, imported.packagePath)
+			}
+			want := []string{"internal/module/audit"}
+			if !slices.Equal(importedPackages, want) {
+				t.Errorf("internal imports are %v, want %v", importedPackages, want)
 			}
 		})
 	})
@@ -597,6 +850,7 @@ import (
 func TestSourceFile_InspectNamedTypes(t *testing.T) {
 	t.Run("Scenario: Production source declares abstract and concrete named types", func(t *testing.T) {
 		var repositoryRoot string
+		var sut *analyzer
 		var sourcePath string
 		var file *sourceFile
 		var err error
@@ -622,11 +876,17 @@ var current Record
 func NewRecord() Record { return current }
 `,
 			)
+			writeFixtureFile(step, repositoryRoot, "go.mod", "module example.com/current\n\ngo 1.26\n")
+			var analyzerError error
+			sut, analyzerError = newAnalyzer(fixtureAnalysisConfiguration(repositoryRoot))
+			if analyzerError != nil {
+				step.Fatalf("newAnalyzer failed: %v", analyzerError)
+			}
 			sourcePath = filepath.Join(repositoryRoot, filepath.FromSlash(relativePath))
 		})
 
 		t.Run("When the source file is inspected", func(t *testing.T) {
-			file, err = inspectSourceFile(repositoryRoot, "example.com/current", sourcePath)
+			file, err = sut.inspectSourceFile("example.com/current", sourcePath)
 		})
 
 		if !t.Run("Then source inspection succeeds", func(t *testing.T) {
@@ -653,15 +913,13 @@ func NewRecord() Record { return current }
 }
 
 func TestRelationships_CollectModeledImports(t *testing.T) {
-	t.Run("Scenario: A component imports itself, an unmodeled path, and another component", func(t *testing.T) {
-		var modulePath string
+	t.Run("Scenario: A component has normalized imports to itself and another component", func(t *testing.T) {
 		var source componentDescriptor
 		var file sourceFile
 		var components map[string]*componentAccumulator
 		var relationships map[relationshipKey]*relationshipAccumulator
 
-		t.Run("Given a library component and three candidate imports", func(t *testing.T) {
-			modulePath = "example.com/current"
+		t.Run("Given a library component and two normalized imports", func(t *testing.T) {
 			source = componentDescriptor{
 				identifier: "internal/library/logging",
 				name:       "logging",
@@ -674,16 +932,25 @@ func TestRelationships_CollectModeledImports(t *testing.T) {
 				relativePath: "internal/library/logging/logging.go",
 				packagePath:  "internal/library/logging",
 				component:    source,
-				imports: []string{
-					modulePath + "/internal/library/logging",
-					modulePath + "/generate/tool",
-					modulePath + "/internal/module/audit",
+				imports: []sourceImport{
+					{
+						packagePath: "internal/library/logging",
+						component:   source,
+					},
+					{
+						packagePath: "internal/module/audit",
+						component: componentDescriptor{
+							identifier: "internal/module/audit",
+							name:       "audit",
+							kind:       componentKindSharedModule,
+						},
+					},
 				},
 			}
 		})
 
 		t.Run("When relationships are collected from the source imports", func(t *testing.T) {
-			collectRelationships(components, relationships, modulePath, file)
+			collectRelationships(components, relationships, file)
 		})
 
 		if !t.Run("Then only one relationship and two components exist", func(t *testing.T) {

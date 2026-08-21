@@ -3,8 +3,10 @@ package main
 import (
 	"go/parser"
 	"go/token"
+	"os"
 	"slices"
 	"strconv"
+	"strings"
 	"testing"
 )
 
@@ -17,6 +19,14 @@ func TestLayerArchitecture_KeepPureFilesIndependent(t *testing.T) {
 		{
 			file:           "calculation.go",
 			allowedImports: []string{"cmp", "math", "slices", "sort", "strings"},
+		},
+		{
+			file:           "classification.go",
+			allowedImports: []string{"fmt", "slices", "strings"},
+		},
+		{
+			file:           "query.go",
+			allowedImports: []string{"cmp", "errors", "fmt", "slices", "strings"},
 		},
 	}
 	for _, testCase := range testCases {
@@ -70,4 +80,54 @@ func TestLayerArchitecture_KeepPureFilesIndependent(t *testing.T) {
 			})
 		})
 	}
+}
+
+func TestLayerArchitecture_KeepRepositoryLayoutInConfiguration(t *testing.T) {
+	t.Run("Scenario: Core analysis files are inspected for repository-specific roots", func(t *testing.T) {
+		var payloads map[string]string
+		var readError error
+
+		t.Run("Given analyzer, classification, and calculation source files", func(t *testing.T) {
+			payloads = make(map[string]string)
+		})
+
+		t.Run("When their source text is read", func(t *testing.T) {
+			for _, file := range []string{
+				"analyzer.go",
+				"classification.go",
+				"calculation.go",
+				"query.go",
+			} {
+				payload, err := os.ReadFile(file)
+				if err != nil {
+					readError = err
+					return
+				}
+				payloads[file] = string(payload)
+			}
+		})
+
+		if !t.Run("Then every core file can be inspected", func(t *testing.T) {
+			if readError != nil {
+				t.Fatalf("read architecture source: %v", readError)
+			}
+		}) {
+			return
+		}
+
+		t.Run("And only configuration owns the default repository layout", func(t *testing.T) {
+			for file, payload := range payloads {
+				for _, fixedRoot := range []string{
+					`"cmd/`,
+					`"internal/module/`,
+					`"internal/library/`,
+					`"internal/devtool/`,
+				} {
+					if strings.Contains(payload, fixedRoot) {
+						t.Errorf("%s fixes repository layout %s outside configuration", file, fixedRoot)
+					}
+				}
+			}
+		})
+	})
 }

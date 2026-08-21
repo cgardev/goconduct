@@ -29,8 +29,14 @@ func TestRootCommand_DefineSafeDefaults(t *testing.T) {
 		t.Run("When the root command configuration is inspected", func(t *testing.T) {
 			silenceErrors = sut.SilenceErrors
 			silenceUsage = sut.SilenceUsage
-			for _, name := range []string{"address", "root", "refresh-interval"} {
+			for _, name := range []string{"address", "refresh-interval"} {
 				flag := sut.Flags().Lookup(name)
+				if flag != nil {
+					commandDefaults[name] = flag.DefValue
+				}
+			}
+			for _, name := range []string{"configuration", "root", "analysis-path", "ignore-path"} {
+				flag := sut.PersistentFlags().Lookup(name)
 				if flag != nil {
 					commandDefaults[name] = flag.DefValue
 				}
@@ -48,8 +54,11 @@ func TestRootCommand_DefineSafeDefaults(t *testing.T) {
 		t.Run("And every command option has the expected default", func(t *testing.T) {
 			want := map[string]string{
 				"address":          "127.0.0.1:6062",
+				"configuration":    "configuration.json",
 				"root":             ".",
 				"refresh-interval": "750ms",
+				"analysis-path":    "[]",
+				"ignore-path":      "[]",
 			}
 			for name, value := range want {
 				if commandDefaults[name] != value {
@@ -118,6 +127,34 @@ func TestRootCommand_RejectInvalidArguments(t *testing.T) {
 				return []string{"analyze", "--fail-on", "unknown"}
 			},
 			want: "must be none, warning, or error",
+		},
+		{
+			name: "the focused finding severity is unknown",
+			args: func(*testing.T) []string {
+				return []string{"findings", "--severity", "critical"}
+			},
+			want: "must be all, warning, or error",
+		},
+		{
+			name: "the focused component kind is unknown",
+			args: func(*testing.T) []string {
+				return []string{"components", "--kind", "service"}
+			},
+			want: "component kind",
+		},
+		{
+			name: "the focused component sort is unknown",
+			args: func(*testing.T) []string {
+				return []string{"components", "--sort", "weight"}
+			},
+			want: "component sort",
+		},
+		{
+			name: "a focused query limit is negative",
+			args: func(*testing.T) []string {
+				return []string{"findings", "--limit", "-1"}
+			},
+			want: "must not be negative",
 		},
 	}
 	for _, testCase := range testCases {

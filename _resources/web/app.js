@@ -534,7 +534,8 @@ function renderKindControls() {
 
 function renderSummary() {
   const { summary, components } = state.graph;
-  elements.modulePath.textContent = state.graph.modulePath;
+  const analysisPaths = state.graph.scope?.paths?.join(", ") || ".";
+  elements.modulePath.textContent = `${state.graph.modulePath} · scope ${analysisPaths}`;
   elements.summaryComponents.textContent = numberFormatter.format(summary.components);
   elements.summaryKinds.textContent =
     `${summary.applications} applications · ${summary.sharedModules + summary.applicationModules} modules · ` +

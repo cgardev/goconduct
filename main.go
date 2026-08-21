@@ -1,9 +1,12 @@
 // The dependencygraph command analyzes and presents strategic Go dependencies.
 //
 // domain.go defines the stable architectural model. calculation.go contains only
-// deterministic mathematical rules. analyzer.go adapts repository source files
-// into that calculation model. command.go and server.go are transport adapters.
-// presentation.go owns the embedded human interface.
+// deterministic mathematical rules. query.go derives focused machine views.
+// classification.go maps configurable path templates to strategic components.
+// analyzer.go adapts selected repository source files into the calculation
+// model. configuration.go uses the repository's standard external configuration
+// mechanism. command.go and server.go are transport adapters. presentation.go
+// owns the embedded human interface.
 package main
 
 import (

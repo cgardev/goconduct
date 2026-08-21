@@ -1,6 +1,6 @@
 package main
 
-const graphSchemaVersion = 3
+const graphSchemaVersion = 4
 
 type componentKind string
 
@@ -18,6 +18,7 @@ type Graph struct {
 	SchemaVersion int            `json:"schemaVersion"`
 	Revision      string         `json:"revision"`
 	ModulePath    string         `json:"modulePath"`
+	Scope         AnalysisScope  `json:"scope"`
 	Policy        AnalysisPolicy `json:"policy"`
 	Summary       GraphSummary   `json:"summary"`
 	Components    []Component    `json:"components"`
@@ -25,6 +26,23 @@ type Graph struct {
 	Cycles        [][]string     `json:"cycles"`
 	Diagnostics   []Diagnostic   `json:"diagnostics"`
 	Findings      []Finding      `json:"findings"`
+}
+
+// AnalysisScope declares the repository paths and component layout used to build a graph.
+type AnalysisScope struct {
+	Paths        []string       `json:"paths"`
+	IgnoredPaths []string       `json:"ignoredPaths"`
+	Components   ComponentRules `json:"components"`
+}
+
+// ComponentRules groups path templates by their strategic architectural role.
+type ComponentRules struct {
+	Applications       []string `json:"applications"`
+	ApplicationModules []string `json:"applicationModules"`
+	SharedModules      []string `json:"sharedModules"`
+	Libraries          []string `json:"libraries"`
+	Infrastructure     []string `json:"infrastructure"`
+	DevelopmentTools   []string `json:"developmentTools"`
 }
 
 // AnalysisPolicy declares every formula and classification boundary used by the calculator.

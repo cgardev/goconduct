@@ -6,11 +6,299 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/spf13/cobra"
 )
+
+func TestAnalyzeCommand_UseConfiguredScope(t *testing.T) {
+	t.Run("Scenario: The CLI analyzes a generic layout from an external document", func(t *testing.T) {
+		var configurationPath string
+		var output bytes.Buffer
+		var commandError error
+		var report analysisReport
+
+		if !t.Run("Given a repository and a gokeel configuration document", func(step *testing.T) {
+			repositoryRoot := t.TempDir()
+			writeFixtureFile(step, repositoryRoot, "go.mod", "module example.com/cli\n\ngo 1.26\n")
+			writeFixtureFile(
+				step,
+				repositoryRoot,
+				"services/control/features/orders/orders.go",
+				`package orders
+
+import _ "example.com/cli/packages/shared"
+`,
+			)
+			writeFixtureFile(step, repositoryRoot, "packages/shared/shared.go", "package shared\n")
+			document, err := json.Marshal(map[string]any{
+				"analysis": map[string]any{
+					"repositoryRoot": repositoryRoot,
+					"paths":          []string{"services", "packages"},
+					"ignoredPaths":   []string{"generated"},
+					"components": map[string]any{
+						"applications":       []string{"services/{application}"},
+						"applicationModules": []string{"services/{application}/features/{component}"},
+						"sharedModules":      []string{},
+						"libraries":          []string{"packages/{component}"},
+						"infrastructure":     []string{},
+						"developmentTools":   []string{},
+					},
+				},
+			})
+			if err != nil {
+				step.Fatalf("encode configuration document: %v", err)
+			}
+			configurationPath = filepath.Join(t.TempDir(), "configuration.json")
+			writeFixtureFile(
+				step,
+				filepath.Dir(configurationPath),
+				filepath.Base(configurationPath),
+				string(document),
+			)
+		}) {
+			return
+		}
+
+		t.Run("When the machine analysis uses only the configuration document", func(t *testing.T) {
+			logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+			command := newRootCommand(logger)
+			command.SetOut(&output)
+			command.SetArgs([]string{"analyze", "--configuration", configurationPath})
+			commandError = command.ExecuteContext(t.Context())
+			if commandError == nil {
+				commandError = json.Unmarshal(output.Bytes(), &report)
+			}
+		})
+
+		if !t.Run("Then the configured machine analysis succeeds", func(t *testing.T) {
+			if commandError != nil {
+				t.Fatalf("configured analysis failed: %v", commandError)
+			}
+			if report.Summary.Components != 2 || report.Summary.Relationships != 1 {
+				t.Fatalf("unexpected configured report: %+v", report.Summary)
+			}
+		}) {
+			return
+		}
+
+		t.Run("And the report exposes the exact paths and generic templates", func(t *testing.T) {
+			if !slices.Equal(report.Scope.Paths, []string{"packages", "services"}) ||
+				!slices.Equal(
+					report.Scope.Components.Libraries,
+					[]string{"packages/{component}"},
+				) {
+				t.Errorf("unexpected configured report scope: %+v", report.Scope)
+			}
+		})
+	})
+}
+
+func TestQueryCommands_EmitFocusedJSONWithoutPipes(t *testing.T) {
+	t.Run("Scenario: An agent invokes every focused query through native CLI arguments", func(t *testing.T) {
+		var repositoryRoot string
+		var outputs map[string]map[string]json.RawMessage
+		var queryError error
+
+		t.Run("Given a repository accepted by the default strategic layout", func(*testing.T) {
+			repositoryRoot = newAnalyzerFixture(t)
+			outputs = make(map[string]map[string]json.RawMessage)
+		})
+
+		t.Run("When summary, findings, ranking, and component queries execute", func(t *testing.T) {
+			queries := []struct {
+				name string
+				args []string
+			}{
+				{name: "summary", args: []string{"summary", "--root", repositoryRoot}},
+				{
+					name: "findings",
+					args: []string{"findings", "--root", repositoryRoot, "--severity", "error", "--limit", "1"},
+				},
+				{
+					name: "components",
+					args: []string{"components", "--root", repositoryRoot, "--kind", "library", "--sort", "afferent", "--limit", "1"},
+				},
+				{
+					name: "component",
+					args: []string{"component", "internal/library/logging", "--root", repositoryRoot},
+				},
+			}
+			for _, query := range queries {
+				var output bytes.Buffer
+				logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+				command := newRootCommand(logger)
+				command.SetOut(&output)
+				command.SetArgs(query.args)
+				if err := command.ExecuteContext(t.Context()); err != nil {
+					queryError = err
+					return
+				}
+				var document map[string]json.RawMessage
+				if err := json.Unmarshal(output.Bytes(), &document); err != nil {
+					queryError = err
+					return
+				}
+				outputs[query.name] = document
+			}
+		})
+
+		if !t.Run("Then every focused query emits valid JSON", func(t *testing.T) {
+			if queryError != nil {
+				t.Fatalf("focused query failed: %v", queryError)
+			}
+			if len(outputs) != 4 {
+				t.Fatalf("focused query outputs are %d, want 4", len(outputs))
+			}
+		}) {
+			return
+		}
+
+		t.Run("And each response has its direct resource without external filtering", func(t *testing.T) {
+			for query, field := range map[string]string{
+				"summary":    "summary",
+				"findings":   "findings",
+				"components": "components",
+				"component":  "component",
+			} {
+				if outputs[query][field] == nil {
+					t.Errorf("%s query has no direct %s field", query, field)
+				}
+			}
+		})
+	})
+}
+
+func TestFindingsCommand_DefineUnlimitedDefault(t *testing.T) {
+	t.Run("Scenario: A client creates the findings command without a limit", func(t *testing.T) {
+		var command *cobra.Command
+		var defaultLimit string
+
+		t.Run("Given the standard findings command", func(t *testing.T) {
+			command = newFindingsCommand(&commandConfigurationOptions{})
+		})
+
+		t.Run("When the client reads the limit default", func(t *testing.T) {
+			defaultLimit = command.Flag("limit").DefValue
+		})
+
+		t.Run("Then zero requests all matching findings", func(t *testing.T) {
+			if defaultLimit != "0" {
+				t.Errorf("default finding limit is %q, want 0", defaultLimit)
+			}
+		})
+	})
+}
+
+func TestQueryLimit_AcceptUnlimitedValue(t *testing.T) {
+	t.Run("Scenario: A query uses zero as the unlimited value", func(t *testing.T) {
+		var limit int
+		var validationError error
+
+		t.Run("Given the documented zero limit", func(t *testing.T) {
+			limit = 0
+		})
+
+		t.Run("When the query validates the limit", func(t *testing.T) {
+			validationError = validateQueryLimit(limit)
+		})
+
+		t.Run("Then validation accepts the unlimited value", func(t *testing.T) {
+			if validationError != nil {
+				t.Errorf("zero query limit failed validation: %v", validationError)
+			}
+		})
+	})
+}
+
+func TestQueryJSON_PreserveTechnicalCharacters(t *testing.T) {
+	t.Run("Scenario: A query value contains HTML control characters", func(t *testing.T) {
+		var output bytes.Buffer
+		var payload map[string]string
+		var encodeError error
+
+		t.Run("Given a machine value with angle brackets and an ampersand", func(t *testing.T) {
+			payload = map[string]string{
+				"identifier": "example.com/<machine>&analysis",
+			}
+		})
+
+		t.Run("When the query result is encoded", func(t *testing.T) {
+			encodeError = writeQueryJSON(&output, payload)
+		})
+
+		if !t.Run("Then JSON encoding succeeds", func(t *testing.T) {
+			if encodeError != nil {
+				t.Fatalf("writeQueryJSON failed: %v", encodeError)
+			}
+		}) {
+			return
+		}
+
+		t.Run("And technical characters remain directly readable", func(t *testing.T) {
+			if !strings.Contains(output.String(), `<machine>&analysis`) {
+				t.Errorf("technical characters were escaped: %s", output.String())
+			}
+		})
+	})
+}
+
+func TestCommandConfiguration_ApplyExplicitScopeOverrides(t *testing.T) {
+	t.Run("Scenario: CLI scope flags override an external configuration document", func(t *testing.T) {
+		var repositoryRoot string
+		var configurationPath string
+		var output bytes.Buffer
+		var commandError error
+		var result summaryQueryResult
+
+		t.Run("Given a document and explicit repository, analysis, and ignore flags", func(*testing.T) {
+			repositoryRoot = newAnalyzerFixture(t)
+			configurationPath = filepath.Join(t.TempDir(), "configuration.json")
+			writeFixtureFile(
+				t,
+				filepath.Dir(configurationPath),
+				filepath.Base(configurationPath),
+				`{"analysis":{"repositoryRoot":"absent","paths":["cmd"],"ignoredPaths":["vendor"]}}`,
+			)
+		})
+
+		t.Run("When the native summary command executes with every scope override", func(t *testing.T) {
+			logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+			command := newRootCommand(logger)
+			command.SetOut(&output)
+			command.SetArgs([]string{
+				"summary",
+				"--configuration", configurationPath,
+				"--root", repositoryRoot,
+				"--analysis-path", "internal/library/logging",
+				"--ignore-path", "internal/module/audit",
+			})
+			commandError = command.ExecuteContext(t.Context())
+			if commandError == nil {
+				commandError = json.Unmarshal(output.Bytes(), &result)
+			}
+		})
+
+		if !t.Run("Then the explicitly configured query succeeds", func(t *testing.T) {
+			if commandError != nil {
+				t.Fatalf("summary with scope overrides failed: %v", commandError)
+			}
+		}) {
+			return
+		}
+
+		t.Run("And all scope flags replace their document values", func(t *testing.T) {
+			if !slices.Equal(result.Scope.Paths, []string{"internal/library/logging"}) ||
+				!slices.Equal(result.Scope.IgnoredPaths, []string{"internal/module/audit"}) ||
+				result.Summary.Components != 1 {
+				t.Errorf("unexpected overridden scope or summary: %+v %+v", result.Scope, result.Summary)
+			}
+		})
+	})
+}
 
 var errAnalysisWrite = errors.New("analysis write failed")
 
