@@ -89,6 +89,16 @@ func TestRootCommand_RejectInvalidArguments(t *testing.T) {
 			want: "module file",
 		},
 		{
+			name: "the dashboard address is invalid",
+			args: func(t *testing.T) []string {
+				return []string{
+					"--root", newAnalyzerFixture(t),
+					"--address", "invalid address",
+				}
+			},
+			want: "listen on invalid address",
+		},
+		{
 			name: "a positional argument is present",
 			args: func(*testing.T) []string {
 				return []string{"unexpected"}

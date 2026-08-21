@@ -72,30 +72,66 @@
     <section class="dashboard__workspace">
       <section class="graph-panel" aria-labelledby="graphTitle">
         <header class="graph-panel__header">
-          <div>
-            <p class="graph-panel__eyebrow">Dependency flow</p>
-            <h2 class="graph-panel__title" id="graphTitle">Component import map</h2>
+          <div class="graph-panel__heading">
+            <p class="graph-panel__eyebrow" id="graphEyebrow">Strategic weight</p>
+            <h2 class="graph-panel__title" id="graphTitle">Dependency mass map</h2>
+            <p class="graph-panel__description" id="graphDescription">
+              Area represents direct production consumers. Larger components have more architectural reuse.
+            </p>
           </div>
-          <div class="graph-controls" aria-label="Map controls">
-            <button class="graph-controls__button" id="zoomOut" type="button" aria-label="Zoom out">−</button>
-            <button class="graph-controls__button" id="fitGraph" type="button">Fit</button>
-            <button class="graph-controls__button" id="zoomIn" type="button" aria-label="Zoom in">+</button>
+          <div class="graph-panel__actions">
+            <div class="view-switch" role="group" aria-label="Visualization">
+              <button class="view-switch__button" id="impactView" type="button" aria-pressed="true">
+                Impact
+              </button>
+              <button class="view-switch__button" id="dependencyView" type="button" aria-pressed="false">
+                Dependencies
+              </button>
+            </div>
+            <label class="impact-metric" id="impactMetricControl">
+              <span class="impact-metric__label">Size by</span>
+              <select class="impact-metric__select" id="impactMetric">
+                <option value="consumers">Afferent coupling (Cₐ)</option>
+                <option value="efferent">Efferent coupling (Cₑ)</option>
+                <option value="packages">Importer packages</option>
+                <option value="transitive">Indirect impact</option>
+                <option value="files">Go files</option>
+              </select>
+            </label>
+            <div class="graph-controls" id="dependencyControls" aria-label="Map controls" hidden>
+              <button class="graph-controls__button" id="zoomOut" type="button" aria-label="Zoom out">−</button>
+              <button class="graph-controls__button" id="fitGraph" type="button">Fit</button>
+              <button class="graph-controls__button" id="zoomIn" type="button" aria-label="Zoom in">+</button>
+            </div>
           </div>
         </header>
         <div
           class="graph-panel__viewport"
           id="graphViewport"
           tabindex="0"
-          aria-label="Dependency graph. Drag to move. Use the wheel to zoom."
+          data-view="impact"
+          aria-label="Dependency impact map. Larger areas indicate greater architectural use."
         >
-          <svg class="dependency-map" id="dependencyMap" role="img" aria-labelledby="graphTitle"></svg>
+          <svg class="impact-map" id="impactMap" role="img" aria-labelledby="graphTitle"></svg>
+          <svg
+            class="dependency-map"
+            id="dependencyMap"
+            role="img"
+            aria-labelledby="graphTitle"
+            hidden
+          ></svg>
           <div class="graph-panel__empty" id="graphEmpty" hidden>
             No component matches these filters.
           </div>
         </div>
         <footer class="graph-panel__footer">
           <div class="legend" id="legend" aria-label="Legend"></div>
-          <div class="edge-legend" aria-label="Relationship types">
+          <div class="impact-legend" id="impactLegend" aria-label="Area scale">
+            <span class="impact-legend__area" aria-hidden="true"></span>
+            <span id="impactLegendText">Larger area means more direct production consumers.</span>
+            <span class="impact-legend__minimum">Zero values keep a minimum tile.</span>
+          </div>
+          <div class="edge-legend" id="edgeLegend" aria-label="Relationship types" hidden>
             <span class="edge-legend__item">
               <span class="edge-legend__line" aria-hidden="true"></span>
               Production
@@ -137,6 +173,14 @@
             <h2 class="ranking__title" id="unusedTitle">No production consumers</h2>
           </header>
           <ul class="ranking__list" id="unusedRanking"></ul>
+        </section>
+
+        <section class="ranking" aria-labelledby="painTitle">
+          <header class="ranking__header">
+            <p class="ranking__eyebrow">Stable abstractions</p>
+            <h2 class="ranking__title" id="painTitle">Zone of pain</h2>
+          </header>
+          <ul class="ranking__list" id="zoneOfPainRanking"></ul>
         </section>
       </aside>
     </section>

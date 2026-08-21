@@ -215,7 +215,7 @@ func runDashboard(
 			return fmt.Errorf("shut down dashboard: %w", err)
 		}
 		serveError := <-serveErrors
-		if serveError != nil && !errors.Is(serveError, http.ErrServerClosed) {
+		if !errors.Is(serveError, http.ErrServerClosed) {
 			return fmt.Errorf("serve dependency graph dashboard: %w", serveError)
 		}
 		return nil

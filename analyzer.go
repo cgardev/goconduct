@@ -6,9 +6,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"go/ast"
 	"go/parser"
 	"go/token"
 	"io/fs"
+	"math"
 	"os"
 	"path/filepath"
 	"sort"
@@ -16,7 +18,11 @@ import (
 	"strings"
 )
 
-const graphSchemaVersion = 1
+const (
+	graphSchemaVersion            = 2
+	zoneOfPainMaximumInstability  = 0.2
+	zoneOfPainMaximumAbstractness = 0.2
+)
 
 var errModuleDeclarationNotFound = errors.New("module declaration not found")
 
@@ -45,18 +51,20 @@ type Graph struct {
 
 // GraphSummary contains aggregate values shown before the detailed graph.
 type GraphSummary struct {
-	Components              int `json:"components"`
-	Relationships           int `json:"relationships"`
-	ProductionRelationships int `json:"productionRelationships"`
-	TestOnlyRelationships   int `json:"testOnlyRelationships"`
-	Applications            int `json:"applications"`
-	ApplicationModules      int `json:"applicationModules"`
-	SharedModules           int `json:"sharedModules"`
-	Libraries               int `json:"libraries"`
-	Infrastructure          int `json:"infrastructure"`
-	DevelopmentTools        int `json:"developmentTools"`
-	Cycles                  int `json:"cycles"`
-	Concerns                int `json:"concerns"`
+	Components                 int `json:"components"`
+	Relationships              int `json:"relationships"`
+	ProductionRelationships    int `json:"productionRelationships"`
+	TestOnlyRelationships      int `json:"testOnlyRelationships"`
+	Applications               int `json:"applications"`
+	ApplicationModules         int `json:"applicationModules"`
+	SharedModules              int `json:"sharedModules"`
+	Libraries                  int `json:"libraries"`
+	Infrastructure             int `json:"infrastructure"`
+	DevelopmentTools           int `json:"developmentTools"`
+	Cycles                     int `json:"cycles"`
+	Concerns                   int `json:"concerns"`
+	StableDependencyViolations int `json:"stableDependencyViolations"`
+	ZonesOfPain                int `json:"zonesOfPain"`
 }
 
 // Component describes one architectural unit and its coupling metrics.
@@ -82,20 +90,28 @@ type Component struct {
 	TestImporterPackages       int           `json:"testImporterPackages"`
 	ApplicationReach           int           `json:"applicationReach"`
 	Applications               []string      `json:"applications"`
+	AfferentCoupling           int           `json:"afferentCoupling"`
+	EfferentCoupling           int           `json:"efferentCoupling"`
 	Instability                float64       `json:"instability"`
+	AbstractTypes              int           `json:"abstractTypes"`
+	ConcreteTypes              int           `json:"concreteTypes"`
+	Abstractness               float64       `json:"abstractness"`
+	MainSequenceDistance       float64       `json:"mainSequenceDistance"`
+	InZoneOfPain               bool          `json:"inZoneOfPain"`
 	InCycle                    bool          `json:"inCycle"`
 }
 
 // Relationship describes imports between two architectural units.
 type Relationship struct {
-	Source               string   `json:"source"`
-	Target               string   `json:"target"`
-	ProductionReferences int      `json:"productionReferences"`
-	TestReferences       int      `json:"testReferences"`
-	SourcePackages       []string `json:"sourcePackages"`
-	TargetPackages       []string `json:"targetPackages"`
-	TestOnly             bool     `json:"testOnly"`
-	Concerns             []string `json:"concerns"`
+	Source                    string   `json:"source"`
+	Target                    string   `json:"target"`
+	ProductionReferences      int      `json:"productionReferences"`
+	TestReferences            int      `json:"testReferences"`
+	SourcePackages            []string `json:"sourcePackages"`
+	TargetPackages            []string `json:"targetPackages"`
+	TestOnly                  bool     `json:"testOnly"`
+	StableDependencyViolation bool     `json:"stableDependencyViolation"`
+	Concerns                  []string `json:"concerns"`
 }
 
 // Diagnostic reports a source file that could not be fully inspected.
@@ -116,12 +132,14 @@ type componentDescriptor struct {
 }
 
 type sourceFile struct {
-	relativePath string
-	packagePath  string
-	component    componentDescriptor
-	test         bool
-	imports      []string
-	diagnostics  []Diagnostic
+	relativePath  string
+	packagePath   string
+	component     componentDescriptor
+	test          bool
+	imports       []string
+	abstractTypes int
+	concreteTypes int
+	diagnostics   []Diagnostic
 }
 
 type componentAccumulator struct {
@@ -130,6 +148,8 @@ type componentAccumulator struct {
 	sourceFiles     stringSet
 	productionFiles stringSet
 	testFiles       stringSet
+	abstractTypes   int
+	concreteTypes   int
 }
 
 type relationshipKey struct {
@@ -248,7 +268,7 @@ func ignoredDirectory(name string) bool {
 		return true
 	}
 	switch name {
-	case "node_modules", "vendor", "testdata", "_resources":
+	case "node_modules", "vendor", "testdata", "target", "_resources":
 		return true
 	default:
 		return false
@@ -274,7 +294,7 @@ func inspectSourceFile(repositoryRoot, modulePath, path string) (*sourceFile, er
 		token.NewFileSet(),
 		relativePath,
 		payload,
-		parser.ImportsOnly|parser.AllErrors,
+		parser.AllErrors,
 	)
 	file := &sourceFile{
 		relativePath: relativePath,
@@ -307,7 +327,31 @@ func inspectSourceFile(repositoryRoot, modulePath, path string) (*sourceFile, er
 		}
 	}
 	file.imports = sortedSet(imports)
+	file.abstractTypes, file.concreteTypes = countNamedTypes(parsed)
 	return file, nil
+}
+
+func countNamedTypes(file *ast.File) (int, int) {
+	abstractTypes := 0
+	concreteTypes := 0
+	for _, declaration := range file.Decls {
+		group, ok := declaration.(*ast.GenDecl)
+		if !ok || group.Tok != token.TYPE {
+			continue
+		}
+		for _, specification := range group.Specs {
+			namedType, ok := specification.(*ast.TypeSpec)
+			if !ok {
+				continue
+			}
+			if _, ok := namedType.Type.(*ast.InterfaceType); ok {
+				abstractTypes++
+				continue
+			}
+			concreteTypes++
+		}
+	}
+	return abstractTypes, concreteTypes
 }
 
 func classifyComponent(relativePath string) (componentDescriptor, bool) {
@@ -389,6 +433,8 @@ func collectComponentFile(components map[string]*componentAccumulator, file sour
 		return
 	}
 	component.productionFiles.add(file.relativePath)
+	component.abstractTypes += file.abstractTypes
+	component.concreteTypes += file.concreteTypes
 }
 
 func collectRelationships(
@@ -532,6 +578,8 @@ func buildGraph(
 		applications := reachedApplications(identifier, productionDependants, componentData)
 		fanIn := len(productionIncoming[identifier])
 		fanOut := len(productionDependencies[identifier])
+		componentInstability := instability(fanIn, fanOut)
+		componentAbstractness := abstractness(data.abstractTypes, data.concreteTypes)
 		components = append(components, Component{
 			Identifier:                 identifier,
 			Name:                       data.descriptor.name,
@@ -554,10 +602,18 @@ func buildGraph(
 			TestImporterPackages:       len(incomingTestPackages[identifier]),
 			ApplicationReach:           len(applications),
 			Applications:               applications,
-			Instability:                instability(fanIn, fanOut),
+			AfferentCoupling:           fanIn,
+			EfferentCoupling:           fanOut,
+			Instability:                componentInstability,
+			AbstractTypes:              data.abstractTypes,
+			ConcreteTypes:              data.concreteTypes,
+			Abstractness:               componentAbstractness,
+			MainSequenceDistance:       mainSequenceDistance(componentAbstractness, componentInstability),
+			InZoneOfPain:               inZoneOfPain(fanIn, componentInstability, componentAbstractness),
 			InCycle:                    cycleMembers.contains(identifier),
 		})
 	}
+	annotateStableDependencyViolations(relationships, components)
 
 	sort.Slice(diagnostics, func(first, second int) bool {
 		if diagnostics[first].Path == diagnostics[second].Path {
@@ -584,6 +640,9 @@ func summarizeGraph(graph Graph) GraphSummary {
 		Cycles:        len(graph.Cycles),
 	}
 	for _, component := range graph.Components {
+		if component.InZoneOfPain {
+			summary.ZonesOfPain++
+		}
 		switch component.Kind {
 		case componentKindApplication:
 			summary.Applications++
@@ -604,6 +663,9 @@ func summarizeGraph(graph Graph) GraphSummary {
 			summary.TestOnlyRelationships++
 		} else {
 			summary.ProductionRelationships++
+		}
+		if relationship.StableDependencyViolation {
+			summary.StableDependencyViolations++
 		}
 		summary.Concerns += len(relationship.Concerns)
 	}
@@ -690,6 +752,53 @@ func instability(fanIn, fanOut int) float64 {
 		return 0
 	}
 	return float64(fanOut) / float64(total)
+}
+
+func abstractness(abstractTypes, concreteTypes int) float64 {
+	total := abstractTypes + concreteTypes
+	if total == 0 {
+		return 0
+	}
+	return float64(abstractTypes) / float64(total)
+}
+
+func mainSequenceDistance(componentAbstractness, componentInstability float64) float64 {
+	return math.Abs(componentAbstractness + componentInstability - 1)
+}
+
+func inZoneOfPain(
+	afferentCoupling int,
+	componentInstability float64,
+	componentAbstractness float64,
+) bool {
+	return afferentCoupling > 0 &&
+		componentInstability <= zoneOfPainMaximumInstability &&
+		componentAbstractness <= zoneOfPainMaximumAbstractness
+}
+
+func stableDependencyViolation(testOnly bool, sourceInstability, targetInstability float64) bool {
+	return !testOnly && targetInstability > sourceInstability
+}
+
+func annotateStableDependencyViolations(relationships []Relationship, components []Component) {
+	instabilities := make(map[string]float64, len(components))
+	for _, component := range components {
+		instabilities[component.Identifier] = component.Instability
+	}
+	for index := range relationships {
+		relationship := &relationships[index]
+		relationship.StableDependencyViolation = stableDependencyViolation(
+			relationship.TestOnly,
+			instabilities[relationship.Source],
+			instabilities[relationship.Target],
+		)
+		if !relationship.StableDependencyViolation {
+			continue
+		}
+		concerns := newStringSet(relationship.Concerns...)
+		concerns.add("stable-dependency-principle")
+		relationship.Concerns = sortedSet(concerns)
+	}
 }
 
 func stronglyConnectedComponents(

@@ -59,7 +59,7 @@ func TestAnalyzer_AnalyzeStableStrategicMetrics(t *testing.T) {
 			if first.SchemaVersion != graphSchemaVersion {
 				t.Fatalf("schema version %d does not match the configured version", first.SchemaVersion)
 			}
-			if first.SchemaVersion != 1 {
+			if first.SchemaVersion != 2 {
 				t.Fatalf("unexpected graph schema version %d", first.SchemaVersion)
 			}
 		}) {
@@ -80,6 +80,13 @@ func TestAnalyzer_AnalyzeStableStrategicMetrics(t *testing.T) {
 			if first.Summary.Concerns != 1 {
 				t.Errorf("concerns are %d, want 1", first.Summary.Concerns)
 			}
+			if first.Summary.StableDependencyViolations != 0 || first.Summary.ZonesOfPain != 1 {
+				t.Errorf(
+					"stability risks are %d SDP violations and %d pain zones, want 0 and 1",
+					first.Summary.StableDependencyViolations,
+					first.Summary.ZonesOfPain,
+				)
+			}
 			if first.Summary.Applications != 1 || first.Summary.ApplicationModules != 1 ||
 				first.Summary.SharedModules != 3 || first.Summary.Libraries != 2 ||
 				first.Summary.Infrastructure != 0 || first.Summary.DevelopmentTools != 1 ||
@@ -98,6 +105,18 @@ func TestAnalyzer_AnalyzeStableStrategicMetrics(t *testing.T) {
 			}
 			if logging.TransitiveDependants != 5 {
 				t.Errorf("transitive consumers are %d, want 5", logging.TransitiveDependants)
+			}
+			if logging.AfferentCoupling != 3 || logging.EfferentCoupling != 0 || logging.Instability != 0 {
+				t.Errorf(
+					"stability coupling is Ca=%d, Ce=%d, I=%v; want Ca=3, Ce=0, I=0",
+					logging.AfferentCoupling,
+					logging.EfferentCoupling,
+					logging.Instability,
+				)
+			}
+			if logging.AbstractTypes != 0 || logging.ConcreteTypes != 1 ||
+				logging.Abstractness != 0 || logging.MainSequenceDistance != 1 || !logging.InZoneOfPain {
+				t.Errorf("unexpected stable-abstraction metrics: %+v", logging)
 			}
 			if logging.DirectDependencies != 1 || logging.ProductionDependencies != 0 ||
 				logging.TestOnlyDependencies != 1 {
@@ -278,7 +297,7 @@ func TestSourcePaths_FindModeledGoFiles(t *testing.T) {
 			); mkdirError != nil {
 				step.Fatalf("create directory ending in .go: %v", mkdirError)
 			}
-			for _, directory := range []string{".cache", "node_modules", "vendor", "testdata", "_resources"} {
+			for _, directory := range []string{".cache", "node_modules", "vendor", "testdata", "target", "_resources"} {
 				writeFixtureFile(step, repositoryRoot, directory+"/ignored.go", "package ignored\n")
 			}
 		}) {
@@ -314,6 +333,7 @@ func TestIgnoredDirectory_ClassifyName(t *testing.T) {
 		{name: "node_modules", ignored: true},
 		{name: "vendor", ignored: true},
 		{name: "testdata", ignored: true},
+		{name: "target", ignored: true},
 		{name: "_resources", ignored: true},
 		{name: "internal", ignored: false},
 	}
@@ -367,6 +387,15 @@ func TestComponent_Classification(t *testing.T) {
 			application: "control",
 		},
 		{
+			name:        "an application package import",
+			path:        "cmd/control",
+			modeled:     true,
+			identifier:  "cmd/control",
+			component:   "control",
+			kind:        componentKindApplication,
+			application: "control",
+		},
+		{
 			name:        "a command package that is not an application module",
 			path:        "cmd/control/internal/adapter/http.go",
 			modeled:     true,
@@ -400,8 +429,24 @@ func TestComponent_Classification(t *testing.T) {
 			kind:       componentKindDevelopment,
 		},
 		{
+			name:       "a development tool package import",
+			path:       "internal/devtool/generator",
+			modeled:    true,
+			identifier: "internal/devtool/generator",
+			component:  "generator",
+			kind:       componentKindDevelopment,
+		},
+		{
 			name:       "shared infrastructure",
 			path:       "internal/kernel/kernel.go",
+			modeled:    true,
+			identifier: "internal/kernel",
+			component:  "kernel",
+			kind:       componentKindInfrastructure,
+		},
+		{
+			name:       "a shared infrastructure package import",
+			path:       "internal/kernel",
 			modeled:    true,
 			identifier: "internal/kernel",
 			component:  "kernel",
@@ -419,7 +464,7 @@ func TestComponent_Classification(t *testing.T) {
 			var descriptor componentDescriptor
 			var modeled bool
 
-			t.Run("Given a repository source path", func(t *testing.T) {
+			t.Run("Given a repository-relative source or import path", func(t *testing.T) {
 				path = testCase.path
 			})
 
@@ -515,6 +560,65 @@ import (
 		})
 	})
 }
+
+func TestSourceFile_InspectNamedTypes(t *testing.T) {
+	t.Run("Scenario: Production source declares abstract and concrete named types", func(t *testing.T) {
+		var repositoryRoot string
+		var sourcePath string
+		var file *sourceFile
+		var err error
+
+		t.Run("Given a Go file with one interface and two concrete types", func(step *testing.T) {
+			repositoryRoot = t.TempDir()
+			relativePath := "internal/library/contracts/contracts.go"
+			writeFixtureFile(
+				step,
+				repositoryRoot,
+				relativePath,
+				`package contracts
+
+type Reader interface {
+	Read() error
+}
+
+type Record struct{}
+type Identifier string
+
+var current Record
+
+func NewRecord() Record { return current }
+`,
+			)
+			sourcePath = filepath.Join(repositoryRoot, filepath.FromSlash(relativePath))
+		})
+
+		t.Run("When the source file is inspected", func(t *testing.T) {
+			file, err = inspectSourceFile(repositoryRoot, "example.com/current", sourcePath)
+		})
+
+		if !t.Run("Then source inspection succeeds", func(t *testing.T) {
+			if err != nil {
+				t.Fatalf("inspectSourceFile failed: %v", err)
+			}
+			if file == nil {
+				t.Fatal("inspectSourceFile returned no source file")
+			}
+		}) {
+			return
+		}
+
+		t.Run("And named interfaces and concrete types are counted separately", func(t *testing.T) {
+			if file.abstractTypes != 1 || file.concreteTypes != 2 {
+				t.Errorf(
+					"named types are %d abstract and %d concrete, want 1 and 2",
+					file.abstractTypes,
+					file.concreteTypes,
+				)
+			}
+		})
+	})
+}
+
 func TestRelationships_CollectModeledImports(t *testing.T) {
 	t.Run("Scenario: A component imports itself, an unmodeled path, and another component", func(t *testing.T) {
 		var modulePath string
@@ -714,6 +818,180 @@ func TestInstability_CalculateCouplingRatio(t *testing.T) {
 		})
 	}
 }
+
+func TestAbstractness_CalculateNamedTypeRatio(t *testing.T) {
+	testCases := []struct {
+		name          string
+		abstractTypes int
+		concreteTypes int
+		want          float64
+	}{
+		{name: "a component declares no named type", want: 0},
+		{name: "one of four named types is abstract", abstractTypes: 1, concreteTypes: 3, want: 0.25},
+		{name: "all named types are abstract", abstractTypes: 2, want: 1},
+	}
+	for _, testCase := range testCases {
+		t.Run("Scenario: "+testCase.name, func(t *testing.T) {
+			var abstractTypes int
+			var concreteTypes int
+			var result float64
+
+			t.Run("Given abstract and concrete named type counts", func(t *testing.T) {
+				abstractTypes = testCase.abstractTypes
+				concreteTypes = testCase.concreteTypes
+			})
+
+			t.Run("When abstractness is calculated", func(t *testing.T) {
+				result = abstractness(abstractTypes, concreteTypes)
+			})
+
+			t.Run("Then the expected abstract type ratio is returned", func(t *testing.T) {
+				if math.Abs(result-testCase.want) > 1e-12 {
+					t.Fatalf("abstractness is %v, want %v", result, testCase.want)
+				}
+			})
+		})
+	}
+}
+
+func TestMainSequenceDistance_CalculateStabilityAbstractionBalance(t *testing.T) {
+	testCases := []struct {
+		name         string
+		abstractness float64
+		instability  float64
+		want         float64
+	}{
+		{name: "a stable abstract component is on the main sequence", abstractness: 1, want: 0},
+		{name: "a flexible concrete component is on the main sequence", instability: 1, want: 0},
+		{name: "a stable concrete component is maximally distant", want: 1},
+		{name: "a mixed component is partially distant", abstractness: 0.2, instability: 0.3, want: 0.5},
+	}
+	for _, testCase := range testCases {
+		t.Run("Scenario: "+testCase.name, func(t *testing.T) {
+			var componentAbstractness float64
+			var componentInstability float64
+			var result float64
+
+			t.Run("Given abstraction and instability values", func(t *testing.T) {
+				componentAbstractness = testCase.abstractness
+				componentInstability = testCase.instability
+			})
+
+			t.Run("When distance from the main sequence is calculated", func(t *testing.T) {
+				result = mainSequenceDistance(componentAbstractness, componentInstability)
+			})
+
+			t.Run("Then the expected absolute distance is returned", func(t *testing.T) {
+				if math.Abs(result-testCase.want) > 1e-12 {
+					t.Fatalf("main-sequence distance is %v, want %v", result, testCase.want)
+				}
+			})
+		})
+	}
+}
+
+func TestZoneOfPain_ClassifyStableConcreteResponsibility(t *testing.T) {
+	testCases := []struct {
+		name             string
+		afferentCoupling int
+		instability      float64
+		abstractness     float64
+		wantInZoneOfPain bool
+	}{
+		{
+			name:             "a responsible component is in the stable concrete corner",
+			afferentCoupling: 1,
+			instability:      zoneOfPainMaximumInstability,
+			abstractness:     zoneOfPainMaximumAbstractness,
+			wantInZoneOfPain: true,
+		},
+		{name: "an isolated component has no external responsibility"},
+		{
+			name:             "an unstable component is outside the corner",
+			afferentCoupling: 2,
+			instability:      zoneOfPainMaximumInstability + 0.01,
+		},
+		{
+			name:             "an abstract component is outside the corner",
+			afferentCoupling: 2,
+			abstractness:     zoneOfPainMaximumAbstractness + 0.01,
+		},
+	}
+	for _, testCase := range testCases {
+		t.Run("Scenario: "+testCase.name, func(t *testing.T) {
+			var afferentCoupling int
+			var componentInstability float64
+			var componentAbstractness float64
+			var result bool
+
+			t.Run("Given coupling, instability, and abstraction metrics", func(t *testing.T) {
+				afferentCoupling = testCase.afferentCoupling
+				componentInstability = testCase.instability
+				componentAbstractness = testCase.abstractness
+			})
+
+			t.Run("When the pain-zone rule is evaluated", func(t *testing.T) {
+				result = inZoneOfPain(
+					afferentCoupling,
+					componentInstability,
+					componentAbstractness,
+				)
+			})
+
+			t.Run("Then the expected classification is returned", func(t *testing.T) {
+				if result != testCase.wantInZoneOfPain {
+					t.Fatalf("pain-zone result is %t, want %t", result, testCase.wantInZoneOfPain)
+				}
+			})
+		})
+	}
+}
+
+func TestStableDependency_AnnotateInstabilityDirection(t *testing.T) {
+	t.Run("Scenario: Production and test relationships cross different stability levels", func(t *testing.T) {
+		var components []Component
+		var relationships []Relationship
+
+		t.Run("Given stable, peer, and flexible components with four relationships", func(t *testing.T) {
+			components = []Component{
+				{Identifier: "stable", Instability: 0.2},
+				{Identifier: "peer", Instability: 0.2},
+				{Identifier: "flexible", Instability: 0.8},
+			}
+			relationships = []Relationship{
+				{Source: "stable", Target: "flexible", Concerns: []string{"existing-concern"}},
+				{Source: "flexible", Target: "stable", Concerns: []string{}},
+				{Source: "stable", Target: "peer", Concerns: []string{}},
+				{Source: "stable", Target: "flexible", TestOnly: true, Concerns: []string{}},
+			}
+		})
+
+		t.Run("When stable-dependency violations are annotated", func(t *testing.T) {
+			annotateStableDependencyViolations(relationships, components)
+		})
+
+		if !t.Run("Then only the production dependency on the less stable component is marked", func(t *testing.T) {
+			if !relationships[0].StableDependencyViolation {
+				t.Fatal("the stable-to-flexible production dependency is not marked")
+			}
+			for index := 1; index < len(relationships); index++ {
+				if relationships[index].StableDependencyViolation {
+					t.Fatalf("relationship %d is marked as an SDP violation", index)
+				}
+			}
+		}) {
+			return
+		}
+
+		t.Run("And the SDP concern is sorted with the existing concern", func(t *testing.T) {
+			want := []string{"existing-concern", "stable-dependency-principle"}
+			if !slices.Equal(relationships[0].Concerns, want) {
+				t.Errorf("concerns are %v, want %v", relationships[0].Concerns, want)
+			}
+		})
+	})
+}
+
 func TestStronglyConnectedComponents_FindCycles(t *testing.T) {
 	t.Run("Scenario: A graph contains two multi-node cycles and one self-loop", func(t *testing.T) {
 		var identifiers []string
@@ -846,7 +1124,7 @@ import _ "example.com/strategic/internal/module/cycleone"
 		t,
 		repositoryRoot,
 		"internal/library/logging/logging.go",
-		"package logging\n",
+		"package logging\n\ntype Logger struct{}\n",
 	)
 	writeFixtureFile(
 		t,
@@ -855,6 +1133,10 @@ import _ "example.com/strategic/internal/module/cycleone"
 		`package logging_test
 
 import _ "example.com/strategic/internal/module/audit"
+
+type testContract interface {
+	testOnly()
+}
 `,
 	)
 	writeFixtureFile(

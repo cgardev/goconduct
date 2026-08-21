@@ -115,6 +115,20 @@ func TestDashboard_ServeHTTPResources(t *testing.T) {
 				t.Errorf("unexpected content security policy %q", securityPolicy)
 			}
 		})
+
+		t.Run("And the impact view controls are present", func(t *testing.T) {
+			for _, marker := range []string{
+				`id="impactView"`,
+				`id="impactMetric"`,
+				`id="impactMap"`,
+				"Afferent coupling",
+				`id="zoneOfPainRanking"`,
+			} {
+				if !strings.Contains(string(document), marker) {
+					t.Errorf("the dashboard document does not contain %q", marker)
+				}
+			}
+		})
 	})
 
 	t.Run("Scenario: A client requests both embedded static assets", func(t *testing.T) {
