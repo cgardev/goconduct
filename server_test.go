@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"errors"
@@ -645,6 +646,111 @@ func TestDashboard_LogResponseWriteFailure(t *testing.T) {
 				if !strings.Contains(logs.String(), testCase.want) ||
 					!strings.Contains(logs.String(), errResponseWrite.Error()) {
 					t.Fatalf("the structured log omits the write failure: %q", logs.String())
+				}
+			})
+		})
+	}
+}
+
+func TestGraphResponse_SelectCompression(t *testing.T) {
+	testCases := []struct {
+		name            string
+		acceptEncoding  string
+		wantCompression bool
+	}{
+		{name: "the client accepts gzip", acceptEncoding: "gzip", wantCompression: true},
+		{name: "the client accepts gzip after another coding", acceptEncoding: "br, gzip; q=0.5", wantCompression: true},
+		{name: "the client refuses gzip", acceptEncoding: "gzip; q=0"},
+		{name: "the client requests another coding", acceptEncoding: "br"},
+		{name: "the client sends no coding"},
+	}
+	for _, testCase := range testCases {
+		t.Run("Scenario: "+testCase.name, func(t *testing.T) {
+			var recorder *httptest.ResponseRecorder
+			var request *http.Request
+			var graph Graph
+			var writeError error
+			var decoded Graph
+			var decodeError error
+
+			t.Run("Given one graph and the selected Accept-Encoding value", func(*testing.T) {
+				graph = Graph{SchemaVersion: graphSchemaVersion, Revision: "revision"}
+				recorder = httptest.NewRecorder()
+				request = httptest.NewRequest(http.MethodGet, "/api/graph", nil)
+				request.Header.Set("Accept-Encoding", testCase.acceptEncoding)
+			})
+
+			t.Run("When the server writes the graph response", func(*testing.T) {
+				writeError = writeGraphResponse(recorder, request, graph)
+				if writeError != nil {
+					return
+				}
+				reader := io.Reader(recorder.Body)
+				if testCase.wantCompression {
+					compressedReader, err := gzip.NewReader(recorder.Body)
+					if err != nil {
+						decodeError = err
+						return
+					}
+					defer func() {
+						if err := compressedReader.Close(); err != nil && decodeError == nil {
+							decodeError = err
+						}
+					}()
+					reader = compressedReader
+				}
+				decodeError = json.NewDecoder(reader).Decode(&decoded)
+			})
+
+			if !t.Run("Then the response contains the graph", func(t *testing.T) {
+				if writeError != nil {
+					t.Fatalf("writeGraphResponse fails: %v", writeError)
+				}
+				if decodeError != nil {
+					t.Fatalf("decode graph response: %v", decodeError)
+				}
+				if decoded.Revision != graph.Revision {
+					t.Fatalf("decoded revision is %q, want %q", decoded.Revision, graph.Revision)
+				}
+			}) {
+				return
+			}
+
+			t.Run("And the content encoding matches client support", func(t *testing.T) {
+				compressed := recorder.Header().Get("Content-Encoding") == "gzip"
+				if compressed != testCase.wantCompression {
+					t.Errorf("gzip response is %t, want %t", compressed, testCase.wantCompression)
+				}
+			})
+		})
+	}
+}
+
+func TestGraphCompression_ParseQuality(t *testing.T) {
+	testCases := []struct {
+		name       string
+		parameters string
+		want       float64
+	}{
+		{name: "no parameter is present", want: 1},
+		{name: "an unrelated parameter is present", parameters: "level=0.5", want: 1},
+		{name: "a valid quality is present", parameters: "q=0.25", want: 0.25},
+		{name: "the quality has surrounding space", parameters: " q = 0.5 ", want: 0.5},
+		{name: "the quality is invalid", parameters: "q=invalid", want: 1},
+	}
+	for _, testCase := range testCases {
+		t.Run("Scenario: "+testCase.name, func(t *testing.T) {
+			var quality float64
+
+			t.Run("Given content coding parameters", func(*testing.T) {})
+
+			t.Run("When the server reads the gzip quality", func(*testing.T) {
+				quality = gzipQuality(testCase.parameters)
+			})
+
+			t.Run("Then the server returns the expected quality", func(t *testing.T) {
+				if quality != testCase.want {
+					t.Errorf("gzip quality is %v, want %v", quality, testCase.want)
 				}
 			})
 		})

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"errors"
@@ -8,6 +9,8 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -72,18 +75,96 @@ func (handler *dashboardHandler) serveEmbeddedAsset(
 	}
 }
 
-func (handler *dashboardHandler) serveGraph(response http.ResponseWriter, _ *http.Request) {
-	payload, err := json.Marshal(handler.monitor.currentGraph())
+func (handler *dashboardHandler) serveGraph(response http.ResponseWriter, request *http.Request) {
+	cacheKey, err := handler.monitor.analyzer.graphCacheKey()
 	if err != nil {
-		handler.logger.Error("Cannot encode dependency graph", "error", err)
+		handler.logger.Error("Cannot identify dependency graph cache", "error", err)
 		http.Error(response, "dependency graph unavailable", http.StatusInternalServerError)
 		return
 	}
+	if err := validateGraphCacheRequest(request, cacheKey); err != nil {
+		http.Error(response, err.Error(), http.StatusPreconditionFailed)
+		return
+	}
+	graph := handler.monitor.currentGraph()
+	if request != nil && request.Header.Get(graphCacheKeyHeader) != "" {
+		graph, err = handler.monitor.freshGraph()
+		if err != nil {
+			handler.logger.Error("Cannot refresh dependency graph cache", "error", err)
+			http.Error(response, "dependency graph unavailable", http.StatusServiceUnavailable)
+			return
+		}
+	}
 	response.Header().Set("Cache-Control", "no-store")
 	response.Header().Set("Content-Type", "application/json; charset=utf-8")
-	if _, err := response.Write(payload); err != nil {
+	response.Header().Set(graphCacheKeyHeader, cacheKey)
+	response.Header().Set(graphCacheProtocolHeader, strconv.Itoa(graphCacheProtocolVersion))
+	response.Header().Set(graphCacheRevisionHeader, graph.Revision)
+	response.Header().Set(graphCacheSchemaHeader, strconv.Itoa(graph.SchemaVersion))
+	if err := writeGraphResponse(response, request, graph); err != nil {
 		handler.logger.Debug("Cannot write dependency graph", "error", err)
 	}
+}
+
+func validateGraphCacheRequest(request *http.Request, cacheKey string) error {
+	if request == nil {
+		return nil
+	}
+	requestedKey := request.Header.Get(graphCacheKeyHeader)
+	if requestedKey == "" {
+		return nil
+	}
+	if request.Header.Get(graphCacheProtocolHeader) != strconv.Itoa(graphCacheProtocolVersion) {
+		return fmt.Errorf("%w: cache protocol does not match", errGraphCacheRejected)
+	}
+	if requestedKey != cacheKey {
+		return fmt.Errorf("%w: analysis scope does not match", errGraphCacheRejected)
+	}
+	return nil
+}
+
+func writeGraphResponse(response http.ResponseWriter, request *http.Request, graph Graph) error {
+	if request == nil || !acceptsGzip(request.Header.Get("Accept-Encoding")) {
+		if err := json.NewEncoder(response).Encode(graph); err != nil {
+			return fmt.Errorf("encode dependency graph: %w", err)
+		}
+		return nil
+	}
+	response.Header().Set("Content-Encoding", "gzip")
+	response.Header().Add("Vary", "Accept-Encoding")
+	compressor := gzip.NewWriter(response)
+	if err := json.NewEncoder(compressor).Encode(graph); err != nil {
+		closeError := compressor.Close()
+		return errors.Join(fmt.Errorf("encode dependency graph: %w", err), closeError)
+	}
+	if err := compressor.Close(); err != nil {
+		return fmt.Errorf("close dependency graph compressor: %w", err)
+	}
+	return nil
+}
+
+func acceptsGzip(header string) bool {
+	for value := range strings.SplitSeq(header, ",") {
+		coding, parameters, _ := strings.Cut(value, ";")
+		if strings.TrimSpace(coding) == "gzip" && gzipQuality(parameters) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+func gzipQuality(parameters string) float64 {
+	for parameter := range strings.SplitSeq(parameters, ";") {
+		name, value, found := strings.Cut(parameter, "=")
+		if !found || strings.TrimSpace(name) != "q" {
+			continue
+		}
+		quality, err := strconv.ParseFloat(strings.TrimSpace(value), 64)
+		if err == nil {
+			return quality
+		}
+	}
+	return 1
 }
 
 func (handler *dashboardHandler) serveEvents(response http.ResponseWriter, request *http.Request) {
@@ -213,5 +294,5 @@ func runDashboard(
 }
 
 // mutate4go-manifest-begin
-// {"version":1,"tested_at":"2026-08-21T09:16:52Z","module_hash":"f6d254074550b4a01c22da5db4aac334f7585ccf138e57a392c6031e3ccddedb","functions":[{"id":"func/newDashboardHandler","name":"newDashboardHandler","line":21,"end_line":35,"hash":"08e8dbcea67431289267e1bbaab0a829a943eeb7ab5cef7ceda8d2d9a69ad5aa"},{"id":"func/dashboardHandler.ServeHTTP","name":"dashboardHandler.ServeHTTP","line":37,"end_line":43,"hash":"2374fbb047d6a67e7a693e2a1c1f0953efb90cfc1d6a614362acfa2f2df9862a"},{"id":"func/dashboardHandler.serveDashboard","name":"dashboardHandler.serveDashboard","line":45,"end_line":47,"hash":"83dda4230e250d7b1152e9f1fc035505caffeb3d282bc132b741671f0643546b"},{"id":"func/dashboardHandler.serveStyle","name":"dashboardHandler.serveStyle","line":49,"end_line":51,"hash":"c609a4534a3746af4592c5c6b1de5ff51a31d78967b97511d0bdc0eb58b790c0"},{"id":"func/dashboardHandler.serveScript","name":"dashboardHandler.serveScript","line":53,"end_line":55,"hash":"4fd16509b7d53e5368bd3784de04021c31e59e55d4ff047a98ff76a826a00989"},{"id":"func/dashboardHandler.serveEmbeddedAsset","name":"dashboardHandler.serveEmbeddedAsset","line":57,"end_line":73,"hash":"e80daf0219a2774250ff3bd346fa5c65aa502c5e4d41c68629640649b16f0cfa"},{"id":"func/dashboardHandler.serveGraph","name":"dashboardHandler.serveGraph","line":75,"end_line":87,"hash":"326cf30998d56d21c6b9907cdcca86c9b85b7609ab04041451a50e4e4b34fb93"},{"id":"func/dashboardHandler.serveEvents","name":"dashboardHandler.serveEvents","line":89,"end_line":125,"hash":"dcda3cfd832d47227148aef5df1e33b55334bcd8b1c98de43507c92b20f46577"},{"id":"func/writeServerEvent","name":"writeServerEvent","line":127,"end_line":132,"hash":"3f41198f8da8187b8969223241cdc8c29324d59411785db59dd212d6db0fde62"},{"id":"func/dashboardHandler.serveHealth","name":"dashboardHandler.serveHealth","line":134,"end_line":140,"hash":"d329f635419b99fe62415f10ece1cf3c3bf76e502ea1b27fe87475402a3e6195"},{"id":"func/dashboardContentSecurityPolicy","name":"dashboardContentSecurityPolicy","line":142,"end_line":146,"hash":"ca7c443f057c7b5035f43cb1d42c3ee9ff7e4f7f761596bcbbebad1f5b56c7a6"},{"id":"func/newHTTPServer","name":"newHTTPServer","line":148,"end_line":158,"hash":"561d3af6686eea242162aec5934aafa64ab4f3df0fcb52675e65117f4363a27f"},{"id":"func/dashboardShutdownTimeout","name":"dashboardShutdownTimeout","line":160,"end_line":162,"hash":"c377fd4829227d7213017c071237a2f59bdd8919a5bd5e9d315f97688ec33d6f"},{"id":"func/runDashboard","name":"runDashboard","line":164,"end_line":213,"hash":"39834d01dd9f593d7484c6f4d68e40c39f98d288e3ffb05bb40597a6bd06eef8"}]}
+// {"version":1,"tested_at":"2026-08-21T11:43:40Z","module_hash":"1634fb59580ec3a65423a204fe3c6b43fe701f2746724d4435db907e5b5ec1bc","functions":[{"id":"func/newDashboardHandler","name":"newDashboardHandler","line":24,"end_line":38,"hash":"08e8dbcea67431289267e1bbaab0a829a943eeb7ab5cef7ceda8d2d9a69ad5aa"},{"id":"func/dashboardHandler.ServeHTTP","name":"dashboardHandler.ServeHTTP","line":40,"end_line":46,"hash":"2374fbb047d6a67e7a693e2a1c1f0953efb90cfc1d6a614362acfa2f2df9862a"},{"id":"func/dashboardHandler.serveDashboard","name":"dashboardHandler.serveDashboard","line":48,"end_line":50,"hash":"83dda4230e250d7b1152e9f1fc035505caffeb3d282bc132b741671f0643546b"},{"id":"func/dashboardHandler.serveStyle","name":"dashboardHandler.serveStyle","line":52,"end_line":54,"hash":"c609a4534a3746af4592c5c6b1de5ff51a31d78967b97511d0bdc0eb58b790c0"},{"id":"func/dashboardHandler.serveScript","name":"dashboardHandler.serveScript","line":56,"end_line":58,"hash":"4fd16509b7d53e5368bd3784de04021c31e59e55d4ff047a98ff76a826a00989"},{"id":"func/dashboardHandler.serveEmbeddedAsset","name":"dashboardHandler.serveEmbeddedAsset","line":60,"end_line":76,"hash":"e80daf0219a2774250ff3bd346fa5c65aa502c5e4d41c68629640649b16f0cfa"},{"id":"func/dashboardHandler.serveGraph","name":"dashboardHandler.serveGraph","line":78,"end_line":107,"hash":"3b7199f51f35be3f2b4d01a9b6a3d322402a029a828537e7f3076102357e256a"},{"id":"func/validateGraphCacheRequest","name":"validateGraphCacheRequest","line":109,"end_line":124,"hash":"3b2ee5c79fe5c50ca67a15731afdd939f75e7f5e15e1df5b349a006f72c55053"},{"id":"func/writeGraphResponse","name":"writeGraphResponse","line":126,"end_line":144,"hash":"1c70911489427a36cfb6240b00126b8171b97970acba756ef44bc2dc824243a4"},{"id":"func/acceptsGzip","name":"acceptsGzip","line":146,"end_line":154,"hash":"52a2204173ba0ecd2214eda1419ea35433f8b6162a72696398e167cc2d6374bf"},{"id":"func/gzipQuality","name":"gzipQuality","line":156,"end_line":168,"hash":"2fb50fc55492f665d63aff76f9eb767ebb73404b1cfe15c321e1a6728d5cf83e"},{"id":"func/dashboardHandler.serveEvents","name":"dashboardHandler.serveEvents","line":170,"end_line":206,"hash":"dcda3cfd832d47227148aef5df1e33b55334bcd8b1c98de43507c92b20f46577"},{"id":"func/writeServerEvent","name":"writeServerEvent","line":208,"end_line":213,"hash":"3f41198f8da8187b8969223241cdc8c29324d59411785db59dd212d6db0fde62"},{"id":"func/dashboardHandler.serveHealth","name":"dashboardHandler.serveHealth","line":215,"end_line":221,"hash":"d329f635419b99fe62415f10ece1cf3c3bf76e502ea1b27fe87475402a3e6195"},{"id":"func/dashboardContentSecurityPolicy","name":"dashboardContentSecurityPolicy","line":223,"end_line":227,"hash":"ca7c443f057c7b5035f43cb1d42c3ee9ff7e4f7f761596bcbbebad1f5b56c7a6"},{"id":"func/newHTTPServer","name":"newHTTPServer","line":229,"end_line":239,"hash":"561d3af6686eea242162aec5934aafa64ab4f3df0fcb52675e65117f4363a27f"},{"id":"func/dashboardShutdownTimeout","name":"dashboardShutdownTimeout","line":241,"end_line":243,"hash":"c377fd4829227d7213017c071237a2f59bdd8919a5bd5e9d315f97688ec33d6f"},{"id":"func/runDashboard","name":"runDashboard","line":245,"end_line":294,"hash":"39834d01dd9f593d7484c6f4d68e40c39f98d288e3ffb05bb40597a6bd06eef8"}]}
 // mutate4go-manifest-end

@@ -29,13 +29,21 @@ func TestRootCommand_DefineSafeDefaults(t *testing.T) {
 		t.Run("When the test inspects the root command configuration", func(t *testing.T) {
 			silenceErrors = rootCommand.SilenceErrors
 			silenceUsage = rootCommand.SilenceUsage
-			for _, name := range []string{"address", "refresh-interval"} {
+			for _, name := range []string{"refresh-interval"} {
 				flag := rootCommand.Flags().Lookup(name)
 				if flag != nil {
 					commandDefaults[name] = flag.DefValue
 				}
 			}
-			for _, name := range []string{"configuration", "root", "analysis-path", "ignore-path"} {
+			for _, name := range []string{
+				"address",
+				"analysis-path",
+				"cache",
+				"cache-timeout",
+				"configuration",
+				"ignore-path",
+				"root",
+			} {
 				flag := rootCommand.PersistentFlags().Lookup(name)
 				if flag != nil {
 					commandDefaults[name] = flag.DefValue
@@ -54,6 +62,8 @@ func TestRootCommand_DefineSafeDefaults(t *testing.T) {
 		t.Run("And each command option has the expected default", func(t *testing.T) {
 			want := map[string]string{
 				"address":          "127.0.0.1:6062",
+				"cache":            "auto",
+				"cache-timeout":    "2s",
 				"configuration":    "configuration.json",
 				"root":             ".",
 				"refresh-interval": "750ms",

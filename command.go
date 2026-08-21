@@ -44,12 +44,14 @@ type commandConfigurationOptions struct {
 	repositoryRoot    string
 	analysisPaths     []string
 	ignoredPaths      []string
+	serverAddress     string
+	cacheMode         string
+	cacheTimeout      time.Duration
 }
 
 func newRootCommand(logger *slog.Logger) *cobra.Command {
 	defaults := DefaultApplicationConfiguration()
 	options := &commandConfigurationOptions{}
-	var addressOverride string
 	var refreshIntervalOverride time.Duration
 	command := &cobra.Command{
 		Use:           "dependencygraph",
@@ -61,9 +63,6 @@ func newRootCommand(logger *slog.Logger) *cobra.Command {
 			configuration, err := options.loadConfiguration(command)
 			if err != nil {
 				return err
-			}
-			if command.Flags().Changed("address") {
-				configuration.Server.Address = addressOverride
 			}
 			if command.Flags().Changed("refresh-interval") {
 				configuration.Server.RefreshInterval = refreshIntervalOverride
@@ -89,11 +88,11 @@ func newRootCommand(logger *slog.Logger) *cobra.Command {
 			return runDashboard(command.Context(), monitor, configuration.Server.Address, logger)
 		},
 	}
-	command.Flags().StringVar(
-		&addressOverride,
+	command.PersistentFlags().StringVar(
+		&options.serverAddress,
 		"address",
 		defaults.Server.Address,
-		"Use this local dashboard address instead of the configured address.",
+		"Use this dashboard and graph cache address instead of the configured address.",
 	)
 	command.Flags().DurationVar(
 		&refreshIntervalOverride,
@@ -125,6 +124,18 @@ func newRootCommand(logger *slog.Logger) *cobra.Command {
 		nil,
 		"Ignore this path pattern. Repeat this option to replace all configured patterns.",
 	)
+	command.PersistentFlags().StringVar(
+		&options.cacheMode,
+		"cache",
+		string(defaults.Cache.Mode),
+		"Select the graph source for CLI queries. Use auto, server, or local.",
+	)
+	command.PersistentFlags().DurationVar(
+		&options.cacheTimeout,
+		"cache-timeout",
+		defaults.Cache.RequestTimeout,
+		"Set the maximum time for one active graph cache request.",
+	)
 	command.AddCommand(
 		newAnalyzeCommand(options),
 		newSummaryCommand(options),
@@ -155,6 +166,18 @@ func (options *commandConfigurationOptions) loadConfiguration(
 	}
 	if flags.Changed("ignore-path") {
 		configuration.Analysis.IgnoredPaths = options.ignoredPaths
+	}
+	if flags.Changed("address") {
+		configuration.Server.Address = options.serverAddress
+	}
+	if flags.Changed("cache") {
+		configuration.Cache.Mode = CacheMode(options.cacheMode)
+	}
+	if flags.Changed("cache-timeout") {
+		configuration.Cache.RequestTimeout = options.cacheTimeout
+	}
+	if err := validateCacheConfiguration(configuration.Cache); err != nil {
+		return ApplicationConfiguration{}, err
 	}
 	return configuration, nil
 }
@@ -217,6 +240,20 @@ func analyzeConfiguredGraph(
 	sourceAnalyzer, err := newAnalyzer(configuration.Analysis)
 	if err != nil {
 		return Graph{}, err
+	}
+	if configuration.Cache.Mode != CacheModeLocal {
+		graph, cacheError := loadGraphFromCache(
+			command.Context(),
+			sourceAnalyzer,
+			configuration.Server.Address,
+			configuration.Cache.RequestTimeout,
+		)
+		if cacheError == nil {
+			return graph, nil
+		}
+		if configuration.Cache.Mode == CacheModeServer {
+			return Graph{}, fmt.Errorf("load active graph cache: %w", cacheError)
+		}
 	}
 	return sourceAnalyzer.analyze()
 }
@@ -472,5 +509,5 @@ func enforceFindingThreshold(findings []Finding, threshold findingThreshold) err
 }
 
 // mutate4go-manifest-begin
-// {"version":1,"tested_at":"2026-08-21T10:49:44Z","module_hash":"bcef89c2abc4e53d267557f87b5b2545d718a155c35f688d92180ced8fb2b93f","functions":[{"id":"func/newRootCommand","name":"newRootCommand","line":49,"end_line":140,"hash":"0a3374868b6909ffe9f074a2f3678e10ba5750b71f49c96c0d511795c0167d49"},{"id":"func/commandConfigurationOptions.loadConfiguration","name":"commandConfigurationOptions.loadConfiguration","line":142,"end_line":160,"hash":"2796494987e6be9704583e4b8dc75885e61ce1fe6a56a27cc1068f0d9e26aa35"},{"id":"func/newAnalyzeCommand","name":"newAnalyzeCommand","line":162,"end_line":207,"hash":"ada712f5112c44f13ad437d3c43125220a51b0eb22802eda4079d9e6c912c19e"},{"id":"func/analyzeConfiguredGraph","name":"analyzeConfiguredGraph","line":209,"end_line":222,"hash":"ea7470ad64d5159e6ed063b3c0882df664d699fe00b3285aba442c65bd7c8362"},{"id":"func/newSummaryCommand","name":"newSummaryCommand","line":224,"end_line":237,"hash":"8a9c99f75eed6bf835e4ac30ed2366bd16272c9a9978c37f26813acb7b3f7403"},{"id":"func/newFindingsCommand","name":"newFindingsCommand","line":239,"end_line":287,"hash":"4f8f5270e4f7421ae34872927bc87620c57d2ddb12357b361ecaa9d8708a9a0b"},{"id":"func/newComponentsCommand","name":"newComponentsCommand","line":289,"end_line":343,"hash":"a17ef37cdc3d4a251b79621354c69052fc7d046b2b4d030a51e668c301d24f87"},{"id":"func/newComponentCommand","name":"newComponentCommand","line":345,"end_line":364,"hash":"96ea9420a45aedf7e9ade3b9d01dfa2ac19fefbad7e44f3421f02283a446d20a"},{"id":"func/validateQueryLimit","name":"validateQueryLimit","line":366,"end_line":371,"hash":"128deffab20785dcb9652565027ab85ad6baefb5ede20ba2baf393b2f8f0249c"},{"id":"func/writeQueryJSON","name":"writeQueryJSON","line":373,"end_line":381,"hash":"d47a0e9de8b39efbf32698714a9acc638d95981d4e13326fc140dce0f6e2b353"},{"id":"func/newConfigurationSchemaCommand","name":"newConfigurationSchemaCommand","line":383,"end_line":402,"hash":"28980aafb3906312da958b0d1f01ab0a0d1df7e5cc8aa7693d19cfa4782ca1c3"},{"id":"func/parseAnalysisView","name":"parseAnalysisView","line":404,"end_line":412,"hash":"2e911c0bcec32108ac0be9988ef64e2daf7e3aebff83847c1116747c0ef4b6f8"},{"id":"func/parseFindingThreshold","name":"parseFindingThreshold","line":414,"end_line":422,"hash":"92e8a1de6869b3365cfabdd1bde963ec1db5877f7f070beceb78fabd2719786d"},{"id":"func/writeAnalysisJSON","name":"writeAnalysisJSON","line":424,"end_line":451,"hash":"da7545861aca744e566b083bd56a90ea969f2de68e57204b8ff83526eede8ebc"},{"id":"func/enforceFindingThreshold","name":"enforceFindingThreshold","line":453,"end_line":472,"hash":"86064b18642dc0d8ce3f55626dc0ab18660bd5d2e93a462a96cacb165e5c4c51"}]}
+// {"version":1,"tested_at":"2026-08-21T11:40:02Z","module_hash":"345cb91a607fb168696ec1cbb8bd124c330badbe4c8707b1ba7b427ba5395abd","functions":[{"id":"func/newRootCommand","name":"newRootCommand","line":52,"end_line":151,"hash":"b38dbef84ec758321b7cda17aa3d5629eec7ac4fd371d6f076287a79660978e3"},{"id":"func/commandConfigurationOptions.loadConfiguration","name":"commandConfigurationOptions.loadConfiguration","line":153,"end_line":183,"hash":"8b89961e60397e18b983531b1f07994ff31eb87368d04d1a27274ea67c9b407e"},{"id":"func/newAnalyzeCommand","name":"newAnalyzeCommand","line":185,"end_line":230,"hash":"ada712f5112c44f13ad437d3c43125220a51b0eb22802eda4079d9e6c912c19e"},{"id":"func/analyzeConfiguredGraph","name":"analyzeConfiguredGraph","line":232,"end_line":259,"hash":"e7929556774e073f3680229515f11178142dd0c8bd1812b3755bc6c52d9a73b9"},{"id":"func/newSummaryCommand","name":"newSummaryCommand","line":261,"end_line":274,"hash":"8a9c99f75eed6bf835e4ac30ed2366bd16272c9a9978c37f26813acb7b3f7403"},{"id":"func/newFindingsCommand","name":"newFindingsCommand","line":276,"end_line":324,"hash":"4f8f5270e4f7421ae34872927bc87620c57d2ddb12357b361ecaa9d8708a9a0b"},{"id":"func/newComponentsCommand","name":"newComponentsCommand","line":326,"end_line":380,"hash":"a17ef37cdc3d4a251b79621354c69052fc7d046b2b4d030a51e668c301d24f87"},{"id":"func/newComponentCommand","name":"newComponentCommand","line":382,"end_line":401,"hash":"96ea9420a45aedf7e9ade3b9d01dfa2ac19fefbad7e44f3421f02283a446d20a"},{"id":"func/validateQueryLimit","name":"validateQueryLimit","line":403,"end_line":408,"hash":"128deffab20785dcb9652565027ab85ad6baefb5ede20ba2baf393b2f8f0249c"},{"id":"func/writeQueryJSON","name":"writeQueryJSON","line":410,"end_line":418,"hash":"d47a0e9de8b39efbf32698714a9acc638d95981d4e13326fc140dce0f6e2b353"},{"id":"func/newConfigurationSchemaCommand","name":"newConfigurationSchemaCommand","line":420,"end_line":439,"hash":"28980aafb3906312da958b0d1f01ab0a0d1df7e5cc8aa7693d19cfa4782ca1c3"},{"id":"func/parseAnalysisView","name":"parseAnalysisView","line":441,"end_line":449,"hash":"2e911c0bcec32108ac0be9988ef64e2daf7e3aebff83847c1116747c0ef4b6f8"},{"id":"func/parseFindingThreshold","name":"parseFindingThreshold","line":451,"end_line":459,"hash":"92e8a1de6869b3365cfabdd1bde963ec1db5877f7f070beceb78fabd2719786d"},{"id":"func/writeAnalysisJSON","name":"writeAnalysisJSON","line":461,"end_line":488,"hash":"da7545861aca744e566b083bd56a90ea969f2de68e57204b8ff83526eede8ebc"},{"id":"func/enforceFindingThreshold","name":"enforceFindingThreshold","line":490,"end_line":509,"hash":"86064b18642dc0d8ce3f55626dc0ab18660bd5d2e93a462a96cacb165e5c4c51"}]}
 // mutate4go-manifest-end

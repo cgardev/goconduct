@@ -1,12 +1,52 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"log/slog"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
+
+func TestMonitor_ReportRefreshFailure(t *testing.T) {
+	t.Run("Scenario: The repository module file disappears before a refresh", func(t *testing.T) {
+		var repositoryRoot string
+		var logs bytes.Buffer
+		var monitor *graphMonitor
+
+		if !t.Run("Given a monitor whose module file is no longer available", func(step *testing.T) {
+			repositoryRoot = newAnalyzerFixture(t)
+			sourceAnalyzer, err := newAnalyzer(fixtureAnalysisConfiguration(repositoryRoot))
+			if err != nil {
+				step.Fatalf("newAnalyzer fails: %v", err)
+			}
+			logger := slog.New(slog.NewTextHandler(&logs, nil))
+			monitor, err = newGraphMonitor(sourceAnalyzer, time.Second, logger)
+			if err != nil {
+				step.Fatalf("newGraphMonitor fails: %v", err)
+			}
+			if err := os.Remove(filepath.Join(repositoryRoot, "go.mod")); err != nil {
+				step.Fatalf("remove module fixture: %v", err)
+			}
+		}) {
+			return
+		}
+
+		t.Run("When the monitor refreshes the graph", func(*testing.T) {
+			monitor.refresh()
+		})
+
+		t.Run("Then the structured log reports the refresh failure", func(t *testing.T) {
+			if !strings.Contains(logs.String(), "Cannot refresh dependency graph") {
+				t.Fatalf("refresh log does not contain the failure: %q", logs.String())
+			}
+		})
+	})
+}
 
 func TestMonitor_PublishChangedRevision(t *testing.T) {
 	t.Run("Scenario: A source change adds a production import while the monitor runs", func(t *testing.T) {

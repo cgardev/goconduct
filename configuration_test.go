@@ -49,6 +49,13 @@ func TestApplicationConfiguration_LoadDefaults(t *testing.T) {
 				t.Errorf("unexpected analysis defaults: %+v", configuration.Analysis)
 			}
 		})
+
+		t.Run("And CLI queries use the active cache with a bounded request", func(t *testing.T) {
+			if configuration.Cache.Mode != CacheModeAuto ||
+				configuration.Cache.RequestTimeout != defaultCacheTimeout {
+				t.Errorf("unexpected cache defaults: %+v", configuration.Cache)
+			}
+		})
 	})
 }
 
@@ -68,6 +75,10 @@ func TestApplicationConfiguration_ApplyDocument(t *testing.T) {
   "server": {
     "address": "127.0.0.1:7000",
     "refreshInterval": "2s"
+  },
+  "cache": {
+    "mode": "server",
+    "requestTimeout": "3s"
   },
   "analysis": {
     "repositoryRoot": "${DEPENDENCY_GRAPH_ROOT}",
@@ -115,6 +126,13 @@ func TestApplicationConfiguration_ApplyDocument(t *testing.T) {
 				) ||
 				len(configuration.Analysis.Components.SharedModules) != 0 {
 				t.Errorf("the loader does not apply document arrays exactly: %+v", configuration.Analysis)
+			}
+		})
+
+		t.Run("And the document selects the required server cache", func(t *testing.T) {
+			if configuration.Cache.Mode != CacheModeServer ||
+				configuration.Cache.RequestTimeout != 3*time.Second {
+				t.Errorf("unexpected bound cache configuration: %+v", configuration.Cache)
 			}
 		})
 	})
@@ -193,11 +211,81 @@ func TestConfigurationSchema_DescribeExternalContract(t *testing.T) {
 			return
 		}
 
-		t.Run("And the schema exposes server and analysis properties", func(t *testing.T) {
+		t.Run("And the schema exposes cache, server, and analysis properties", func(t *testing.T) {
 			properties, ok := schema["properties"].(map[string]any)
-			if !ok || properties["server"] == nil || properties["analysis"] == nil {
+			if !ok || properties["cache"] == nil ||
+				properties["server"] == nil || properties["analysis"] == nil {
 				t.Errorf("configuration schema has unexpected properties: %v", schema)
 			}
 		})
 	})
+}
+
+func TestCacheConfiguration_ValidateModeAndTimeout(t *testing.T) {
+	testCases := []struct {
+		name          string
+		configuration CacheConfiguration
+		wantError     bool
+	}{
+		{
+			name: "the automatic cache has a positive timeout",
+			configuration: CacheConfiguration{
+				Mode:           CacheModeAuto,
+				RequestTimeout: time.Second,
+			},
+		},
+		{
+			name: "the server cache has a positive timeout",
+			configuration: CacheConfiguration{
+				Mode:           CacheModeServer,
+				RequestTimeout: time.Second,
+			},
+		},
+		{
+			name: "the local source has a positive timeout",
+			configuration: CacheConfiguration{
+				Mode:           CacheModeLocal,
+				RequestTimeout: time.Second,
+			},
+		},
+		{
+			name: "the minimum positive timeout is accepted",
+			configuration: CacheConfiguration{
+				Mode:           CacheModeAuto,
+				RequestTimeout: time.Nanosecond,
+			},
+		},
+		{
+			name: "the cache mode is not in the closed set",
+			configuration: CacheConfiguration{
+				Mode:           "unknown",
+				RequestTimeout: time.Second,
+			},
+			wantError: true,
+		},
+		{
+			name: "the request timeout is zero",
+			configuration: CacheConfiguration{
+				Mode: CacheModeAuto,
+			},
+			wantError: true,
+		},
+	}
+	for _, testCase := range testCases {
+		t.Run("Scenario: "+testCase.name, func(t *testing.T) {
+			var validationError error
+
+			t.Run("Given a graph cache configuration", func(*testing.T) {})
+
+			t.Run("When startup validates the configuration", func(*testing.T) {
+				validationError = validateCacheConfiguration(testCase.configuration)
+			})
+
+			t.Run("Then validation returns the expected result", func(t *testing.T) {
+				if (validationError != nil) != testCase.wantError {
+					t.Errorf("validation error is %v, want error %t", validationError, testCase.wantError)
+				}
+			})
+		})
+	}
 }

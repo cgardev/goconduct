@@ -10,6 +10,19 @@ import (
 const (
 	defaultConfigurationPath = "configuration.json"
 	defaultAddress           = "127.0.0.1:6062"
+	defaultCacheTimeout      = 2 * time.Second
+)
+
+// CacheMode selects the source of a graph for CLI queries.
+type CacheMode string
+
+const (
+	// CacheModeAuto uses a compatible server cache and calculates the graph when no cache is available.
+	CacheModeAuto CacheMode = "auto"
+	// CacheModeServer requires a compatible server cache.
+	CacheModeServer CacheMode = "server"
+	// CacheModeLocal always calculates the graph in the CLI process.
+	CacheModeLocal CacheMode = "local"
 )
 
 func defaultRefreshInterval() time.Duration {
@@ -24,12 +37,19 @@ func minimumRefreshInterval() time.Duration {
 type ApplicationConfiguration struct {
 	Server   ServerConfiguration   `json:"server,omitzero"`
 	Analysis AnalysisConfiguration `json:"analysis,omitzero"`
+	Cache    CacheConfiguration    `json:"cache,omitzero"`
 }
 
 // ServerConfiguration defines the dashboard server.
 type ServerConfiguration struct {
 	Address         string        `json:"address,omitzero"`
 	RefreshInterval time.Duration `json:"refreshInterval,omitzero"`
+}
+
+// CacheConfiguration defines how CLI queries load a graph.
+type CacheConfiguration struct {
+	Mode           CacheMode     `json:"mode,omitzero"`
+	RequestTimeout time.Duration `json:"requestTimeout,omitzero"`
 }
 
 // AnalysisConfiguration defines which files the tool analyzes and how it classifies components.
@@ -62,6 +82,10 @@ func DefaultApplicationConfiguration() ApplicationConfiguration {
 			Paths:          []string{"."},
 			IgnoredPaths:   defaultIgnoredPaths(),
 			Components:     defaultComponentRulesConfiguration(),
+		},
+		Cache: CacheConfiguration{
+			Mode:           CacheModeAuto,
+			RequestTimeout: defaultCacheTimeout,
 		},
 	}
 }
@@ -100,10 +124,38 @@ func loadApplicationConfiguration(configurationPath string) (ApplicationConfigur
 	return configuration, nil
 }
 
+func validateCacheConfiguration(configuration CacheConfiguration) error {
+	switch configuration.Mode {
+	case CacheModeAuto, CacheModeServer, CacheModeLocal:
+	default:
+		return fmt.Errorf("cache mode %q must be auto, server, or local", configuration.Mode)
+	}
+	if configuration.RequestTimeout <= 0 {
+		return fmt.Errorf("cache request timeout must be greater than zero")
+	}
+	return nil
+}
+
 func applicationSchemaDefinition() conf.SchemaDefinition {
 	return conf.SchemaDefinition{
 		Description: "External configuration for deterministic Go dependency analysis.",
 		Fields: map[string]conf.FieldDefinition{
+			"cache": {
+				Description: "Parameters for CLI access to the active graph cache.",
+			},
+			"cache.mode": {
+				Description: "Graph source for CLI queries. Auto uses the server and falls back to local analysis.",
+				Default:     string(CacheModeAuto),
+				Enum: []any{
+					string(CacheModeAuto),
+					string(CacheModeServer),
+					string(CacheModeLocal),
+				},
+			},
+			"cache.requestTimeout": {
+				Description: "Maximum time for one request to the active graph cache, in Go duration notation.",
+				Default:     defaultCacheTimeout,
+			},
 			"server": {
 				Description: "Parameters for the dashboard server.",
 			},
@@ -174,5 +226,5 @@ func applicationSchemaDefinition() conf.SchemaDefinition {
 }
 
 // mutate4go-manifest-begin
-// {"version":1,"tested_at":"2026-08-21T09:15:54Z","module_hash":"eacc533154bb4ac13231b7b69dd1e31666802895935d26a52e7c06f6ab9562d9","functions":[{"id":"func/defaultRefreshInterval","name":"defaultRefreshInterval","line":15,"end_line":17,"hash":"64a1f07d35ff197bf67644d4889d3f31cffa2bf3c507009de7f97c2d522b31d3"},{"id":"func/minimumRefreshInterval","name":"minimumRefreshInterval","line":19,"end_line":21,"hash":"4f2930e0810d642ebd7a786753630b3715ac62d0ddcd29ec034323084de9eebc"},{"id":"func/DefaultApplicationConfiguration","name":"DefaultApplicationConfiguration","line":54,"end_line":67,"hash":"8959b0b14ca668f368b4e3dbd9b38de6edca2700f5e9b6f19d68ba8f88a4e1fe"},{"id":"func/defaultIgnoredPaths","name":"defaultIgnoredPaths","line":69,"end_line":71,"hash":"eb1ccd39c301970fc4e6f866b369fe060c767075b0ff2b595423519b907ff623"},{"id":"func/defaultComponentRulesConfiguration","name":"defaultComponentRulesConfiguration","line":73,"end_line":82,"hash":"b7fd6194dcdff30bddf674ccf3c96c87a2a7d4c1759b8ab4d3171ab949021627"},{"id":"func/ComponentRulesConfiguration.domainRules","name":"ComponentRulesConfiguration.domainRules","line":84,"end_line":93,"hash":"dd7ed848eb5d763670ffcb4221253d3c5aa28e06d6804ba769ef4846fcb3fb4a"},{"id":"func/loadApplicationConfiguration","name":"loadApplicationConfiguration","line":95,"end_line":101,"hash":"1db003044865f83678db2220b8f87b9f55fa552aed7693838ec80caf6ad2dd2e"},{"id":"func/applicationSchemaDefinition","name":"applicationSchemaDefinition","line":103,"end_line":174,"hash":"26b16a07a33907a8b85d48087a464ce17013b15c3c8b2fb4e48be06b93c7d68a"}]}
+// {"version":1,"tested_at":"2026-08-21T11:39:53Z","module_hash":"3373a4793929bd2b98c5bea6a01a7e4ba8825a38422f088168bfa966776bed81","functions":[{"id":"func/defaultRefreshInterval","name":"defaultRefreshInterval","line":28,"end_line":30,"hash":"64a1f07d35ff197bf67644d4889d3f31cffa2bf3c507009de7f97c2d522b31d3"},{"id":"func/minimumRefreshInterval","name":"minimumRefreshInterval","line":32,"end_line":34,"hash":"4f2930e0810d642ebd7a786753630b3715ac62d0ddcd29ec034323084de9eebc"},{"id":"func/DefaultApplicationConfiguration","name":"DefaultApplicationConfiguration","line":74,"end_line":91,"hash":"6ddb537e3c885e9a636a56dd09cf5209b49c329a88e239f1968604add127c1d8"},{"id":"func/defaultIgnoredPaths","name":"defaultIgnoredPaths","line":93,"end_line":95,"hash":"eb1ccd39c301970fc4e6f866b369fe060c767075b0ff2b595423519b907ff623"},{"id":"func/defaultComponentRulesConfiguration","name":"defaultComponentRulesConfiguration","line":97,"end_line":106,"hash":"b7fd6194dcdff30bddf674ccf3c96c87a2a7d4c1759b8ab4d3171ab949021627"},{"id":"func/ComponentRulesConfiguration.domainRules","name":"ComponentRulesConfiguration.domainRules","line":108,"end_line":117,"hash":"dd7ed848eb5d763670ffcb4221253d3c5aa28e06d6804ba769ef4846fcb3fb4a"},{"id":"func/loadApplicationConfiguration","name":"loadApplicationConfiguration","line":119,"end_line":125,"hash":"1db003044865f83678db2220b8f87b9f55fa552aed7693838ec80caf6ad2dd2e"},{"id":"func/validateCacheConfiguration","name":"validateCacheConfiguration","line":127,"end_line":137,"hash":"95309ef66bdfbf7172538821e01b40d1d1494d3769e1913b803611367babee1a"},{"id":"func/applicationSchemaDefinition","name":"applicationSchemaDefinition","line":139,"end_line":226,"hash":"dbc5a92c2dac9274e38436b8abfadf143a720b11871cf19ef78494df7df1e7ea"}]}
 // mutate4go-manifest-end
