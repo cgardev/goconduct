@@ -19,8 +19,6 @@ import (
 	"strings"
 )
 
-var errModuleDeclarationNotFound = errors.New("module declaration not found")
-
 type analyzer struct {
 	repositoryRoot string
 	analysisPaths  []string
@@ -37,18 +35,24 @@ type ignoredPathMatcher struct {
 
 func newAnalyzer(configuration AnalysisConfiguration) (*analyzer, error) {
 	if strings.TrimSpace(configuration.RepositoryRoot) == "" {
-		return nil, fmt.Errorf("repository root must not be empty")
+		return nil, newValidationError("repository root must not be empty", nil)
 	}
 	absoluteRoot, err := filepath.Abs(configuration.RepositoryRoot)
 	if err != nil {
-		return nil, fmt.Errorf("resolve repository root %s: %w", configuration.RepositoryRoot, err)
+		return nil, newValidationError(
+			fmt.Sprintf("resolve repository root %s", configuration.RepositoryRoot),
+			err,
+		)
 	}
-	information, err := os.Stat(filepath.Join(absoluteRoot, "go.mod"))
+	moduleFileInfo, err := os.Stat(filepath.Join(absoluteRoot, "go.mod"))
 	if err != nil {
-		return nil, fmt.Errorf("inspect repository module file: %w", err)
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, newValidationError("inspect repository module file", err)
+		}
+		return nil, newUnavailableError("inspect repository module file", err)
 	}
-	if information.IsDir() {
-		return nil, fmt.Errorf("inspect repository module file: %w", errModuleDeclarationNotFound)
+	if moduleFileInfo.IsDir() {
+		return nil, newValidationError("repository module file must be a file", nil)
 	}
 	analysisPaths, err := normalizeAnalysisPaths(configuration.Paths)
 	if err != nil {
@@ -127,7 +131,7 @@ func (analyzer *analyzer) analyze(ctx context.Context) (Graph, error) {
 	graph.Scope = analyzer.scope
 	payload, err := json.Marshal(graph)
 	if err != nil {
-		return Graph{}, fmt.Errorf("encode graph revision input: %w", err)
+		return Graph{}, newInternalError("encode graph revision input", err)
 	}
 	digest := sha256.Sum256(payload)
 	graph.Revision = hex.EncodeToString(digest[:])
@@ -151,7 +155,7 @@ func (analyzer *analyzer) snapshot(ctx context.Context) (string, error) {
 	if _, err := os.Stat(moduleSumPath); err == nil {
 		paths = append(paths, moduleSumPath)
 	} else if !errors.Is(err, os.ErrNotExist) {
-		return "", fmt.Errorf("inspect repository module sum: %w", err)
+		return "", newUnavailableError("inspect repository module sum", err)
 	}
 
 	var buffer []byte
@@ -159,19 +163,25 @@ func (analyzer *analyzer) snapshot(ctx context.Context) (string, error) {
 		if err := ctx.Err(); err != nil {
 			return "", err
 		}
-		information, err := os.Stat(path)
+		fileInfo, err := os.Stat(path)
 		if err != nil {
-			return "", fmt.Errorf("inspect repository source file %s: %w", path, err)
+			return "", newUnavailableError(
+				fmt.Sprintf("inspect repository source file %s", path),
+				err,
+			)
 		}
 		relativePath, err := filepath.Rel(analyzer.repositoryRoot, path)
 		if err != nil {
-			return "", fmt.Errorf("resolve repository source file %s: %w", path, err)
+			return "", newInternalError(
+				fmt.Sprintf("resolve repository source file %s", path),
+				err,
+			)
 		}
 		buffer = append(buffer, filepath.ToSlash(relativePath)...)
 		buffer = append(buffer, "\x00"...)
-		buffer = strconv.AppendInt(buffer, information.Size(), 10)
+		buffer = strconv.AppendInt(buffer, fileInfo.Size(), 10)
 		buffer = append(buffer, "\x00"...)
-		buffer = strconv.AppendInt(buffer, information.ModTime().UnixNano(), 10)
+		buffer = strconv.AppendInt(buffer, fileInfo.ModTime().UnixNano(), 10)
 		buffer = append(buffer, '\n')
 	}
 	digest := sha256.Sum256(buffer)
@@ -182,7 +192,7 @@ func readModulePath(repositoryRoot string) (string, error) {
 	path := filepath.Join(repositoryRoot, "go.mod")
 	payload, err := os.ReadFile(path)
 	if err != nil {
-		return "", fmt.Errorf("read module file: %w", err)
+		return "", newUnavailableError("read module file", err)
 	}
 	for rawLine := range strings.SplitSeq(string(payload), "\n") {
 		line, _, _ := strings.Cut(rawLine, "//")
@@ -197,12 +207,15 @@ func readModulePath(repositoryRoot string) (string, error) {
 		}
 		return fields[1], nil
 	}
-	return "", fmt.Errorf("read module file: %w", errModuleDeclarationNotFound)
+	return "", newDataIntegrityError("module declaration not found in go.mod", nil)
 }
 
 func normalizeAnalysisPaths(configuredPaths []string) ([]string, error) {
 	if len(configuredPaths) == 0 {
-		return nil, fmt.Errorf("analysis paths must contain at least one repository-relative path")
+		return nil, newValidationError(
+			"analysis paths must contain at least one repository-relative path",
+			nil,
+		)
 	}
 	paths := make(stringSet)
 	for _, configuredPath := range configuredPaths {
@@ -217,17 +230,17 @@ func normalizeAnalysisPaths(configuredPaths []string) ([]string, error) {
 
 func normalizeRepositoryPath(configuredPath string) (string, error) {
 	if configuredPath == "" {
-		return "", fmt.Errorf("path must be a non-empty relative path")
+		return "", newValidationError("path must be a non-empty relative path", nil)
 	}
 	if configuredPath != strings.TrimSpace(configuredPath) {
-		return "", fmt.Errorf("path must be a non-empty relative path")
+		return "", newValidationError("path must be a non-empty relative path", nil)
 	}
 	if filepath.IsAbs(configuredPath) {
-		return "", fmt.Errorf("path must be a non-empty relative path")
+		return "", newValidationError("path must be a non-empty relative path", nil)
 	}
 	cleaned := filepath.Clean(configuredPath)
 	if cleaned == ".." || strings.HasPrefix(cleaned, ".."+string(filepath.Separator)) {
-		return "", fmt.Errorf("path must remain inside the repository root")
+		return "", newValidationError("path must remain inside the repository root", nil)
 	}
 	return filepath.ToSlash(cleaned), nil
 }
@@ -236,23 +249,28 @@ func newIgnoredPathMatcher(configuredPatterns []string) (ignoredPathMatcher, err
 	patterns := make(stringSet)
 	for _, configuredPattern := range configuredPatterns {
 		if configuredPattern != strings.TrimSpace(configuredPattern) || strings.Contains(configuredPattern, "\\") {
-			return ignoredPathMatcher{}, fmt.Errorf(
-				"ignored path pattern %q must be a non-empty relative slash path",
-				configuredPattern,
+			return ignoredPathMatcher{}, newValidationError(
+				fmt.Sprintf(
+					"ignored path pattern %q must be a non-empty relative slash path",
+					configuredPattern,
+				),
+				nil,
 			)
 		}
 		for segment := range strings.SplitSeq(configuredPattern, "/") {
 			if segment == "" || segment == "." || segment == ".." {
-				return ignoredPathMatcher{}, fmt.Errorf(
-					"ignored path pattern %q contains an invalid segment",
-					configuredPattern,
+				return ignoredPathMatcher{}, newValidationError(
+					fmt.Sprintf(
+						"ignored path pattern %q contains an invalid segment",
+						configuredPattern,
+					),
+					nil,
 				)
 			}
 		}
 		if _, err := path.Match(configuredPattern, "validation"); err != nil {
-			return ignoredPathMatcher{}, fmt.Errorf(
-				"compile ignored path pattern %q: %w",
-				configuredPattern,
+			return ignoredPathMatcher{}, newValidationError(
+				fmt.Sprintf("compile ignored path pattern %q", configuredPattern),
 				err,
 			)
 		}
@@ -272,7 +290,10 @@ func (matcher ignoredPathMatcher) matches(relativePath string) (bool, error) {
 			for _, segment := range segments {
 				matches, err := path.Match(pattern, segment)
 				if err != nil {
-					return matches, fmt.Errorf("match ignored path pattern %q: %w", pattern, err)
+					return matches, newInternalError(
+						fmt.Sprintf("match ignored path pattern %q", pattern),
+						err,
+					)
 				}
 				if matches {
 					return true, nil
@@ -284,7 +305,10 @@ func (matcher ignoredPathMatcher) matches(relativePath string) (bool, error) {
 			candidate := strings.Join(segments[:end+1], "/")
 			matches, err := path.Match(pattern, candidate)
 			if err != nil {
-				return matches, fmt.Errorf("match ignored path pattern %q: %w", pattern, err)
+				return matches, newInternalError(
+					fmt.Sprintf("match ignored path pattern %q", pattern),
+					err,
+				)
 			}
 			if matches {
 				return true, nil
@@ -319,11 +343,14 @@ func (analyzer *analyzer) collectConfiguredSourcePath(
 		return err
 	}
 	absolutePath := filepath.Join(analyzer.repositoryRoot, filepath.FromSlash(analysisPath))
-	information, err := os.Stat(absolutePath)
+	fileInfo, err := os.Stat(absolutePath)
 	if err != nil {
-		return fmt.Errorf("inspect analysis path %s: %w", analysisPath, err)
+		if errors.Is(err, os.ErrNotExist) {
+			return newValidationError(fmt.Sprintf("inspect analysis path %s", analysisPath), err)
+		}
+		return newUnavailableError(fmt.Sprintf("inspect analysis path %s", analysisPath), err)
 	}
-	if information.IsDir() {
+	if fileInfo.IsDir() {
 		return analyzer.walkSourceDirectory(ctx, paths, analysisPath, absolutePath)
 	}
 	return analyzer.collectSourceFile(paths, analysisPath, absolutePath)
@@ -335,7 +362,10 @@ func (analyzer *analyzer) collectSourceFile(
 	absolutePath string,
 ) error {
 	if filepath.Ext(absolutePath) != ".go" {
-		return fmt.Errorf("analysis path %s must be a directory or Go source file", analysisPath)
+		return newValidationError(
+			fmt.Sprintf("analysis path %s must be a directory or Go source file", analysisPath),
+			nil,
+		)
 	}
 	ignored, err := analyzer.ignoredPaths.matches(analysisPath)
 	if err != nil {
@@ -357,7 +387,7 @@ func (analyzer *analyzer) walkSourceDirectory(
 		return analyzer.collectWalkedSourcePath(ctx, paths, sourcePath, entry, walkError)
 	})
 	if err != nil {
-		return fmt.Errorf("walk analysis path %s: %w", analysisPath, err)
+		return newUnavailableError(fmt.Sprintf("walk analysis path %s", analysisPath), err)
 	}
 	return nil
 }
@@ -373,11 +403,14 @@ func (analyzer *analyzer) collectWalkedSourcePath(
 		return err
 	}
 	if walkError != nil {
-		return fmt.Errorf("visit %s: %w", sourcePath, walkError)
+		return newUnavailableError(fmt.Sprintf("visit %s", sourcePath), walkError)
 	}
 	relativePath, err := filepath.Rel(analyzer.repositoryRoot, sourcePath)
 	if err != nil {
-		return fmt.Errorf("resolve repository source path %s: %w", sourcePath, err)
+		return newInternalError(
+			fmt.Sprintf("resolve repository source path %s", sourcePath),
+			err,
+		)
 	}
 	ignored, err := analyzer.ignoredPaths.matches(filepath.ToSlash(relativePath))
 	if err != nil {
@@ -399,7 +432,7 @@ func (analyzer *analyzer) collectWalkedSourcePath(
 func (analyzer *analyzer) inspectSourceFile(modulePath, sourcePath string) (*sourceFile, error) {
 	relativePath, err := filepath.Rel(analyzer.repositoryRoot, sourcePath)
 	if err != nil {
-		return nil, fmt.Errorf("resolve source path %s: %w", sourcePath, err)
+		return nil, newInternalError(fmt.Sprintf("resolve source path %s", sourcePath), err)
 	}
 	relativePath = filepath.ToSlash(relativePath)
 	descriptor, classified := analyzer.classifier.classify(relativePath)
@@ -408,7 +441,7 @@ func (analyzer *analyzer) inspectSourceFile(modulePath, sourcePath string) (*sou
 	}
 	payload, err := os.ReadFile(sourcePath)
 	if err != nil {
-		return nil, fmt.Errorf("read source file %s: %w", relativePath, err)
+		return nil, newUnavailableError(fmt.Sprintf("read source file %s", relativePath), err)
 	}
 
 	fileSet := token.NewFileSet()
@@ -523,5 +556,5 @@ func countNamedTypes(file *ast.File) (int, int) {
 }
 
 // mutate4go-manifest-begin
-// {"version":1,"tested_at":"2026-08-21T17:27:33Z","module_hash":"aa06a84b9dd727a9464891da9a198637d579779198325e7efcf495b17067a615","functions":[{"id":"func/newAnalyzer","name":"newAnalyzer","line":38,"end_line":77,"hash":"ba0447ed5957ebe3850942c846425c639341cc2d2f711a71e2412eeb8d1b8d05"},{"id":"func/analyzer.analyze","name":"analyzer.analyze","line":79,"end_line":135,"hash":"9654db2ded09efa2a3d9966c4f457a8bb3a43da64daeafcd81c9c2953cbae744"},{"id":"func/analyzer.repositoryPath","name":"analyzer.repositoryPath","line":137,"end_line":139,"hash":"a11e0cbd14146576a5f65fa33b4ac3b96e43a3e4c7169bcf6b29d33466888347"},{"id":"func/analyzer.snapshot","name":"analyzer.snapshot","line":141,"end_line":179,"hash":"6c75b6bf049d34b0c0a564411c068c4018368b42967a0c0fbde66c1ae862248a"},{"id":"func/readModulePath","name":"readModulePath","line":181,"end_line":201,"hash":"3e80b06afd0e3742f8fa44577f3c85f873ebc83d596df3fae12f1cc2b6d0efdc"},{"id":"func/normalizeAnalysisPaths","name":"normalizeAnalysisPaths","line":203,"end_line":216,"hash":"0a1550906681003eb46f370ec3e1578e74ce0329eab580e6e1684ad1d9c5853b"},{"id":"func/normalizeRepositoryPath","name":"normalizeRepositoryPath","line":218,"end_line":233,"hash":"6957293b95ea88edb99c66a74bce84790b941736461cf8d9f4f1d8970a55274a"},{"id":"func/newIgnoredPathMatcher","name":"newIgnoredPathMatcher","line":235,"end_line":262,"hash":"723906109af7a1ccc25c5e6b58920f45ccc9db85e64efbc97c006179c251fb2d"},{"id":"func/ignoredPathMatcher.matches","name":"ignoredPathMatcher.matches","line":264,"end_line":295,"hash":"af0ba5f312f9bed5540e84166e618471d005e32d07ec240c7208cf496f0077e3"},{"id":"func/analyzer.sourcePaths","name":"analyzer.sourcePaths","line":297,"end_line":311,"hash":"ca5e2646bf79b54208e93b34b57d82df06947375a097580d763d936727bce443"},{"id":"func/analyzer.collectConfiguredSourcePath","name":"analyzer.collectConfiguredSourcePath","line":313,"end_line":330,"hash":"20f739d5360b81fe2c6e7f8cdd4bf7d525521a8d1b5aca61abb71ac9fd17ef37"},{"id":"func/analyzer.collectSourceFile","name":"analyzer.collectSourceFile","line":332,"end_line":348,"hash":"64fb2d40ca0f6aac41d6ec29bad1ec85ac62bad05119540172f7ce735d23be96"},{"id":"func/analyzer.walkSourceDirectory","name":"analyzer.walkSourceDirectory","line":350,"end_line":363,"hash":"ff30ce32dd5b9fbc2371b70cc4452691ac83d02ffdf962c92859ddd9daac4ea7"},{"id":"func/analyzer.collectWalkedSourcePath","name":"analyzer.collectWalkedSourcePath","line":365,"end_line":397,"hash":"35b4bd443123a921218ccf134f79477030c5d99df6579309653bd237e3ea0ca1"},{"id":"func/analyzer.inspectSourceFile","name":"analyzer.inspectSourceFile","line":399,"end_line":490,"hash":"98457d0552665a6b2f9dfba51d23bb8515ec651df44c557087bd52b153fec5e7"},{"id":"func/hasFunctionData","name":"hasFunctionData","line":492,"end_line":500,"hash":"d06cecd4aa7d0ef4549ae5d251c85d54c830f5bf95dff40d27593b244be2ed37"},{"id":"func/countNamedTypes","name":"countNamedTypes","line":502,"end_line":523,"hash":"7269d3e77aa1bf662cb4e54d5c09fa72e159000c99cf165e2e385f33b6b8dd99"}]}
+// {"version":1,"tested_at":"2026-08-21T18:20:00Z","module_hash":"9e335bf9f8efc8a4ff229777d20720d1a81efa362482489bddafd81c68a95901","functions":[{"id":"func/newAnalyzer","name":"newAnalyzer","line":36,"end_line":81,"hash":"6bbc8f8f8a7ba171d9ef1c4dfe8602d038e9dd4655c3165746b9a778d5c91411"},{"id":"func/analyzer.analyze","name":"analyzer.analyze","line":83,"end_line":139,"hash":"31ba8e6cfd598ac0c8b95b05208ae6975e01b4b2146d54732cf08ae87cf7b274"},{"id":"func/analyzer.repositoryPath","name":"analyzer.repositoryPath","line":141,"end_line":143,"hash":"a11e0cbd14146576a5f65fa33b4ac3b96e43a3e4c7169bcf6b29d33466888347"},{"id":"func/analyzer.snapshot","name":"analyzer.snapshot","line":145,"end_line":189,"hash":"f67a63353a874597c197adcd70a0ff7100406cce6315a93dcc33a62d5f96bf52"},{"id":"func/readModulePath","name":"readModulePath","line":191,"end_line":211,"hash":"d63ae450bb33816fb980c26f89bc81f0e31d1692cca2fbb220485fe0f0977242"},{"id":"func/normalizeAnalysisPaths","name":"normalizeAnalysisPaths","line":213,"end_line":229,"hash":"b1cdd3fa4483d93aaaced9f5335f83ae92bbf16f0b26b3940ba55249ccdf3e60"},{"id":"func/normalizeRepositoryPath","name":"normalizeRepositoryPath","line":231,"end_line":246,"hash":"edb6360b3d494b9569d986e6c123db2501b1e188c6730785a26111d49ea3060d"},{"id":"func/newIgnoredPathMatcher","name":"newIgnoredPathMatcher","line":248,"end_line":280,"hash":"ef2f71ea6d53cb654ead9892c2baec64e82ac350f75449bfc911e5763625790a"},{"id":"func/ignoredPathMatcher.matches","name":"ignoredPathMatcher.matches","line":282,"end_line":319,"hash":"43b8e9b598c99327306a6cf812fa9ebabf8d407ef340e1a4c6177194b99eb86f"},{"id":"func/analyzer.sourcePaths","name":"analyzer.sourcePaths","line":321,"end_line":335,"hash":"ca5e2646bf79b54208e93b34b57d82df06947375a097580d763d936727bce443"},{"id":"func/analyzer.collectConfiguredSourcePath","name":"analyzer.collectConfiguredSourcePath","line":337,"end_line":357,"hash":"87f2e357d890bc5c5973300d3b6e3130480cee207eff170136e588192bb37495"},{"id":"func/analyzer.collectSourceFile","name":"analyzer.collectSourceFile","line":359,"end_line":378,"hash":"79cc529297d8b83d19e8dcce2e62ffffe7757fd3d7ca9f8da150fb897da8d45a"},{"id":"func/analyzer.walkSourceDirectory","name":"analyzer.walkSourceDirectory","line":380,"end_line":393,"hash":"d7e440a774d33003138f07ab9690311d93d3bb11b0b59112d90779d5f66953d6"},{"id":"func/analyzer.collectWalkedSourcePath","name":"analyzer.collectWalkedSourcePath","line":395,"end_line":430,"hash":"ef47e247f5af713d44b7f0cebb1b25cee2578618fde6b411509d595966687827"},{"id":"func/analyzer.inspectSourceFile","name":"analyzer.inspectSourceFile","line":432,"end_line":523,"hash":"7b8c0f0132c89aa51098e4c2d648efb3462fdd780755e815f0f274e6ebd40993"},{"id":"func/hasFunctionData","name":"hasFunctionData","line":525,"end_line":533,"hash":"d06cecd4aa7d0ef4549ae5d251c85d54c830f5bf95dff40d27593b244be2ed37"},{"id":"func/countNamedTypes","name":"countNamedTypes","line":535,"end_line":556,"hash":"7269d3e77aa1bf662cb4e54d5c09fa72e159000c99cf165e2e385f33b6b8dd99"}]}
 // mutate4go-manifest-end

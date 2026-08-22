@@ -3,12 +3,71 @@ package main
 import (
 	"go/parser"
 	"go/token"
+	"io/fs"
 	"os"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
 	"testing"
 )
+
+func TestLayerArchitecture_KeepProjectImportsInsideTool(t *testing.T) {
+	t.Run("Scenario: The dependency graph source remains isolated from shared project code", func(t *testing.T) {
+		var forbiddenImports []string
+		var inspectError error
+
+		t.Run("Given the dependency graph source tree", func(*testing.T) {
+			forbiddenImports = make([]string, 0)
+		})
+
+		t.Run("When the test inspects each Go import", func(*testing.T) {
+			const projectImportPrefix = "digginginsights.com/v3/"
+			const toolImportPrefix = "digginginsights.com/v3/internal/devtool/dependencygraph/"
+			inspectError = filepath.WalkDir(".", func(path string, entry fs.DirEntry, walkError error) error {
+				if walkError != nil {
+					return walkError
+				}
+				if entry.IsDir() || filepath.Ext(path) != ".go" {
+					return nil
+				}
+				file, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.ImportsOnly)
+				if err != nil {
+					return err
+				}
+				for _, specification := range file.Imports {
+					importPath, err := strconv.Unquote(specification.Path.Value)
+					if err != nil {
+						return err
+					}
+					if strings.HasPrefix(importPath, projectImportPrefix) &&
+						!strings.HasPrefix(importPath, toolImportPrefix) {
+						forbiddenImports = append(
+							forbiddenImports,
+							filepath.ToSlash(path)+": "+importPath,
+						)
+					}
+				}
+				return nil
+			})
+			slices.Sort(forbiddenImports)
+		})
+
+		if !t.Run("Then the test can inspect the complete source tree", func(t *testing.T) {
+			if inspectError != nil {
+				t.Fatalf("inspect dependency graph imports: %v", inspectError)
+			}
+		}) {
+			return
+		}
+
+		t.Run("And no source file imports another project module", func(t *testing.T) {
+			if len(forbiddenImports) != 0 {
+				t.Fatalf("imports outside dependency graph: %v", forbiddenImports)
+			}
+		})
+	})
+}
 
 func TestLayerArchitecture_KeepCoreFilesWithinImportBoundaries(t *testing.T) {
 	testCases := []struct {
@@ -28,6 +87,13 @@ func TestLayerArchitecture_KeepCoreFilesWithinImportBoundaries(t *testing.T) {
 				"digginginsights.com/v3/internal/devtool/dependencygraph/internal/architecture",
 				"digginginsights.com/v3/internal/devtool/dependencygraph/internal/calculation",
 				"sort",
+			},
+		},
+		{
+			file: "application.go",
+			allowedImports: []string{
+				"context",
+				"digginginsights.com/v3/internal/devtool/dependencygraph/internal/application",
 			},
 		},
 		{
@@ -51,8 +117,12 @@ func TestLayerArchitecture_KeepCoreFilesWithinImportBoundaries(t *testing.T) {
 			allowedImports: []string{"context"},
 		},
 		{
-			file:           "internal/application/usecase.go",
-			allowedImports: []string{"context", "errors", "fmt"},
+			file: "internal/application/usecase.go",
+			allowedImports: []string{
+				"context",
+				"digginginsights.com/v3/internal/devtool/dependencygraph/internal/failure",
+				"fmt",
+			},
 		},
 	}
 	for _, testCase := range testCases {
@@ -174,6 +244,7 @@ func TestLayerArchitecture_KeepRuntimeAdaptersBehindGraphPorts(t *testing.T) {
 				"graphapi.go",
 				"lifecycle.go",
 				"monitor.go",
+				"runtime.go",
 				"server.go",
 			} {
 				payload, err := os.ReadFile(file)

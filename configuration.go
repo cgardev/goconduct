@@ -1,11 +1,12 @@
 package main
 
 import (
-	"fmt"
+	"slices"
 	"time"
 
-	application "digginginsights.com/v3/internal/devtool/dependencygraph/internal/application"
 	"github.com/cgardev/gokeel/conf"
+
+	"digginginsights.com/v3/internal/devtool/dependencygraph/internal/application"
 )
 
 const (
@@ -75,7 +76,7 @@ type ComponentRulesConfiguration struct {
 // ComponentCategoryConfiguration maps custom path templates to one strategic role.
 type ComponentCategoryConfiguration struct {
 	Identifier string        `json:"id,omitzero"`
-	Role       componentRole `json:"role,omitzero"`
+	Role       ComponentRole `json:"role,omitzero"`
 	Paths      []string      `json:"paths,omitzero"`
 }
 
@@ -120,16 +121,16 @@ func (configuration ComponentRulesConfiguration) domainRules() ComponentRules {
 		taxonomy = append(taxonomy, ComponentCategoryRule{
 			Identifier: category.Identifier,
 			Role:       category.Role,
-			Paths:      category.Paths,
+			Paths:      slices.Clone(category.Paths),
 		})
 	}
 	return ComponentRules{
-		Applications:       configuration.Applications,
-		ApplicationModules: configuration.ApplicationModules,
-		SharedModules:      configuration.SharedModules,
-		Libraries:          configuration.Libraries,
-		Infrastructure:     configuration.Infrastructure,
-		DevelopmentTools:   configuration.DevelopmentTools,
+		Applications:       slices.Clone(configuration.Applications),
+		ApplicationModules: slices.Clone(configuration.ApplicationModules),
+		SharedModules:      slices.Clone(configuration.SharedModules),
+		Libraries:          slices.Clone(configuration.Libraries),
+		Infrastructure:     slices.Clone(configuration.Infrastructure),
+		DevelopmentTools:   slices.Clone(configuration.DevelopmentTools),
 		Taxonomy:           taxonomy,
 	}
 }
@@ -137,7 +138,7 @@ func (configuration ComponentRulesConfiguration) domainRules() ComponentRules {
 func loadApplicationConfiguration(configurationPath string) (ApplicationConfiguration, error) {
 	configuration := DefaultApplicationConfiguration()
 	if err := conf.NewLoader(conf.WithOptionalFile(configurationPath)).Load(&configuration); err != nil {
-		return ApplicationConfiguration{}, fmt.Errorf("load application configuration: %w", err)
+		return ApplicationConfiguration{}, newValidationError("load application configuration", err)
 	}
 	return configuration, nil
 }
@@ -147,7 +148,7 @@ func validateCacheConfiguration(configuration CacheConfiguration) error {
 		return err
 	}
 	if configuration.RequestTimeout <= 0 {
-		return fmt.Errorf("cache request timeout must be greater than zero")
+		return newValidationError("cache request timeout must be greater than zero", nil)
 	}
 	return nil
 }
@@ -255,5 +256,5 @@ func applicationSchemaDefinition() conf.SchemaDefinition {
 }
 
 // mutate4go-manifest-begin
-// {"version":1,"tested_at":"2026-08-21T17:15:20Z","module_hash":"6f8f43f5ada2748b01eebfd40ad5e5f2896cc22ea7a4391189912517bdd1f423","functions":[{"id":"func/defaultRefreshInterval","name":"defaultRefreshInterval","line":29,"end_line":31,"hash":"64a1f07d35ff197bf67644d4889d3f31cffa2bf3c507009de7f97c2d522b31d3"},{"id":"func/minimumRefreshInterval","name":"minimumRefreshInterval","line":33,"end_line":35,"hash":"4f2930e0810d642ebd7a786753630b3715ac62d0ddcd29ec034323084de9eebc"},{"id":"func/DefaultApplicationConfiguration","name":"DefaultApplicationConfiguration","line":83,"end_line":100,"hash":"6ddb537e3c885e9a636a56dd09cf5209b49c329a88e239f1968604add127c1d8"},{"id":"func/defaultIgnoredPaths","name":"defaultIgnoredPaths","line":102,"end_line":104,"hash":"eb1ccd39c301970fc4e6f866b369fe060c767075b0ff2b595423519b907ff623"},{"id":"func/defaultComponentRulesConfiguration","name":"defaultComponentRulesConfiguration","line":106,"end_line":115,"hash":"b7fd6194dcdff30bddf674ccf3c96c87a2a7d4c1759b8ab4d3171ab949021627"},{"id":"func/ComponentRulesConfiguration.domainRules","name":"ComponentRulesConfiguration.domainRules","line":117,"end_line":135,"hash":"6f2efe3f0d63b275ad303dcfc2ae3c9c02195966c3577fbff5e71ccd61d51502"},{"id":"func/loadApplicationConfiguration","name":"loadApplicationConfiguration","line":137,"end_line":143,"hash":"1db003044865f83678db2220b8f87b9f55fa552aed7693838ec80caf6ad2dd2e"},{"id":"func/validateCacheConfiguration","name":"validateCacheConfiguration","line":145,"end_line":153,"hash":"e83f0aa82c4388f3f49d35f0d59f8438a6ca75f2637b9e6388eb79abaf6b9e0f"},{"id":"func/applicationSchemaDefinition","name":"applicationSchemaDefinition","line":155,"end_line":255,"hash":"16af5eb2b6d63c4a0276ebb2661e9353fa50e0b395bf0126d888341187b53ebb"}]}
+// {"version":1,"tested_at":"2026-08-21T18:27:57Z","module_hash":"a18001577738f748f43e9f1c87eae0da9f3dc5e5a711d28ebac99beb997c4944","functions":[{"id":"func/defaultRefreshInterval","name":"defaultRefreshInterval","line":30,"end_line":32,"hash":"64a1f07d35ff197bf67644d4889d3f31cffa2bf3c507009de7f97c2d522b31d3"},{"id":"func/minimumRefreshInterval","name":"minimumRefreshInterval","line":34,"end_line":36,"hash":"4f2930e0810d642ebd7a786753630b3715ac62d0ddcd29ec034323084de9eebc"},{"id":"func/DefaultApplicationConfiguration","name":"DefaultApplicationConfiguration","line":84,"end_line":101,"hash":"6ddb537e3c885e9a636a56dd09cf5209b49c329a88e239f1968604add127c1d8"},{"id":"func/defaultIgnoredPaths","name":"defaultIgnoredPaths","line":103,"end_line":105,"hash":"eb1ccd39c301970fc4e6f866b369fe060c767075b0ff2b595423519b907ff623"},{"id":"func/defaultComponentRulesConfiguration","name":"defaultComponentRulesConfiguration","line":107,"end_line":116,"hash":"b7fd6194dcdff30bddf674ccf3c96c87a2a7d4c1759b8ab4d3171ab949021627"},{"id":"func/ComponentRulesConfiguration.domainRules","name":"ComponentRulesConfiguration.domainRules","line":118,"end_line":136,"hash":"5e39ed32ce08bcb3a6120199d9fd61157808ba3eb494041d161ebad3d0fb2472"},{"id":"func/loadApplicationConfiguration","name":"loadApplicationConfiguration","line":138,"end_line":144,"hash":"6d941d6b5b58e93f0c454bc4db4254de4dfe82595ae6978ab3b9d137380a8e9f"},{"id":"func/validateCacheConfiguration","name":"validateCacheConfiguration","line":146,"end_line":154,"hash":"3d6511a5387d4ff613428f436ecf6a5e3700827045dd0d7209a4189cdc8f5bec"},{"id":"func/applicationSchemaDefinition","name":"applicationSchemaDefinition","line":156,"end_line":256,"hash":"16af5eb2b6d63c4a0276ebb2661e9353fa50e0b395bf0126d888341187b53ebb"}]}
 // mutate4go-manifest-end

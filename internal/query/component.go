@@ -3,17 +3,14 @@ package query
 
 import (
 	"cmp"
-	"errors"
 	"fmt"
 	"slices"
 	"strings"
 
 	"digginginsights.com/v3/internal/devtool/dependencygraph/internal/architecture"
+	"digginginsights.com/v3/internal/devtool/dependencygraph/internal/failure"
 	"digginginsights.com/v3/internal/devtool/dependencygraph/internal/report"
 )
-
-// ErrComponentNotFound identifies a component that is absent from the graph.
-var ErrComponentNotFound = errors.New("component not found")
 
 // FindingSeverity selects findings by severity.
 type FindingSeverity string
@@ -214,7 +211,11 @@ func ParseFindingSeverity(value string) (FindingSeverity, error) {
 	case FindingSeverityAll, FindingSeverityError, FindingSeverityWarning:
 		return filter, nil
 	default:
-		return "", fmt.Errorf("finding severity %q must be all, warning, or error", value)
+		return "", failure.NewError(
+			failure.ErrValidation,
+			fmt.Sprintf("finding severity %q must be all, warning, or error", value),
+			nil,
+		)
 	}
 }
 
@@ -255,10 +256,14 @@ func ParseComponentRole(value string) (string, error) {
 	if value == "all" || architecture.ValidRole(report.ComponentRole(value)) {
 		return value, nil
 	}
-	return "", fmt.Errorf(
-		"component role %q must be all, application, application-module, shared-module, "+
-			"library, infrastructure, or development",
-		value,
+	return "", failure.NewError(
+		failure.ErrValidation,
+		fmt.Sprintf(
+			"component role %q must be all, application, application-module, shared-module, "+
+				"library, infrastructure, or development",
+			value,
+		),
+		nil,
 	)
 }
 
@@ -268,10 +273,10 @@ func ParseComponentSort(value string) (ComponentSort, error) {
 	if _, found := componentSortDescriptorFor(sortOrder); found {
 		return sortOrder, nil
 	}
-	return "", fmt.Errorf(
-		"component sort %q must be %s",
-		value,
-		describeComponentSorts(),
+	return "", failure.NewError(
+		failure.ErrValidation,
+		fmt.Sprintf("component sort %q must be %s", value, describeComponentSorts()),
+		nil,
 	)
 }
 
@@ -363,7 +368,11 @@ func GetComponent(graph report.Graph, identifier string) (ComponentResult, error
 		}
 	}
 	if !found {
-		return ComponentResult{}, fmt.Errorf("%w: %s", ErrComponentNotFound, identifier)
+		return ComponentResult{}, failure.NewEntityNotFoundError(
+			"dependency graph component",
+			identifier,
+			nil,
+		)
 	}
 	dependencies := make([]report.Relationship, 0)
 	importingRelationships := make([]report.Relationship, 0)
@@ -412,5 +421,5 @@ func applyLimit[Value any](values []Value, limit int) []Value {
 }
 
 // mutate4go-manifest-begin
-// {"version":1,"tested_at":"2026-08-21T16:36:55Z","module_hash":"0a07c46f700e0b38a7c84710d2b20464b024153c6ccd352078478d6c17899330","functions":[{"id":"func/analysisHeader","name":"analysisHeader","line":192,"end_line":198,"hash":"2bc962a44bad128b22ff7f0b775f8787264f1e74bb4e7b6b2d39a63df12f6970"},{"id":"func/Summary","name":"Summary","line":201,"end_line":208,"hash":"f0f783ba977624a9143c8c3b95c7c398a38074db75813a2b90c3ce66475ea526"},{"id":"func/ParseFindingSeverity","name":"ParseFindingSeverity","line":211,"end_line":219,"hash":"73529fee9d5487e3745fe1a76730583b06645c326c1e242e43c2be387d6f3b83"},{"id":"func/Findings","name":"Findings","line":222,"end_line":244,"hash":"91e5c36d66c095e0b221a231630db37df6315211ec7af989fa4e142ba7061e3c"},{"id":"func/findingMatchesComponent","name":"findingMatchesComponent","line":246,"end_line":251,"hash":"7f9eb7ad2e917babae1aa50acf24bb0e5b6f15db10f19be9d6b9119b3460de2a"},{"id":"func/ParseComponentRole","name":"ParseComponentRole","line":254,"end_line":263,"hash":"c636390a1bdc2b18d37f1fb358aab279b70b5910b3360fe7ddd9e2611b517023"},{"id":"func/ParseComponentSort","name":"ParseComponentSort","line":266,"end_line":276,"hash":"95d1818e13eb25d847dc009ff1da55dc3bb246ef8458c980000441ccb59b7905"},{"id":"func/Components","name":"Components","line":279,"end_line":303,"hash":"a6115500ed62db24af66da909e10fe3606388c23c68d019c9147cdd29567712c"},{"id":"func/newComponentOverview","name":"newComponentOverview","line":305,"end_line":324,"hash":"080825db79472832cf10ce479e75849fd5e2c7b2a4eabcbc1a9e146124e50d72"},{"id":"func/componentComparison","name":"componentComparison","line":326,"end_line":335,"hash":"c21eefb39a9f17b38be5bb93bf3f91beb247084634779bb78dc27d42af7561c5"},{"id":"func/componentSortDescriptorFor","name":"componentSortDescriptorFor","line":337,"end_line":344,"hash":"7993cfd4d946f96e840e79725b945aebb975ef988d5f66ff2183bc6510606f87"},{"id":"func/describeComponentSorts","name":"describeComponentSorts","line":346,"end_line":352,"hash":"c1a50dbf9f19f0da55e43666cd41adf3c0f19ff918f33b902a84f000f848fbb8"},{"id":"func/GetComponent","name":"GetComponent","line":355,"end_line":405,"hash":"fa96091a6cb110ea9a68ce94d0cdd7546fa842b072b99656754aee738d5b4338"},{"id":"func/applyLimit","name":"applyLimit","line":407,"end_line":412,"hash":"f69f1b495bd0b7dda6d20a1b9b3ff20c1da38af6ede1a34cfee2369223b89f43"}]}
+// {"version":1,"tested_at":"2026-08-21T19:49:31Z","module_hash":"fa0f49e60e868234f6f5ccb7b9ab95da56b6610669c7c69bddb8913e4d31eef2","functions":[{"id":"func/analysisHeader","name":"analysisHeader","line":189,"end_line":195,"hash":"2bc962a44bad128b22ff7f0b775f8787264f1e74bb4e7b6b2d39a63df12f6970"},{"id":"func/Summary","name":"Summary","line":198,"end_line":205,"hash":"f0f783ba977624a9143c8c3b95c7c398a38074db75813a2b90c3ce66475ea526"},{"id":"func/ParseFindingSeverity","name":"ParseFindingSeverity","line":208,"end_line":220,"hash":"fd56dc87de374d44ebf2d673395b2593882860195b7e7a200bb2b52f8345bd4d"},{"id":"func/Findings","name":"Findings","line":223,"end_line":245,"hash":"91e5c36d66c095e0b221a231630db37df6315211ec7af989fa4e142ba7061e3c"},{"id":"func/findingMatchesComponent","name":"findingMatchesComponent","line":247,"end_line":252,"hash":"7f9eb7ad2e917babae1aa50acf24bb0e5b6f15db10f19be9d6b9119b3460de2a"},{"id":"func/ParseComponentRole","name":"ParseComponentRole","line":255,"end_line":268,"hash":"075e38d0fecc8905191b7198c6c3161ce27bb984a5b588c40bd7e3b21996f068"},{"id":"func/ParseComponentSort","name":"ParseComponentSort","line":271,"end_line":281,"hash":"329bbe45e3aea55ea79aee786d1163b837bbbc084955e2d48653400476cdadaf"},{"id":"func/Components","name":"Components","line":284,"end_line":308,"hash":"a6115500ed62db24af66da909e10fe3606388c23c68d019c9147cdd29567712c"},{"id":"func/newComponentOverview","name":"newComponentOverview","line":310,"end_line":329,"hash":"080825db79472832cf10ce479e75849fd5e2c7b2a4eabcbc1a9e146124e50d72"},{"id":"func/componentComparison","name":"componentComparison","line":331,"end_line":340,"hash":"c21eefb39a9f17b38be5bb93bf3f91beb247084634779bb78dc27d42af7561c5"},{"id":"func/componentSortDescriptorFor","name":"componentSortDescriptorFor","line":342,"end_line":349,"hash":"7993cfd4d946f96e840e79725b945aebb975ef988d5f66ff2183bc6510606f87"},{"id":"func/describeComponentSorts","name":"describeComponentSorts","line":351,"end_line":357,"hash":"c1a50dbf9f19f0da55e43666cd41adf3c0f19ff918f33b902a84f000f848fbb8"},{"id":"func/GetComponent","name":"GetComponent","line":360,"end_line":414,"hash":"05112c328a6cb1c8fa1c10fcf1e0519a99563a50ccc42dfb7de9aa997842f7b4"},{"id":"func/applyLimit","name":"applyLimit","line":416,"end_line":421,"hash":"f69f1b495bd0b7dda6d20a1b9b3ff20c1da38af6ede1a34cfee2369223b89f43"}]}
 // mutate4go-manifest-end

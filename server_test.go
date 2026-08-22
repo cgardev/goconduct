@@ -13,6 +13,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"digginginsights.com/v3/internal/devtool/dependencygraph/internal/failure"
 )
 
 type notifyingResponseRecorder struct {
@@ -175,7 +177,7 @@ func TestGraphEndpoint_ValidateCacheRequest(t *testing.T) {
 			})
 
 			t.Run("Then the endpoint returns the selected validation result", func(t *testing.T) {
-				if errors.Is(validationError, errGraphCacheRejected) != testCase.wantReject {
+				if errors.Is(validationError, failure.ErrValidation) != testCase.wantReject {
 					t.Fatalf("cache rejection is %v, want %t", validationError, testCase.wantReject)
 				}
 				if !testCase.wantReject && validationError != nil {

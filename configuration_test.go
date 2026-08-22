@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"github.com/cgardev/gokeel/conf"
+
+	"digginginsights.com/v3/internal/devtool/dependencygraph/internal/failure"
 )
 
 func TestApplicationConfiguration_LoadDefaults(t *testing.T) {
@@ -196,7 +198,7 @@ func TestConfigurationSchema_DescribeExternalContract(t *testing.T) {
 
 		t.Run("Given the standard configuration-schema command", func(t *testing.T) {
 			logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-			command := newRootCommand(logger)
+			command := newTestRootCommand(logger)
 			command.SetOut(&output)
 			command.SetArgs([]string{"configuration-schema"})
 			commandError = command.ExecuteContext(t.Context())
@@ -291,6 +293,9 @@ func TestCacheConfiguration_ValidateModeAndTimeout(t *testing.T) {
 				if (validationError != nil) != testCase.wantError {
 					t.Errorf("validation error is %v, want error %t", validationError, testCase.wantError)
 				}
+				if testCase.wantError && !errors.Is(validationError, failure.ErrValidation) {
+					t.Errorf("validation error is %v, want ErrValidation", validationError)
+				}
 			})
 		})
 	}
@@ -302,11 +307,14 @@ func TestComponentRulesConfiguration_MapCustomTaxonomy(t *testing.T) {
 		var rules ComponentRules
 
 		t.Run("Given one category with a strategic role and a path template", func(*testing.T) {
-			configuration = ComponentRulesConfiguration{Taxonomy: []ComponentCategoryConfiguration{{
-				Identifier: "plugin",
-				Role:       componentRoleLibrary,
-				Paths:      []string{"plugins/{component}"},
-			}}}
+			configuration = ComponentRulesConfiguration{
+				Libraries: []string{"packages/{component}"},
+				Taxonomy: []ComponentCategoryConfiguration{{
+					Identifier: "plugin",
+					Role:       componentRoleLibrary,
+					Paths:      []string{"plugins/{component}"},
+				}},
+			}
 		})
 
 		t.Run("When the configuration maps to analysis rules", func(*testing.T) {
@@ -324,6 +332,15 @@ func TestComponentRulesConfiguration_MapCustomTaxonomy(t *testing.T) {
 			if category.Role != componentRoleLibrary ||
 				!slices.Equal(category.Paths, []string{"plugins/{component}"}) {
 				t.Errorf("mapped category is %+v", category)
+			}
+		})
+
+		t.Run("And later configuration changes cannot change the mapped rules", func(t *testing.T) {
+			configuration.Libraries[0] = "changed/{component}"
+			configuration.Taxonomy[0].Paths[0] = "changed/{component}"
+			if !slices.Equal(rules.Libraries, []string{"packages/{component}"}) ||
+				!slices.Equal(rules.Taxonomy[0].Paths, []string{"plugins/{component}"}) {
+				t.Errorf("mapped rules changed with their input: %+v", rules)
 			}
 		})
 	})

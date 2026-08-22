@@ -11,9 +11,10 @@ import (
 	"strings"
 	"testing"
 
-	querymodel "digginginsights.com/v3/internal/devtool/dependencygraph/internal/query"
-
 	"github.com/spf13/cobra"
+
+	"digginginsights.com/v3/internal/devtool/dependencygraph/internal/failure"
+	querymodel "digginginsights.com/v3/internal/devtool/dependencygraph/internal/query"
 )
 
 func TestAnalyzeCommand_UseConfiguredScope(t *testing.T) {
@@ -67,7 +68,7 @@ import _ "example.com/cli/packages/shared"
 
 		t.Run("When the JSON analysis uses only the configuration document", func(t *testing.T) {
 			logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-			command := newRootCommand(logger)
+			command := newTestRootCommand(logger)
 			command.SetOut(&output)
 			command.SetArgs([]string{"analyze", "--configuration", configurationPath})
 			commandError = command.ExecuteContext(t.Context())
@@ -135,7 +136,7 @@ func TestQueryCommands_EmitFilteredJSONWithoutPipes(t *testing.T) {
 			for _, query := range queries {
 				var output bytes.Buffer
 				logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-				command := newRootCommand(logger)
+				command := newTestRootCommand(logger)
 				command.SetOut(&output)
 				command.SetArgs(query.arguments)
 				if err := command.ExecuteContext(t.Context()); err != nil {
@@ -183,7 +184,11 @@ func TestFindingsCommand_DefineUnlimitedDefault(t *testing.T) {
 		var defaultLimit string
 
 		t.Run("Given the standard findings command", func(t *testing.T) {
-			command = newFindingsCommand(&commandConfigurationOptions{})
+			logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+			command = newFindingsCommand(
+				&commandConfigurationFlags{},
+				newTestCommandRuntime(logger),
+			)
 		})
 
 		t.Run("When the client reads the limit default", func(t *testing.T) {
@@ -272,7 +277,7 @@ func TestCommandConfiguration_ApplyExplicitScopeOverrides(t *testing.T) {
 
 		t.Run("When the native summary command executes with every scope override", func(t *testing.T) {
 			logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-			command := newRootCommand(logger)
+			command := newTestRootCommand(logger)
 			command.SetOut(&output)
 			command.SetArgs([]string{
 				"summary",
@@ -328,12 +333,12 @@ func TestAnalyzeCommand_EmitDeterministicReport(t *testing.T) {
 
 		t.Run("When both commands emit the default report view", func(t *testing.T) {
 			logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-			first := newRootCommand(logger)
+			first := newTestRootCommand(logger)
 			first.SetOut(&firstOutput)
 			first.SetArgs([]string{"analyze", "--root", repositoryRoot})
 			firstError = first.ExecuteContext(t.Context())
 
-			second := newRootCommand(logger)
+			second := newTestRootCommand(logger)
 			second.SetOut(&secondOutput)
 			second.SetArgs([]string{"analyze", "--root", repositoryRoot})
 			secondError = second.ExecuteContext(t.Context())
@@ -385,7 +390,7 @@ func TestAnalyzeCommand_ApplyFailureThreshold(t *testing.T) {
 			t.Run("Given a JSON analysis command with fail-on error", func(*testing.T) {
 				repositoryRoot := newAnalyzerFixture(t)
 				logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-				command = newRootCommand(logger)
+				command = newTestRootCommand(logger)
 				command.SetOut(&output)
 				command.SetArgs([]string{
 					"analyze",
@@ -398,9 +403,9 @@ func TestAnalyzeCommand_ApplyFailureThreshold(t *testing.T) {
 				commandError = command.ExecuteContext(t.Context())
 			})
 
-			t.Run("Then the command returns the typed finding error", func(t *testing.T) {
-				if !errors.Is(commandError, errArchitectureFindingThresholdReached) {
-					t.Fatalf("command error is %v, want errArchitectureFindingThresholdReached", commandError)
+			t.Run("Then the command returns the business rule error category", func(t *testing.T) {
+				if !errors.Is(commandError, failure.ErrBusinessRule) {
+					t.Fatalf("command error is %v, want ErrBusinessRule", commandError)
 				}
 			})
 
@@ -427,7 +432,7 @@ func TestAnalyzeCommand_EmitCompleteGraph(t *testing.T) {
 		t.Run("Given a graph-view command with human-readable indentation", func(*testing.T) {
 			repositoryRoot := newAnalyzerFixture(t)
 			logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-			command = newRootCommand(logger)
+			command = newTestRootCommand(logger)
 			command.SetOut(&output)
 			command.SetArgs([]string{
 				"analyze",
@@ -513,7 +518,7 @@ func TestFindingThreshold_FilterSeverity(t *testing.T) {
 			})
 
 			t.Run("Then the failure threshold returns the expected typed result", func(t *testing.T) {
-				hasFailure := errors.Is(result, errArchitectureFindingThresholdReached)
+				hasFailure := errors.Is(result, failure.ErrBusinessRule)
 				if hasFailure != testCase.wantFailure {
 					t.Fatalf("threshold error is %v, want failure %t", result, testCase.wantFailure)
 				}

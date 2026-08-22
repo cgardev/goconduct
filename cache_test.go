@@ -15,6 +15,7 @@ import (
 	"time"
 
 	application "digginginsights.com/v3/internal/devtool/dependencygraph/internal/application"
+	"digginginsights.com/v3/internal/devtool/dependencygraph/internal/failure"
 	querymodel "digginginsights.com/v3/internal/devtool/dependencygraph/internal/query"
 )
 
@@ -77,7 +78,10 @@ func TestGraphCache_LoadCompatibleGraph(t *testing.T) {
 			}))
 			t.Cleanup(server.Close)
 			identity = &analyzerGraphSource{analyzer: sourceAnalyzer}
-			cache = newHTTPGraphCache(strings.TrimPrefix(server.URL, "http://"), time.Second)
+			cache = newHTTPGraphCache(
+				strings.TrimPrefix(server.URL, "http://"),
+				&http.Client{Timeout: time.Second},
+			)
 		}) {
 			return
 		}
@@ -113,7 +117,10 @@ func TestGraphCache_RejectInvalidIdentity(t *testing.T) {
 
 		t.Run("Given a cache identity that returns an error", func(*testing.T) {
 			identity = graphCacheIdentityStub{err: errGraphCacheIdentity}
-			cache = newHTTPGraphCache("127.0.0.1:6062", time.Second)
+			cache = newHTTPGraphCache(
+				"127.0.0.1:6062",
+				&http.Client{Timeout: time.Second},
+			)
 		})
 
 		t.Run("When the cache loads the graph", func(*testing.T) {
@@ -156,7 +163,10 @@ func TestGraphCache_RejectDifferentScope(t *testing.T) {
 			server = httptest.NewServer(newDashboardHandler(monitor, logger))
 			t.Cleanup(server.Close)
 			identity = &analyzerGraphSource{analyzer: clientAnalyzer}
-			cache = newHTTPGraphCache(strings.TrimPrefix(server.URL, "http://"), time.Second)
+			cache = newHTTPGraphCache(
+				strings.TrimPrefix(server.URL, "http://"),
+				&http.Client{Timeout: time.Second},
+			)
 		}) {
 			return
 		}
@@ -166,8 +176,8 @@ func TestGraphCache_RejectDifferentScope(t *testing.T) {
 		})
 
 		t.Run("Then the server rejects the incompatible cache", func(t *testing.T) {
-			if !errors.Is(loadError, errGraphCacheRejected) {
-				t.Fatalf("cache error is %v, want errGraphCacheRejected", loadError)
+			if !errors.Is(loadError, failure.ErrDataIntegrity) {
+				t.Fatalf("cache error is %v, want ErrDataIntegrity", loadError)
 			}
 		})
 	})
@@ -203,7 +213,10 @@ func TestGraphCache_RefreshChangedRepository(t *testing.T) {
 			server = httptest.NewServer(newDashboardHandler(monitor, logger))
 			t.Cleanup(server.Close)
 			identity = &analyzerGraphSource{analyzer: sourceAnalyzer}
-			cache = newHTTPGraphCache(strings.TrimPrefix(server.URL, "http://"), time.Second)
+			cache = newHTTPGraphCache(
+				strings.TrimPrefix(server.URL, "http://"),
+				&http.Client{Timeout: time.Second},
+			)
 		}) {
 			return
 		}
@@ -266,7 +279,7 @@ func TestCLIQuery_UseActiveGraphCache(t *testing.T) {
 
 		t.Run("When the CLI executes the summary query in server mode", func(*testing.T) {
 			logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-			command := newRootCommand(logger)
+			command := newTestRootCommand(logger)
 			command.SetOut(&output)
 			command.SetArgs([]string{
 				"summary",
@@ -315,7 +328,7 @@ func TestCLIQuery_SelectCacheFailureBehavior(t *testing.T) {
 			name:      "server mode reports an unavailable server",
 			mode:      CacheModeServer,
 			address:   "127.0.0.1:0",
-			wantError: errGraphCacheUnavailable,
+			wantError: failure.ErrUnavailable,
 		},
 		{
 			name:    "local mode does not parse the cache address",
@@ -335,7 +348,7 @@ func TestCLIQuery_SelectCacheFailureBehavior(t *testing.T) {
 
 			t.Run("When the CLI executes a summary query", func(*testing.T) {
 				logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-				command := newRootCommand(logger)
+				command := newTestRootCommand(logger)
 				command.SetOut(&output)
 				command.SetArgs([]string{
 					"summary",
@@ -367,23 +380,34 @@ func TestCLIQuery_SelectCacheFailureBehavior(t *testing.T) {
 
 func TestGraphCache_ValidateResponseContract(t *testing.T) {
 	testCases := []struct {
-		name       string
-		status     int
-		protocol   string
-		key        string
-		schema     string
-		body       string
-		wantReject bool
+		name         string
+		status       int
+		protocol     string
+		key          string
+		schema       string
+		body         string
+		wantCategory error
 	}{
-		{name: "the server status is not successful", status: http.StatusConflict, wantReject: true},
-		{name: "the protocol header is absent", status: http.StatusOK, wantReject: true},
+		{
+			name: "the server status is not successful", status: http.StatusConflict,
+			wantCategory: failure.ErrUnavailable,
+		},
+		{
+			name: "the server rejects the analysis precondition", status: http.StatusPreconditionFailed,
+			wantCategory: failure.ErrDataIntegrity,
+		},
+		{
+			name: "the protocol header is absent", status: http.StatusOK,
+			wantCategory: failure.ErrDataIntegrity,
+		},
 		{
 			name: "the cache key does not match", status: http.StatusOK,
-			protocol: "1", key: "other", wantReject: true,
+			protocol: "1", key: "other", wantCategory: failure.ErrDataIntegrity,
 		},
 		{
 			name: "the schema header does not match", status: http.StatusOK,
-			protocol: "1", key: "expected", schema: "5", wantReject: true,
+			protocol: "1", key: "expected", schema: "5",
+			wantCategory: failure.ErrDataIntegrity,
 		},
 		{
 			name:     "the response body is not JSON",
@@ -415,11 +439,11 @@ func TestGraphCache_ValidateResponseContract(t *testing.T) {
 				validationError = validateGraphCacheResponse(response, "expected")
 			})
 
-			t.Run("Then the response has the expected rejection category", func(t *testing.T) {
-				if testCase.wantReject && !errors.Is(validationError, errGraphCacheRejected) {
-					t.Fatalf("validation error is %v, want errGraphCacheRejected", validationError)
+			t.Run("Then the response has the expected error category", func(t *testing.T) {
+				if testCase.wantCategory != nil && !errors.Is(validationError, testCase.wantCategory) {
+					t.Fatalf("validation error is %v, want %v", validationError, testCase.wantCategory)
 				}
-				if !testCase.wantReject && validationError != nil {
+				if testCase.wantCategory == nil && validationError != nil {
 					t.Fatalf("response validation fails: %v", validationError)
 				}
 			})
@@ -522,7 +546,10 @@ func TestGraphCache_DetectInvalidPayload(t *testing.T) {
 					}
 				}))
 				t.Cleanup(server.Close)
-				cache = newHTTPGraphCache(strings.TrimPrefix(server.URL, "http://"), time.Second)
+				cache = newHTTPGraphCache(
+					strings.TrimPrefix(server.URL, "http://"),
+					&http.Client{Timeout: time.Second},
+				)
 			}) {
 				return
 			}
@@ -532,8 +559,8 @@ func TestGraphCache_DetectInvalidPayload(t *testing.T) {
 			})
 
 			t.Run("Then the client reports the selected invalid payload", func(t *testing.T) {
-				if testCase.wantReject && !errors.Is(loadError, errGraphCacheRejected) {
-					t.Fatalf("cache error is %v, want errGraphCacheRejected", loadError)
+				if testCase.wantReject && !errors.Is(loadError, failure.ErrDataIntegrity) {
+					t.Fatalf("cache error is %v, want ErrDataIntegrity", loadError)
 				}
 				if testCase.wantText != "" &&
 					(loadError == nil || !strings.Contains(loadError.Error(), testCase.wantText)) {

@@ -3,19 +3,28 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"time"
-
-	query "digginginsights.com/v3/internal/devtool/dependencygraph/internal/query"
 
 	"github.com/cgardev/gokeel/conf"
 	"github.com/spf13/cobra"
+
+	"digginginsights.com/v3/internal/devtool/dependencygraph/internal/query"
 )
 
-var errArchitectureFindingThresholdReached = errors.New("architecture findings meet the failure threshold")
+type graphAnalyzer interface {
+	analyze(ctx context.Context, configuration ApplicationConfiguration) (Graph, error)
+}
+
+type dashboardRunner interface {
+	runDashboard(ctx context.Context, configuration ApplicationConfiguration) error
+}
+
+type commandRuntime interface {
+	graphAnalyzer
+	dashboardRunner
+}
 
 type analysisView string
 
@@ -42,7 +51,7 @@ type analysisReport struct {
 	Findings      []Finding      `json:"findings"`
 }
 
-type commandConfigurationOptions struct {
+type commandConfigurationFlags struct {
 	configurationPath string
 	repositoryRoot    string
 	analysisPaths     []string
@@ -52,9 +61,9 @@ type commandConfigurationOptions struct {
 	cacheTimeout      time.Duration
 }
 
-func newRootCommand(logger *slog.Logger) *cobra.Command {
+func newRootCommand(runtime commandRuntime) *cobra.Command {
 	defaults := DefaultApplicationConfiguration()
-	options := &commandConfigurationOptions{}
+	configurationFlags := &commandConfigurationFlags{}
 	var refreshIntervalOverride time.Duration
 	command := &cobra.Command{
 		Use:           "dependencygraph",
@@ -63,40 +72,18 @@ func newRootCommand(logger *slog.Logger) *cobra.Command {
 		SilenceUsage:  true,
 		Args:          cobra.NoArgs,
 		RunE: func(command *cobra.Command, _ []string) error {
-			configuration, err := options.loadConfiguration(command)
+			configuration, err := configurationFlags.loadConfiguration(command)
 			if err != nil {
 				return err
 			}
 			if command.Flags().Changed("refresh-interval") {
 				configuration.Server.RefreshInterval = refreshIntervalOverride
 			}
-			if configuration.Server.RefreshInterval < minimumRefreshInterval() {
-				return fmt.Errorf(
-					"refresh interval must be at least %s",
-					minimumRefreshInterval(),
-				)
-			}
-			analyzer, err := newAnalyzer(configuration.Analysis)
-			if err != nil {
-				return err
-			}
-			monitor, err := newGraphMonitor(
-				command.Context(),
-				analyzer,
-				configuration.Server.RefreshInterval,
-				logger,
-			)
-			if err != nil {
-				if isCommandContextError(command.Context(), err) {
-					return nil
-				}
-				return err
-			}
-			return runDashboard(command.Context(), monitor, configuration.Server.Address, logger)
+			return runtime.runDashboard(command.Context(), configuration)
 		},
 	}
 	command.PersistentFlags().StringVar(
-		&options.serverAddress,
+		&configurationFlags.serverAddress,
 		"address",
 		defaults.Server.Address,
 		"Use this dashboard and graph cache address instead of the configured address.",
@@ -108,85 +95,80 @@ func newRootCommand(logger *slog.Logger) *cobra.Command {
 		"Use this file check interval instead of the configured interval.",
 	)
 	command.PersistentFlags().StringVar(
-		&options.configurationPath,
+		&configurationFlags.configurationPath,
 		"configuration",
 		defaultConfigurationPath,
 		"Read the optional JavaScript Object Notation (JSON) configuration from this path.",
 	)
 	command.PersistentFlags().StringVar(
-		&options.repositoryRoot,
+		&configurationFlags.repositoryRoot,
 		"root",
 		defaults.Analysis.RepositoryRoot,
 		"Use this repository root instead of the configured root.",
 	)
 	command.PersistentFlags().StringArrayVar(
-		&options.analysisPaths,
+		&configurationFlags.analysisPaths,
 		"analysis-path",
 		nil,
 		"Analyze this repository-relative path. Repeat this option to replace all configured paths.",
 	)
 	command.PersistentFlags().StringArrayVar(
-		&options.ignoredPaths,
+		&configurationFlags.ignoredPaths,
 		"ignore-path",
 		nil,
 		"Ignore this path pattern. Repeat this option to replace all configured patterns.",
 	)
 	command.PersistentFlags().StringVar(
-		&options.cacheMode,
+		&configurationFlags.cacheMode,
 		"cache",
 		string(defaults.Cache.Mode),
 		"Select the graph source for CLI queries. Use auto, server, or local.",
 	)
 	command.PersistentFlags().DurationVar(
-		&options.cacheTimeout,
+		&configurationFlags.cacheTimeout,
 		"cache-timeout",
 		defaults.Cache.RequestTimeout,
 		"Set the maximum time for one active graph cache request.",
 	)
 	command.AddCommand(
-		newAnalyzeCommand(options),
-		newSummaryCommand(options),
-		newFindingsCommand(options),
-		newComponentsCommand(options),
-		newComponentCommand(options),
-		newFunctionsCommand(options),
-		newFunctionCommand(options),
-		newFunctionCallsCommand(options),
+		newAnalyzeCommand(configurationFlags, runtime),
+		newSummaryCommand(configurationFlags, runtime),
+		newFindingsCommand(configurationFlags, runtime),
+		newComponentsCommand(configurationFlags, runtime),
+		newComponentCommand(configurationFlags, runtime),
+		newFunctionsCommand(configurationFlags, runtime),
+		newFunctionCommand(configurationFlags, runtime),
+		newFunctionCallsCommand(configurationFlags, runtime),
 		newConfigurationSchemaCommand(),
 	)
 	return command
 }
 
-func isCommandContextError(ctx context.Context, err error) bool {
-	contextError := ctx.Err()
-	return contextError != nil && errors.Is(err, contextError)
-}
-
-func (options *commandConfigurationOptions) loadConfiguration(
+func (flags *commandConfigurationFlags) loadConfiguration(
 	command *cobra.Command,
 ) (ApplicationConfiguration, error) {
-	configuration, err := loadApplicationConfiguration(options.configurationPath)
+	configuration, err := loadApplicationConfiguration(flags.configurationPath)
 	if err != nil {
 		return ApplicationConfiguration{}, err
 	}
-	flags := command.Root().PersistentFlags()
-	if flags.Changed("root") {
-		configuration.Analysis.RepositoryRoot = options.repositoryRoot
+	persistentFlags := command.Root().PersistentFlags()
+	if persistentFlags.Changed("root") {
+		configuration.Analysis.RepositoryRoot = flags.repositoryRoot
 	}
-	if flags.Changed("analysis-path") {
-		configuration.Analysis.Paths = options.analysisPaths
+	if persistentFlags.Changed("analysis-path") {
+		configuration.Analysis.Paths = flags.analysisPaths
 	}
-	if flags.Changed("ignore-path") {
-		configuration.Analysis.IgnoredPaths = options.ignoredPaths
+	if persistentFlags.Changed("ignore-path") {
+		configuration.Analysis.IgnoredPaths = flags.ignoredPaths
 	}
-	if flags.Changed("address") {
-		configuration.Server.Address = options.serverAddress
+	if persistentFlags.Changed("address") {
+		configuration.Server.Address = flags.serverAddress
 	}
-	if flags.Changed("cache") {
-		configuration.Cache.Mode = CacheMode(options.cacheMode)
+	if persistentFlags.Changed("cache") {
+		configuration.Cache.Mode = CacheMode(flags.cacheMode)
 	}
-	if flags.Changed("cache-timeout") {
-		configuration.Cache.RequestTimeout = options.cacheTimeout
+	if persistentFlags.Changed("cache-timeout") {
+		configuration.Cache.RequestTimeout = flags.cacheTimeout
 	}
 	if err := validateCacheConfiguration(configuration.Cache); err != nil {
 		return ApplicationConfiguration{}, err
@@ -194,7 +176,7 @@ func (options *commandConfigurationOptions) loadConfiguration(
 	return configuration, nil
 }
 
-func newAnalyzeCommand(options *commandConfigurationOptions) *cobra.Command {
+func newAnalyzeCommand(configurationFlags *commandConfigurationFlags, analyzer graphAnalyzer) *cobra.Command {
 	var requestedView string
 	var failureThreshold string
 	var indentOutput bool
@@ -215,7 +197,7 @@ func newAnalyzeCommand(options *commandConfigurationOptions) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			graph, err := loadGraphForCommand(command, options)
+			graph, err := loadGraphForCommand(command, configurationFlags, analyzer)
 			if err != nil {
 				return err
 			}
@@ -243,22 +225,23 @@ func newAnalyzeCommand(options *commandConfigurationOptions) *cobra.Command {
 
 func loadGraphForCommand(
 	command *cobra.Command,
-	options *commandConfigurationOptions,
+	configurationFlags *commandConfigurationFlags,
+	analyzer graphAnalyzer,
 ) (Graph, error) {
-	configuration, err := options.loadConfiguration(command)
+	configuration, err := configurationFlags.loadConfiguration(command)
 	if err != nil {
 		return Graph{}, err
 	}
-	return analyzeGraph(command.Context(), configuration)
+	return analyzer.analyze(command.Context(), configuration)
 }
 
-func newSummaryCommand(options *commandConfigurationOptions) *cobra.Command {
+func newSummaryCommand(configurationFlags *commandConfigurationFlags, analyzer graphAnalyzer) *cobra.Command {
 	return &cobra.Command{
 		Use:   "summary",
 		Short: "Write the configured scope, policy, and counts in JavaScript Object Notation (JSON).",
 		Args:  cobra.NoArgs,
 		RunE: func(command *cobra.Command, _ []string) error {
-			graph, err := loadGraphForCommand(command, options)
+			graph, err := loadGraphForCommand(command, configurationFlags, analyzer)
 			if err != nil {
 				return err
 			}
@@ -267,7 +250,7 @@ func newSummaryCommand(options *commandConfigurationOptions) *cobra.Command {
 	}
 }
 
-func newFindingsCommand(options *commandConfigurationOptions) *cobra.Command {
+func newFindingsCommand(configurationFlags *commandConfigurationFlags, analyzer graphAnalyzer) *cobra.Command {
 	var severity string
 	var rule string
 	var component string
@@ -277,7 +260,7 @@ func newFindingsCommand(options *commandConfigurationOptions) *cobra.Command {
 		Short: "Write filtered architecture findings in JavaScript Object Notation (JSON).",
 		Example: "  dependencygraph findings --severity error\n" +
 			"  dependencygraph findings --rule stable-dependency-principle\n" +
-			"  dependencygraph findings --component internal/library/foundationdomain",
+			"  dependencygraph findings --component internal/library/logging",
 		Args: cobra.NoArgs,
 		RunE: func(command *cobra.Command, _ []string) error {
 			severityFilter, err := query.ParseFindingSeverity(severity)
@@ -287,7 +270,7 @@ func newFindingsCommand(options *commandConfigurationOptions) *cobra.Command {
 			if err := validateQueryLimit(limit); err != nil {
 				return err
 			}
-			graph, err := loadGraphForCommand(command, options)
+			graph, err := loadGraphForCommand(command, configurationFlags, analyzer)
 			if err != nil {
 				return err
 			}
@@ -317,7 +300,7 @@ func newFindingsCommand(options *commandConfigurationOptions) *cobra.Command {
 	return command
 }
 
-func newComponentsCommand(options *commandConfigurationOptions) *cobra.Command {
+func newComponentsCommand(configurationFlags *commandConfigurationFlags, analyzer graphAnalyzer) *cobra.Command {
 	var role string
 	var category string
 	var sortOrder string
@@ -341,7 +324,7 @@ func newComponentsCommand(options *commandConfigurationOptions) *cobra.Command {
 			if err := validateQueryLimit(limit); err != nil {
 				return err
 			}
-			graph, err := loadGraphForCommand(command, options)
+			graph, err := loadGraphForCommand(command, configurationFlags, analyzer)
 			if err != nil {
 				return err
 			}
@@ -382,15 +365,15 @@ func newComponentsCommand(options *commandConfigurationOptions) *cobra.Command {
 	return command
 }
 
-func newComponentCommand(options *commandConfigurationOptions) *cobra.Command {
+func newComponentCommand(configurationFlags *commandConfigurationFlags, analyzer graphAnalyzer) *cobra.Command {
 	return &cobra.Command{
 		Use: "component <identifier>",
 		Short: "Write one component, its imports, its importing components, and its findings " +
 			"in JavaScript Object Notation (JSON).",
-		Example: "  dependencygraph component internal/library/foundationdomain",
+		Example: "  dependencygraph component internal/library/logging",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(command *cobra.Command, arguments []string) error {
-			graph, err := loadGraphForCommand(command, options)
+			graph, err := loadGraphForCommand(command, configurationFlags, analyzer)
 			if err != nil {
 				return err
 			}
@@ -405,7 +388,7 @@ func newComponentCommand(options *commandConfigurationOptions) *cobra.Command {
 
 func validateQueryLimit(limit int) error {
 	if limit < 0 {
-		return fmt.Errorf("query limit must not be negative")
+		return newValidationError("query limit must not be negative", nil)
 	}
 	return nil
 }
@@ -415,7 +398,7 @@ func writeQueryJSON(output io.Writer, queryResult any) error {
 	encoder.SetEscapeHTML(false)
 	encoder.SetIndent("", "  ")
 	if err := encoder.Encode(queryResult); err != nil {
-		return fmt.Errorf("encode query result: %w", err)
+		return newUnavailableError("encode query result", err)
 	}
 	return nil
 }
@@ -431,10 +414,10 @@ func newConfigurationSchemaCommand() *cobra.Command {
 				applicationSchemaDefinition(),
 			)
 			if err != nil {
-				return fmt.Errorf("generate configuration schema: %w", err)
+				return newInternalError("generate configuration schema", err)
 			}
 			if _, err := command.OutOrStdout().Write(schema); err != nil {
-				return fmt.Errorf("write configuration schema: %w", err)
+				return newUnavailableError("write configuration schema", err)
 			}
 			return nil
 		},
@@ -447,7 +430,10 @@ func parseAnalysisView(value string) (analysisView, error) {
 	case analysisViewReport, analysisViewGraph:
 		return view, nil
 	default:
-		return "", fmt.Errorf("analysis view %q must be report or graph", value)
+		return "", newValidationError(
+			fmt.Sprintf("analysis view %q must be report or graph", value),
+			nil,
+		)
 	}
 }
 
@@ -457,7 +443,10 @@ func parseFindingThreshold(value string) (findingThreshold, error) {
 	case findingThresholdNone, findingThresholdWarning, findingThresholdError:
 		return threshold, nil
 	default:
-		return "", fmt.Errorf("finding threshold %q must be none, warning, or error", value)
+		return "", newValidationError(
+			fmt.Sprintf("finding threshold %q must be none, warning, or error", value),
+			nil,
+		)
 	}
 }
 
@@ -485,7 +474,7 @@ func writeAnalysisJSON(
 		analysisOutput = graph
 	}
 	if err := encoder.Encode(analysisOutput); err != nil {
-		return fmt.Errorf("encode architecture analysis: %w", err)
+		return newUnavailableError("encode architecture analysis", err)
 	}
 	return nil
 }
@@ -503,14 +492,12 @@ func enforceFindingThreshold(findings []Finding, threshold findingThreshold) err
 	if failures == 0 {
 		return nil
 	}
-	return fmt.Errorf(
-		"%w: %d findings at %s severity or higher",
-		errArchitectureFindingThresholdReached,
-		failures,
-		threshold,
+	return newBusinessRuleError(
+		fmt.Sprintf("%d findings at %s severity or higher", failures, threshold),
+		nil,
 	)
 }
 
 // mutate4go-manifest-begin
-// {"version":1,"tested_at":"2026-08-21T17:18:02Z","module_hash":"dbc0e6bacf40db868fc146ca64828e9616bca9c32acca94cce425e05486b2526","functions":[{"id":"func/newRootCommand","name":"newRootCommand","line":55,"end_line":158,"hash":"756884de1ae0233fa025aed2137786d7f5c2c258a2ac5c390c9330065b8f947e"},{"id":"func/isCommandContextError","name":"isCommandContextError","line":160,"end_line":163,"hash":"cb42632c8af285e4d142b63705c8842eb0e26bce3fe0cd3564990805bbe6bf55"},{"id":"func/commandConfigurationOptions.loadConfiguration","name":"commandConfigurationOptions.loadConfiguration","line":165,"end_line":195,"hash":"8b89961e60397e18b983531b1f07994ff31eb87368d04d1a27274ea67c9b407e"},{"id":"func/newAnalyzeCommand","name":"newAnalyzeCommand","line":197,"end_line":242,"hash":"f531efa9c9ca7f024793775a5c86c4a017ed69603848f5214ddc14e083e13b4d"},{"id":"func/loadGraphForCommand","name":"loadGraphForCommand","line":244,"end_line":253,"hash":"4bbb5eff180aaab5ca68381a5a6093f2f333be4ae1a7acbafd9ff0d178d654aa"},{"id":"func/newSummaryCommand","name":"newSummaryCommand","line":255,"end_line":268,"hash":"31c0e7cd13482e38320e829533147246bf3c290cec55544a51be58f9d5f734f1"},{"id":"func/newFindingsCommand","name":"newFindingsCommand","line":270,"end_line":318,"hash":"f4d91f39ef5bc330fd16503f088dfb2388086838e7256c94c7793e0d697bf544"},{"id":"func/newComponentsCommand","name":"newComponentsCommand","line":320,"end_line":383,"hash":"e7a4a3082bef2cce86c526fea971e0d6a22d2839326db1f66a3b375ba19c611c"},{"id":"func/newComponentCommand","name":"newComponentCommand","line":385,"end_line":404,"hash":"9e3fd3cde87f3789ef1aedf7d9c36879365c6066cf68ae962e00558a81d6fd4e"},{"id":"func/validateQueryLimit","name":"validateQueryLimit","line":406,"end_line":411,"hash":"128deffab20785dcb9652565027ab85ad6baefb5ede20ba2baf393b2f8f0249c"},{"id":"func/writeQueryJSON","name":"writeQueryJSON","line":413,"end_line":421,"hash":"d47a0e9de8b39efbf32698714a9acc638d95981d4e13326fc140dce0f6e2b353"},{"id":"func/newConfigurationSchemaCommand","name":"newConfigurationSchemaCommand","line":423,"end_line":442,"hash":"28980aafb3906312da958b0d1f01ab0a0d1df7e5cc8aa7693d19cfa4782ca1c3"},{"id":"func/parseAnalysisView","name":"parseAnalysisView","line":444,"end_line":452,"hash":"2e911c0bcec32108ac0be9988ef64e2daf7e3aebff83847c1116747c0ef4b6f8"},{"id":"func/parseFindingThreshold","name":"parseFindingThreshold","line":454,"end_line":462,"hash":"92e8a1de6869b3365cfabdd1bde963ec1db5877f7f070beceb78fabd2719786d"},{"id":"func/writeAnalysisJSON","name":"writeAnalysisJSON","line":464,"end_line":491,"hash":"da7545861aca744e566b083bd56a90ea969f2de68e57204b8ff83526eede8ebc"},{"id":"func/enforceFindingThreshold","name":"enforceFindingThreshold","line":493,"end_line":512,"hash":"a83bfa7a7f8a290abc28eb54cea09477b17b6c99de081093066c72cf4169ffb6"}]}
+// {"version":1,"tested_at":"2026-08-21T19:47:25Z","module_hash":"c540eefefcae6c00f9788b09097e1f2c983302493d26f0865fe73bb2e61fb4c5","functions":[{"id":"func/newRootCommand","name":"newRootCommand","line":64,"end_line":145,"hash":"580bf74dab4b8041b7580af6d7c20b06a82adbe66cb00cbbfdffbab0e8660639"},{"id":"func/commandConfigurationFlags.loadConfiguration","name":"commandConfigurationFlags.loadConfiguration","line":147,"end_line":177,"hash":"75165e9e3937b400e52cf5834a724cc8ee2db82a0ff3005ec9aaf52db540f23a"},{"id":"func/newAnalyzeCommand","name":"newAnalyzeCommand","line":179,"end_line":224,"hash":"b4de892c331a2988566fd2a63d7bcb30999403373c02c8d5a1728611091d0398"},{"id":"func/loadGraphForCommand","name":"loadGraphForCommand","line":226,"end_line":236,"hash":"0d62199532c79ca7d56efae3ec09ccfcc9e14c4025d64c7f8863f99623cb44e2"},{"id":"func/newSummaryCommand","name":"newSummaryCommand","line":238,"end_line":251,"hash":"83c1235292dc0c0f38aa64d7d0c286ca40f2b5aa9b5b3856fd0e195af249f49b"},{"id":"func/newFindingsCommand","name":"newFindingsCommand","line":253,"end_line":301,"hash":"7c6b2769600b3757afe60939b9875e913160cae28d78a8131cf2df9769c82ed5"},{"id":"func/newComponentsCommand","name":"newComponentsCommand","line":303,"end_line":366,"hash":"6acc1e42b3b99b2e992612b0c46c895825f690384bc43d6296eb90c73d07d779"},{"id":"func/newComponentCommand","name":"newComponentCommand","line":368,"end_line":387,"hash":"84b321bb745884ed66a7114204027f4af7a6c5e2123eda3ab628083ac44677d8"},{"id":"func/validateQueryLimit","name":"validateQueryLimit","line":389,"end_line":394,"hash":"137d5d4d8d0710499af12a630b0990318d216aeebdf8b59aef9d7934df5e2ca6"},{"id":"func/writeQueryJSON","name":"writeQueryJSON","line":396,"end_line":404,"hash":"de1792654e01679c030b556a26b7287c525dbe2a439201b2a6e95597b305b10b"},{"id":"func/newConfigurationSchemaCommand","name":"newConfigurationSchemaCommand","line":406,"end_line":425,"hash":"31b549dd67a25898f82e845dff6aa287470d2e2cab2d33f4ec0421807e521228"},{"id":"func/parseAnalysisView","name":"parseAnalysisView","line":427,"end_line":438,"hash":"2f0bbbd831be7a7e6bc5813d6bd9df6a7d6e07db5c56ebeaa42957ae493a67cc"},{"id":"func/parseFindingThreshold","name":"parseFindingThreshold","line":440,"end_line":451,"hash":"815da9041742486570baf886be5ea5d4f7f63efe39bd519df5e5402d90242018"},{"id":"func/writeAnalysisJSON","name":"writeAnalysisJSON","line":453,"end_line":480,"hash":"573670eab51b89384b49d2eecb7ab5e17b73fc72a2182bbcbbe027e0be1d7653"},{"id":"func/enforceFindingThreshold","name":"enforceFindingThreshold","line":482,"end_line":499,"hash":"c2d30c81317ebc6885a3e010128235cdf069cd8a71e3733ae209931c90060d88"}]}
 // mutate4go-manifest-end

@@ -14,7 +14,14 @@ func TestLayerArchitecture_KeepApplicationTransportIndependent(t *testing.T) {
 		allowedImports []string
 	}{
 		{file: "ports.go", allowedImports: []string{"context"}},
-		{file: "usecase.go", allowedImports: []string{"context", "errors", "fmt"}},
+		{
+			file: "usecase.go",
+			allowedImports: []string{
+				"context",
+				"digginginsights.com/v3/internal/devtool/dependencygraph/internal/failure",
+				"fmt",
+			},
+		},
 	}
 	for _, testCase := range testCases {
 		t.Run("Scenario: The application file is "+testCase.file, func(t *testing.T) {
@@ -55,7 +62,7 @@ func TestLayerArchitecture_KeepApplicationTransportIndependent(t *testing.T) {
 				return
 			}
 
-			t.Run("And the application file has no transport dependency", func(t *testing.T) {
+			t.Run("And the application file has only domain and standard library dependencies", func(t *testing.T) {
 				if !slices.Equal(imports, testCase.allowedImports) {
 					t.Errorf(
 						"%s imports %v, want only %v",

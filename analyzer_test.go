@@ -12,6 +12,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"digginginsights.com/v3/internal/devtool/dependencygraph/internal/failure"
 )
 
 func fixtureAnalysisConfiguration(repositoryRoot string) AnalysisConfiguration {
@@ -668,9 +670,9 @@ func TestModulePath_ReadAbsentDeclaration(t *testing.T) {
 			_, err = readModulePath(repositoryRoot)
 		})
 
-		t.Run("Then the reader returns the typed declaration error", func(t *testing.T) {
-			if !errors.Is(err, errModuleDeclarationNotFound) {
-				t.Fatalf("error is %v, want errModuleDeclarationNotFound", err)
+		t.Run("Then the reader returns the data integrity error category", func(t *testing.T) {
+			if !errors.Is(err, failure.ErrDataIntegrity) {
+				t.Fatalf("error is %v, want ErrDataIntegrity", err)
 			}
 		})
 	})

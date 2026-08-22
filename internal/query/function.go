@@ -2,16 +2,13 @@ package query
 
 import (
 	"cmp"
-	"errors"
 	"fmt"
 	"slices"
 	"strings"
 
+	"digginginsights.com/v3/internal/devtool/dependencygraph/internal/failure"
 	"digginginsights.com/v3/internal/devtool/dependencygraph/internal/report"
 )
-
-// ErrFunctionNotFound identifies a function that is absent from the graph.
-var ErrFunctionNotFound = errors.New("function not found")
 
 // FunctionSort selects the metric that orders functions.
 type FunctionSort string
@@ -148,7 +145,11 @@ func ParseFunctionSort(value string) (FunctionSort, error) {
 	if _, found := functionSortDescriptorFor(sortOrder); found {
 		return sortOrder, nil
 	}
-	return "", fmt.Errorf("function sort %q must be %s", value, describeFunctionSorts())
+	return "", failure.NewError(
+		failure.ErrValidation,
+		fmt.Sprintf("function sort %q must be %s", value, describeFunctionSorts()),
+		nil,
+	)
 }
 
 // Functions returns functions that match the supplied parameters.
@@ -244,7 +245,11 @@ func functionEfferentCoupling(function report.Function, includeTests bool) int {
 func GetFunction(graph report.Graph, identifier string, includeTests bool) (FunctionResult, error) {
 	function, found := findFunction(graph.Functions, identifier)
 	if !found {
-		return FunctionResult{}, fmt.Errorf("%w: %s", ErrFunctionNotFound, identifier)
+		return FunctionResult{}, failure.NewEntityNotFoundError(
+			"dependency graph function",
+			identifier,
+			nil,
+		)
 	}
 	incomingCalls := make([]report.FunctionCall, 0, len(graph.FunctionCalls))
 	outgoingCalls := make([]report.FunctionCall, 0, len(graph.FunctionCalls))
@@ -310,5 +315,5 @@ func functionCallMatchesQuery(call report.FunctionCall, query FunctionCallsParam
 }
 
 // mutate4go-manifest-begin
-// {"version":1,"tested_at":"2026-08-21T16:37:10Z","module_hash":"d7f7f236ea096d5b020be090f914c5a23adc720fb8564ba86ed5002a52da0c02","functions":[{"id":"func/ParseFunctionSort","name":"ParseFunctionSort","line":146,"end_line":152,"hash":"9eca8177c5847d4c17e17e81feda1ac5d186916cc41f93ec46d35aa9eaa40beb"},{"id":"func/Functions","name":"Functions","line":155,"end_line":172,"hash":"fd462794e25ba004fbfecd32fc2381ae09c7db7250236825dfeebd755b41c290"},{"id":"func/functionMatchesQuery","name":"functionMatchesQuery","line":174,"end_line":182,"hash":"22e62a56d83addb2eb9ccccd24d4a26b753bbca9a1d8af0cdde52553dc565811"},{"id":"func/functionComparison","name":"functionComparison","line":184,"end_line":196,"hash":"13d66804c722f5d225728f48748d91b9eee74891b2eb9d8e5eec13b38cd51c8c"},{"id":"func/functionSortDescriptorFor","name":"functionSortDescriptorFor","line":198,"end_line":205,"hash":"f63da7aa23895b1baa24f7aaa3e0349ba58e3ffecd178b6171f3cbbb78913e62"},{"id":"func/describeFunctionSorts","name":"describeFunctionSorts","line":207,"end_line":213,"hash":"32a9059db4cfa579c0ce184cb2d5d232a4d37eed5c726056266203ffbf76d20e"},{"id":"func/functionIncomingCallSites","name":"functionIncomingCallSites","line":215,"end_line":220,"hash":"e086225040ec47c33ea3d6a86e6784cf5445191fdff5ca067326a326ea71cec8"},{"id":"func/functionOutgoingCallSites","name":"functionOutgoingCallSites","line":222,"end_line":227,"hash":"6746f1eaee26b6b01c23c0d43cb9435facd2267445f6abfe0f0db54ac516e461"},{"id":"func/functionAfferentCoupling","name":"functionAfferentCoupling","line":229,"end_line":234,"hash":"62a25eae6b1363efde96619d99c57edf48c2b4578dd1215b6223db48d7f357f6"},{"id":"func/functionEfferentCoupling","name":"functionEfferentCoupling","line":236,"end_line":241,"hash":"adb37c4341117d020038b33f404881c7bc634a1986851c32050eba74fecc012b"},{"id":"func/GetFunction","name":"GetFunction","line":244,"end_line":268,"hash":"f3e03fe1462fa3b0acc5ab2336bf8ebdc3838cdb025cb78b12a718a51e9696cc"},{"id":"func/findFunction","name":"findFunction","line":270,"end_line":277,"hash":"52ddee9d8e90501c1c0206d07c50bed6236c9c17d845311b4a6bb01194015b4f"},{"id":"func/FunctionCalls","name":"FunctionCalls","line":280,"end_line":300,"hash":"84f21d40a031c92c034b8b38947eea4a5d9fdb312c6b421766710a3a2ea36b20"},{"id":"func/functionCallMatchesQuery","name":"functionCallMatchesQuery","line":302,"end_line":310,"hash":"f4918674e7845a62a3c442b9125daaf0fe86abd0162981b33b9ec469e1aea24e"}]}
+// {"version":1,"tested_at":"2026-08-21T19:49:34Z","module_hash":"8afaaf6a134ab86a33971af33e1b25a928959ddc1f5313324c4c477efa4b298b","functions":[{"id":"func/ParseFunctionSort","name":"ParseFunctionSort","line":143,"end_line":153,"hash":"5a0079cd3ef6c535c77b17509343981f507e82706ce53dbbd8c51146d103b361"},{"id":"func/Functions","name":"Functions","line":156,"end_line":173,"hash":"fd462794e25ba004fbfecd32fc2381ae09c7db7250236825dfeebd755b41c290"},{"id":"func/functionMatchesQuery","name":"functionMatchesQuery","line":175,"end_line":183,"hash":"22e62a56d83addb2eb9ccccd24d4a26b753bbca9a1d8af0cdde52553dc565811"},{"id":"func/functionComparison","name":"functionComparison","line":185,"end_line":197,"hash":"13d66804c722f5d225728f48748d91b9eee74891b2eb9d8e5eec13b38cd51c8c"},{"id":"func/functionSortDescriptorFor","name":"functionSortDescriptorFor","line":199,"end_line":206,"hash":"f63da7aa23895b1baa24f7aaa3e0349ba58e3ffecd178b6171f3cbbb78913e62"},{"id":"func/describeFunctionSorts","name":"describeFunctionSorts","line":208,"end_line":214,"hash":"32a9059db4cfa579c0ce184cb2d5d232a4d37eed5c726056266203ffbf76d20e"},{"id":"func/functionIncomingCallSites","name":"functionIncomingCallSites","line":216,"end_line":221,"hash":"e086225040ec47c33ea3d6a86e6784cf5445191fdff5ca067326a326ea71cec8"},{"id":"func/functionOutgoingCallSites","name":"functionOutgoingCallSites","line":223,"end_line":228,"hash":"6746f1eaee26b6b01c23c0d43cb9435facd2267445f6abfe0f0db54ac516e461"},{"id":"func/functionAfferentCoupling","name":"functionAfferentCoupling","line":230,"end_line":235,"hash":"62a25eae6b1363efde96619d99c57edf48c2b4578dd1215b6223db48d7f357f6"},{"id":"func/functionEfferentCoupling","name":"functionEfferentCoupling","line":237,"end_line":242,"hash":"adb37c4341117d020038b33f404881c7bc634a1986851c32050eba74fecc012b"},{"id":"func/GetFunction","name":"GetFunction","line":245,"end_line":273,"hash":"0b5578ece3cb51a96214ce280404808ce9df7a27f9a52e986f9a95d2e5be5eac"},{"id":"func/findFunction","name":"findFunction","line":275,"end_line":282,"hash":"52ddee9d8e90501c1c0206d07c50bed6236c9c17d845311b4a6bb01194015b4f"},{"id":"func/FunctionCalls","name":"FunctionCalls","line":285,"end_line":305,"hash":"84f21d40a031c92c034b8b38947eea4a5d9fdb312c6b421766710a3a2ea36b20"},{"id":"func/functionCallMatchesQuery","name":"functionCallMatchesQuery","line":307,"end_line":315,"hash":"f4918674e7845a62a3c442b9125daaf0fe86abd0162981b33b9ec469e1aea24e"}]}
 // mutate4go-manifest-end

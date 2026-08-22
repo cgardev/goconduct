@@ -4,6 +4,8 @@ import (
 	"errors"
 	"slices"
 	"testing"
+
+	"digginginsights.com/v3/internal/devtool/dependencygraph/internal/failure"
 )
 
 func TestFunctionQueries_ReturnDirectFunctionResources(t *testing.T) {
@@ -93,8 +95,15 @@ func TestFunctionQuery_RejectUnknownFunction(t *testing.T) {
 		})
 
 		t.Run("Then the query returns the typed not-found error", func(t *testing.T) {
-			if !errors.Is(queryError, ErrFunctionNotFound) {
-				t.Fatalf("error is %v, want ErrFunctionNotFound", queryError)
+			if !errors.Is(queryError, failure.ErrNotFound) {
+				t.Fatalf("error is %v, want ErrNotFound", queryError)
+			}
+			var domainError *failure.Error
+			if !errors.As(queryError, &domainError) {
+				t.Fatalf("function query error type is %T, want *failure.Error", queryError)
+			}
+			if domainError.Entity != "dependency graph function" || domainError.ID != "absent.Function" {
+				t.Errorf("function query error context is entity=%q id=%v", domainError.Entity, domainError.ID)
 			}
 		})
 	})
@@ -128,6 +137,9 @@ func TestFunctionSort_ParseClosedVocabulary(t *testing.T) {
 			t.Run("Then the parser returns the expected validity", func(t *testing.T) {
 				if (parseError == nil) != testCase.valid {
 					t.Fatalf("parse error is %v, valid is %t", parseError, testCase.valid)
+				}
+				if !testCase.valid && !errors.Is(parseError, failure.ErrValidation) {
+					t.Fatalf("parse error is %v, want ErrValidation", parseError)
 				}
 			})
 		})

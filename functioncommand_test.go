@@ -7,9 +7,9 @@ import (
 	"log/slog"
 	"testing"
 
-	querymodel "digginginsights.com/v3/internal/devtool/dependencygraph/internal/query"
-
 	"github.com/spf13/cobra"
+
+	querymodel "digginginsights.com/v3/internal/devtool/dependencygraph/internal/query"
 )
 
 func TestFunctionCommands_EmitFocusedJSONWithoutPipes(t *testing.T) {
@@ -57,7 +57,7 @@ func TestFunctionCommands_EmitFocusedJSONWithoutPipes(t *testing.T) {
 			for _, query := range queries {
 				var output bytes.Buffer
 				logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-				command := newRootCommand(logger)
+				command := newTestRootCommand(logger)
 				command.SetOut(&output)
 				command.SetArgs(query.arguments)
 				if err := command.ExecuteContext(step.Context()); err != nil {
@@ -99,11 +99,13 @@ func TestFunctionCommands_DefaultToProductionScope(t *testing.T) {
 		var defaults map[string][2]string
 
 		t.Run("Given each function query command with its default flags", func(*testing.T) {
-			options := &commandConfigurationOptions{}
+			configurationFlags := &commandConfigurationFlags{}
+			logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+			analyzer := newTestCommandRuntime(logger)
 			commands = map[string]*cobra.Command{
-				"functions": newFunctionsCommand(options),
-				"function":  newFunctionCommand(options),
-				"calls":     newFunctionCallsCommand(options),
+				"functions": newFunctionsCommand(configurationFlags, analyzer),
+				"function":  newFunctionCommand(configurationFlags, analyzer),
+				"calls":     newFunctionCallsCommand(configurationFlags, analyzer),
 			}
 		})
 

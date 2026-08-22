@@ -2,15 +2,9 @@ package application
 
 import (
 	"context"
-	"errors"
 	"fmt"
-)
 
-var (
-	// ErrInvalidCacheMode identifies an unsupported graph cache mode.
-	ErrInvalidCacheMode = errors.New("invalid graph cache mode")
-	// ErrRequiredGraphCache identifies a failure from a required active cache.
-	ErrRequiredGraphCache = errors.New("load active graph cache")
+	"digginginsights.com/v3/internal/devtool/dependencygraph/internal/failure"
 )
 
 // CacheMode selects the source for a dependency graph.
@@ -69,7 +63,11 @@ func (useCase *AnalyzeGraphUseCase[Configuration, Graph]) Execute(
 		return graph, nil
 	}
 	if params.CacheMode == CacheModeServer {
-		return zeroGraph, fmt.Errorf("%w: %w", ErrRequiredGraphCache, cacheError)
+		return zeroGraph, failure.NewError(
+			failure.ErrUnavailable,
+			"load the required active graph cache",
+			cacheError,
+		)
 	}
 	if err := ctx.Err(); err != nil {
 		return zeroGraph, err
@@ -83,14 +81,14 @@ func ValidateCacheMode(mode CacheMode) error {
 	case CacheModeAuto, CacheModeServer, CacheModeLocal:
 		return nil
 	default:
-		return fmt.Errorf(
-			"%w: cache mode %q must be auto, server, or local",
-			ErrInvalidCacheMode,
-			mode,
+		return failure.NewError(
+			failure.ErrValidation,
+			fmt.Sprintf("cache mode %q must be auto, server, or local", mode),
+			nil,
 		)
 	}
 }
 
 // mutate4go-manifest-begin
-// {"version":1,"tested_at":"2026-08-21T16:35:08Z","module_hash":"96f2de03ea9606372cada8b5b6def575c11f32cb929abbc54f280fa4b11249ed","functions":[{"id":"func/NewAnalyzeGraphUseCase","name":"NewAnalyzeGraphUseCase","line":41,"end_line":49,"hash":"afb8d889ef750cdd75d044a1a2211571793729cc7840b1d6bb8a6d5c927bf46c"},{"id":"func/AnalyzeGraphUseCase.Execute","name":"AnalyzeGraphUseCase.Execute","line":52,"end_line":78,"hash":"cfc695096cc2ae37d4f92e60dffb882548c0856af0f65ba0fff966eb3361b3a7"},{"id":"func/ValidateCacheMode","name":"ValidateCacheMode","line":81,"end_line":92,"hash":"1779f817f00dc805a674b48ec5b18f0b07b8721b292912e49ab38211a12b1473"}]}
+// {"version":1,"tested_at":"2026-08-21T19:49:30Z","module_hash":"ead3884e913480bd6a2db53e57e7daeee1c9a990dab3608c4fc689f2250c69f7","functions":[{"id":"func/NewAnalyzeGraphUseCase","name":"NewAnalyzeGraphUseCase","line":35,"end_line":43,"hash":"afb8d889ef750cdd75d044a1a2211571793729cc7840b1d6bb8a6d5c927bf46c"},{"id":"func/AnalyzeGraphUseCase.Execute","name":"AnalyzeGraphUseCase.Execute","line":46,"end_line":76,"hash":"1bea5e90759be8116ea5c9e5fc292c8171dd02a234c8fe6725308a00475c6934"},{"id":"func/ValidateCacheMode","name":"ValidateCacheMode","line":79,"end_line":90,"hash":"e249cea232322bda9d1ef7f5d2d34046cabcca5e238e27d5c7887f49e76e2964"}]}
 // mutate4go-manifest-end

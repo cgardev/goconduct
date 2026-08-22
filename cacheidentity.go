@@ -4,7 +4,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
-	"fmt"
 	"os"
 	"runtime"
 )
@@ -32,12 +31,12 @@ func (analyzer *analyzer) graphCacheKey() (string, error) {
 		GoFlags:           os.Getenv("GOFLAGS"),
 	})
 	if err != nil {
-		return "", fmt.Errorf("encode graph cache identity: %w", err)
+		return "", newInternalError("encode graph cache identity", err)
 	}
 	digest := sha256.Sum256(payload)
 	return hex.EncodeToString(digest[:]), nil
 }
 
 // mutate4go-manifest-begin
-// {"version":1,"tested_at":"2026-08-21T15:48:49Z","module_hash":"edb9481daea2da92ab9223002d9f950405b1a8811714db148ef0d2aa34d486c0","functions":[{"id":"func/analyzer.graphCacheKey","name":"analyzer.graphCacheKey","line":23,"end_line":39,"hash":"cfaba175605e61592d366b05d1a98e4dd22cc6b1f414eef35b689e83ff5e2c40"}]}
+// {"version":1,"tested_at":"2026-08-21T18:27:40Z","module_hash":"5dc700b9e54a1cd8183ded794919d9e6c4e6f6e6eebb9649d2608256e5ed5daa","functions":[{"id":"func/analyzer.graphCacheKey","name":"analyzer.graphCacheKey","line":22,"end_line":38,"hash":"3697683e282ae2b94b87690a8093d45d0973a3765cd824fa5bd84725b28bd9a6"}]}
 // mutate4go-manifest-end

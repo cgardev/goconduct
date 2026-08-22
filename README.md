@@ -14,12 +14,20 @@ The tool has these explicit layers and adapters:
 - `internal/query` selects deterministic report views for CLI consumers.
 - `internal/architecture` contains strategic roles and independent architecture rules.
 - `internal/application` selects a local source or a compatible graph cache.
-- The root Go package provides the Go analyzer, Cobra adapter, HTTP adapter, and composition root.
+- `application.go` adapts the local Go analyzer to the application ports.
+- `runtime.go` is the composition root for the CLI and dashboard. It receives each factory and logger through
+  its constructor.
+- `internal/failure` owns the tool error categories. The tool does not import shared project libraries.
+- The other root Go files provide the analyzer, Cobra adapter, cache adapter, and HTTP adapter.
 - `_resources/web` contains the embedded presentation resources.
 
 The pure packages do not import Cobra, HTTP, or presentation code. The HTTP adapter depends on graph
 reader, refresh, subscription, and cache identity ports. The analyzer passes the request context to
 `packages.Load`.
+
+The tool is not a business module or an `appmodule.Plugin`. Therefore, it does not register a `do.Package`.
+`main.go` constructs the standalone runtime and injects it into the Cobra adapter. Business modules continue
+to use the repository `do.Package` and injector pairs.
 
 ## Start the dashboard
 
@@ -73,7 +81,7 @@ Inspect one function and its direct caller functions and callee functions:
 
 ```sh
 go run ./internal/devtool/dependencygraph function \
-  internal/library/foundationdomain.NewError \
+  internal/library/logging.NewLogger \
   --cache server
 ```
 
@@ -83,7 +91,7 @@ List exact calls between two components:
 go run ./internal/devtool/dependencygraph calls \
   --cache server \
   --source-component cmd/cloudcontrol \
-  --target-component internal/library/foundationdomain \
+  --target-component internal/library/logging \
   --limit 20
 ```
 

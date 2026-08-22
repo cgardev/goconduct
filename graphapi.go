@@ -4,7 +4,6 @@ import (
 	"compress/gzip"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -35,7 +34,10 @@ func newGraphEndpoint(
 func (endpoint *graphEndpoint) serve(response http.ResponseWriter, request *http.Request) {
 	cacheKey, err := endpoint.cacheKey.graphCacheKey()
 	if err != nil {
-		endpoint.logger.Error("The graph endpoint cannot identify the dependency graph cache.", "error", err)
+		endpoint.logger.Error(
+			"The graph endpoint cannot identify the dependency graph cache.",
+			slog.Any("error", err),
+		)
 		http.Error(response, "dependency graph unavailable", http.StatusInternalServerError)
 		return
 	}
@@ -47,7 +49,10 @@ func (endpoint *graphEndpoint) serve(response http.ResponseWriter, request *http
 	if request != nil && request.Header.Get(graphCacheKeyHeader) != "" {
 		graph, err = endpoint.refresher.freshGraph(request.Context())
 		if err != nil {
-			endpoint.logger.Error("The graph endpoint cannot refresh the dependency graph cache.", "error", err)
+			endpoint.logger.Error(
+				"The graph endpoint cannot refresh the dependency graph cache.",
+				slog.Any("error", err),
+			)
 			http.Error(response, "dependency graph unavailable", http.StatusServiceUnavailable)
 			return
 		}
@@ -59,7 +64,10 @@ func (endpoint *graphEndpoint) serve(response http.ResponseWriter, request *http
 	response.Header().Set(graphCacheRevisionHeader, graph.Revision)
 	response.Header().Set(graphCacheSchemaHeader, strconv.Itoa(graph.SchemaVersion))
 	if err := writeGraphResponse(response, request, graph); err != nil {
-		endpoint.logger.Debug("The graph endpoint cannot write the dependency graph.", "error", err)
+		endpoint.logger.Debug(
+			"The graph endpoint cannot write the dependency graph.",
+			slog.Any("error", err),
+		)
 	}
 }
 
@@ -72,10 +80,10 @@ func validateGraphCacheRequest(request *http.Request, cacheKey string) error {
 		return nil
 	}
 	if request.Header.Get(graphCacheProtocolHeader) != strconv.Itoa(graphCacheProtocolVersion) {
-		return fmt.Errorf("%w: cache protocol does not match", errGraphCacheRejected)
+		return newValidationError("cache protocol does not match", nil)
 	}
 	if requestedKey != cacheKey {
-		return fmt.Errorf("%w: analysis scope does not match", errGraphCacheRejected)
+		return newValidationError("analysis scope does not match", nil)
 	}
 	return nil
 }
@@ -83,7 +91,7 @@ func validateGraphCacheRequest(request *http.Request, cacheKey string) error {
 func writeGraphResponse(response http.ResponseWriter, request *http.Request, graph Graph) error {
 	if request == nil || !acceptsGzip(request.Header.Get("Accept-Encoding")) {
 		if err := json.NewEncoder(response).Encode(graph); err != nil {
-			return fmt.Errorf("encode dependency graph: %w", err)
+			return newUnavailableError("encode dependency graph", err)
 		}
 		return nil
 	}
@@ -92,10 +100,13 @@ func writeGraphResponse(response http.ResponseWriter, request *http.Request, gra
 	compressor := gzip.NewWriter(response)
 	if err := json.NewEncoder(compressor).Encode(graph); err != nil {
 		closeError := compressor.Close()
-		return errors.Join(fmt.Errorf("encode dependency graph: %w", err), closeError)
+		return newUnavailableError(
+			"encode dependency graph",
+			errors.Join(err, closeError),
+		)
 	}
 	if err := compressor.Close(); err != nil {
-		return fmt.Errorf("close dependency graph compressor: %w", err)
+		return newUnavailableError("close dependency graph compressor", err)
 	}
 	return nil
 }
@@ -125,5 +136,5 @@ func gzipQuality(parameters string) float64 {
 }
 
 // mutate4go-manifest-begin
-// {"version":1,"tested_at":"2026-08-21T15:58:00Z","module_hash":"5fa42934748d25e5241d38a0175e665f8d344affbb2cd25bb0edaee8f8be1eaf","functions":[{"id":"func/newGraphEndpoint","name":"newGraphEndpoint","line":21,"end_line":33,"hash":"61e4d3999c323bc19a3998d9f35e92a9245c9f4554390e391b9c1a44b3b79192"},{"id":"func/graphEndpoint.serve","name":"graphEndpoint.serve","line":35,"end_line":64,"hash":"6230cb38d38fa4a35ec710d23d2260853ff8f723f52a6de81d56b2b93c69cf4e"},{"id":"func/validateGraphCacheRequest","name":"validateGraphCacheRequest","line":66,"end_line":81,"hash":"3b2ee5c79fe5c50ca67a15731afdd939f75e7f5e15e1df5b349a006f72c55053"},{"id":"func/writeGraphResponse","name":"writeGraphResponse","line":83,"end_line":101,"hash":"1c70911489427a36cfb6240b00126b8171b97970acba756ef44bc2dc824243a4"},{"id":"func/acceptsGzip","name":"acceptsGzip","line":103,"end_line":111,"hash":"52a2204173ba0ecd2214eda1419ea35433f8b6162a72696398e167cc2d6374bf"},{"id":"func/gzipQuality","name":"gzipQuality","line":113,"end_line":125,"hash":"2fb50fc55492f665d63aff76f9eb767ebb73404b1cfe15c321e1a6728d5cf83e"}]}
+// {"version":1,"tested_at":"2026-08-21T18:29:26Z","module_hash":"3a4acd3a3b75ab8d908cfc7cc13497899b1eef58fcd4774fb7ae9bce2b3e54ec","functions":[{"id":"func/newGraphEndpoint","name":"newGraphEndpoint","line":20,"end_line":32,"hash":"61e4d3999c323bc19a3998d9f35e92a9245c9f4554390e391b9c1a44b3b79192"},{"id":"func/graphEndpoint.serve","name":"graphEndpoint.serve","line":34,"end_line":72,"hash":"32e6593aba216c6362e97d47f01842c3c45db456cc036fd6e72f60de28514480"},{"id":"func/validateGraphCacheRequest","name":"validateGraphCacheRequest","line":74,"end_line":89,"hash":"b61c7ff3793014ccb5a027e89d394be14598e9892680581bb201205324f4e018"},{"id":"func/writeGraphResponse","name":"writeGraphResponse","line":91,"end_line":112,"hash":"960c77e1d137330457606c0c1bec5876043731f1ca531575b818fa658188c213"},{"id":"func/acceptsGzip","name":"acceptsGzip","line":114,"end_line":122,"hash":"52a2204173ba0ecd2214eda1419ea35433f8b6162a72696398e167cc2d6374bf"},{"id":"func/gzipQuality","name":"gzipQuality","line":124,"end_line":136,"hash":"2fb50fc55492f665d63aff76f9eb767ebb73404b1cfe15c321e1a6728d5cf83e"}]}
 // mutate4go-manifest-end

@@ -10,7 +10,131 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+
+	"digginginsights.com/v3/internal/devtool/dependencygraph/internal/failure"
 )
+
+func newTestCommandRuntime(logger *slog.Logger) commandRuntime {
+	return newDependencyGraphRuntime(
+		analyzerGraphSourceFactory{},
+		httpGraphCacheFactory{},
+		logger,
+	)
+}
+
+func newTestRootCommand(logger *slog.Logger) *cobra.Command {
+	return newRootCommand(newTestCommandRuntime(logger))
+}
+
+type recordingCommandRuntime struct {
+	graph                  Graph
+	analyzeError           error
+	dashboardError         error
+	analyzeCalls           int
+	dashboardCalls         int
+	analysisConfiguration  ApplicationConfiguration
+	dashboardConfiguration ApplicationConfiguration
+}
+
+func (runtime *recordingCommandRuntime) analyze(
+	_ context.Context,
+	configuration ApplicationConfiguration,
+) (Graph, error) {
+	runtime.analyzeCalls++
+	runtime.analysisConfiguration = configuration
+	return runtime.graph, runtime.analyzeError
+}
+
+func (runtime *recordingCommandRuntime) runDashboard(
+	_ context.Context,
+	configuration ApplicationConfiguration,
+) error {
+	runtime.dashboardCalls++
+	runtime.dashboardConfiguration = configuration
+	return runtime.dashboardError
+}
+
+func TestRootCommand_UseInjectedRuntime(t *testing.T) {
+	t.Run("Scenario: A summary command requests a graph from the injected runtime", func(t *testing.T) {
+		var runtime *recordingCommandRuntime
+		var command *cobra.Command
+		var output strings.Builder
+		var commandError error
+
+		t.Run("Given a command with a recording runtime", func(*testing.T) {
+			runtime = &recordingCommandRuntime{graph: Graph{Revision: "injected-revision"}}
+			command = newRootCommand(runtime)
+			command.SetOut(&output)
+			command.SetArgs([]string{"summary", "--root", "injected-root"})
+		})
+
+		t.Run("When the summary command executes", func(t *testing.T) {
+			commandError = command.ExecuteContext(t.Context())
+		})
+
+		t.Run("Then the command calls only the graph analysis port", func(t *testing.T) {
+			if commandError != nil {
+				t.Fatalf("summary command fails: %v", commandError)
+			}
+			if runtime.analyzeCalls != 1 || runtime.dashboardCalls != 0 {
+				t.Fatalf(
+					"runtime calls are analyze=%d dashboard=%d, want 1 and 0",
+					runtime.analyzeCalls,
+					runtime.dashboardCalls,
+				)
+			}
+		})
+
+		t.Run("And the command passes configuration and writes the injected graph", func(t *testing.T) {
+			if runtime.analysisConfiguration.Analysis.RepositoryRoot != "injected-root" {
+				t.Errorf(
+					"analysis root is %q, want injected-root",
+					runtime.analysisConfiguration.Analysis.RepositoryRoot,
+				)
+			}
+			if !strings.Contains(output.String(), `"revision": "injected-revision"`) {
+				t.Errorf("summary output does not contain the injected revision: %s", output.String())
+			}
+		})
+	})
+
+	t.Run("Scenario: The root command starts the dashboard through the injected runtime", func(t *testing.T) {
+		var runtime *recordingCommandRuntime
+		var commandError error
+
+		t.Run("Given a root command with a recording runtime", func(*testing.T) {
+			runtime = &recordingCommandRuntime{}
+		})
+
+		t.Run("When the root command executes without a subcommand", func(t *testing.T) {
+			command := newRootCommand(runtime)
+			commandError = command.ExecuteContext(t.Context())
+		})
+
+		t.Run("Then the command calls only the dashboard port", func(t *testing.T) {
+			if commandError != nil {
+				t.Fatalf("root command fails: %v", commandError)
+			}
+			if runtime.dashboardCalls != 1 || runtime.analyzeCalls != 0 {
+				t.Fatalf(
+					"runtime calls are dashboard=%d analyze=%d, want 1 and 0",
+					runtime.dashboardCalls,
+					runtime.analyzeCalls,
+				)
+			}
+		})
+
+		t.Run("And the command passes the default dashboard configuration", func(t *testing.T) {
+			if runtime.dashboardConfiguration.Server.Address != defaultAddress {
+				t.Errorf(
+					"dashboard address is %q, want %q",
+					runtime.dashboardConfiguration.Server.Address,
+					defaultAddress,
+				)
+			}
+		})
+	})
+}
 
 func TestRunCommand_ReturnInvalidArgumentError(t *testing.T) {
 	t.Run("Scenario: The process receives an unknown command argument", func(t *testing.T) {
@@ -67,7 +191,7 @@ func TestRunCommand_UseExecutionContext(t *testing.T) {
 	})
 }
 
-func TestCommandContextError_ClassifyExecutionFailure(t *testing.T) {
+func TestContextError_ClassifyExecutionFailure(t *testing.T) {
 	testError := errors.New("test command failure")
 	testCases := []struct {
 		name           string
@@ -109,7 +233,7 @@ func TestCommandContextError_ClassifyExecutionFailure(t *testing.T) {
 			})
 
 			t.Run("When the classifier checks the execution error", func(*testing.T) {
-				result = isCommandContextError(commandContext, testCase.executionError)
+				result = isContextError(commandContext, testCase.executionError)
 			})
 
 			t.Run("Then the classifier returns the expected result", func(t *testing.T) {
@@ -132,7 +256,7 @@ func TestRootCommand_DefineSafeDefaults(t *testing.T) {
 
 		t.Run("Given a root command with a structured logger", func(t *testing.T) {
 			logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-			rootCommand = newRootCommand(logger)
+			rootCommand = newTestRootCommand(logger)
 			commandDefaults = make(map[string]string)
 		})
 
@@ -199,23 +323,26 @@ func TestRootCommand_DefineSafeDefaults(t *testing.T) {
 }
 func TestRootCommand_RejectInvalidArguments(t *testing.T) {
 	testCases := []struct {
-		name      string
-		arguments func(*testing.T) []string
-		want      string
+		name         string
+		arguments    func(*testing.T) []string
+		want         string
+		wantCategory error
 	}{
 		{
 			name: "a refresh interval is below the minimum",
 			arguments: func(*testing.T) []string {
 				return []string{"--refresh-interval", "99ms"}
 			},
-			want: "at least 100ms",
+			want:         "at least 100ms",
+			wantCategory: failure.ErrValidation,
 		},
 		{
 			name: "the repository has no module file",
 			arguments: func(t *testing.T) []string {
 				return []string{"--root", t.TempDir()}
 			},
-			want: "module file",
+			want:         "module file",
+			wantCategory: failure.ErrValidation,
 		},
 		{
 			name: "the dashboard address is invalid",
@@ -225,7 +352,8 @@ func TestRootCommand_RejectInvalidArguments(t *testing.T) {
 					"--address", "invalid address",
 				}
 			},
-			want: "listen on invalid address",
+			want:         "listen on invalid address",
+			wantCategory: failure.ErrUnavailable,
 		},
 		{
 			name: "a positional argument is present",
@@ -239,49 +367,56 @@ func TestRootCommand_RejectInvalidArguments(t *testing.T) {
 			arguments: func(*testing.T) []string {
 				return []string{"analyze", "--view", "unknown"}
 			},
-			want: "must be report or graph",
+			want:         "must be report or graph",
+			wantCategory: failure.ErrValidation,
 		},
 		{
 			name: "the finding threshold is unknown",
 			arguments: func(*testing.T) []string {
 				return []string{"analyze", "--fail-on", "unknown"}
 			},
-			want: "must be none, warning, or error",
+			want:         "must be none, warning, or error",
+			wantCategory: failure.ErrValidation,
 		},
 		{
 			name: "the filtered finding severity is unknown",
 			arguments: func(*testing.T) []string {
 				return []string{"findings", "--severity", "critical"}
 			},
-			want: "must be all, warning, or error",
+			want:         "must be all, warning, or error",
+			wantCategory: failure.ErrValidation,
 		},
 		{
 			name: "the filtered component role is unknown",
 			arguments: func(*testing.T) []string {
 				return []string{"components", "--role", "service"}
 			},
-			want: "component role",
+			want:         "component role",
+			wantCategory: failure.ErrValidation,
 		},
 		{
 			name: "the filtered component sort is unknown",
 			arguments: func(*testing.T) []string {
 				return []string{"components", "--sort", "weight"}
 			},
-			want: "component sort",
+			want:         "component sort",
+			wantCategory: failure.ErrValidation,
 		},
 		{
 			name: "the filtered function sort is unknown",
 			arguments: func(*testing.T) []string {
 				return []string{"functions", "--sort", "weight"}
 			},
-			want: "function sort",
+			want:         "function sort",
+			wantCategory: failure.ErrValidation,
 		},
 		{
 			name: "a filtered query limit is negative",
 			arguments: func(*testing.T) []string {
 				return []string{"findings", "--limit", "-1"}
 			},
-			want: "must not be negative",
+			want:         "must not be negative",
+			wantCategory: failure.ErrValidation,
 		},
 	}
 	for _, testCase := range testCases {
@@ -295,7 +430,7 @@ func TestRootCommand_RejectInvalidArguments(t *testing.T) {
 
 			t.Run("Given a root command with the invalid input", func(step *testing.T) {
 				logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-				rootCommand := newRootCommand(logger)
+				rootCommand := newTestRootCommand(logger)
 				commandArguments = testCase.arguments(t)
 				rootCommand.SetArgs(commandArguments)
 				commandContext = t.Context()
@@ -306,13 +441,16 @@ func TestRootCommand_RejectInvalidArguments(t *testing.T) {
 				commandError = command.ExecuteContext(commandContext)
 			})
 
-			t.Run("Then execution returns the expected validation error", func(t *testing.T) {
+			t.Run("Then execution returns the expected categorized error", func(t *testing.T) {
 				if commandError == nil || !strings.Contains(commandError.Error(), testCase.want) {
 					t.Fatalf(
 						"command error is %v, want a message that contains %q",
 						commandError,
 						testCase.want,
 					)
+				}
+				if testCase.wantCategory != nil && !errors.Is(commandError, testCase.wantCategory) {
+					t.Fatalf("command error is %v, want category %v", commandError, testCase.wantCategory)
 				}
 			})
 		})
@@ -329,7 +467,7 @@ func TestRootCommand_ExecuteAtMinimumInterval(t *testing.T) {
 		if !t.Run("Given a valid repository command at the minimum interval", func(step *testing.T) {
 			repositoryRoot := newAnalyzerFixture(t)
 			logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-			rootCommand := newRootCommand(logger)
+			rootCommand := newTestRootCommand(logger)
 			rootCommand.SetArgs([]string{
 				"--root", repositoryRoot,
 				"--address", "127.0.0.1:0",

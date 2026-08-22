@@ -68,8 +68,8 @@ func TestLayerArchitecture_KeepQueryTransportIndependent(t *testing.T) {
 			permitted := []string{
 				"cmp",
 				"digginginsights.com/v3/internal/devtool/dependencygraph/internal/architecture",
+				"digginginsights.com/v3/internal/devtool/dependencygraph/internal/failure",
 				"digginginsights.com/v3/internal/devtool/dependencygraph/internal/report",
-				"errors",
 				"fmt",
 				"slices",
 				"strings",

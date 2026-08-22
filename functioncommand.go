@@ -1,12 +1,12 @@
 package main
 
 import (
-	query "digginginsights.com/v3/internal/devtool/dependencygraph/internal/query"
-
 	"github.com/spf13/cobra"
+
+	"digginginsights.com/v3/internal/devtool/dependencygraph/internal/query"
 )
 
-func newFunctionsCommand(options *commandConfigurationOptions) *cobra.Command {
+func newFunctionsCommand(configurationFlags *commandConfigurationFlags, analyzer graphAnalyzer) *cobra.Command {
 	var component string
 	var packagePath string
 	var sortOrder string
@@ -15,7 +15,7 @@ func newFunctionsCommand(options *commandConfigurationOptions) *cobra.Command {
 	command := &cobra.Command{
 		Use:   "functions",
 		Short: "Write filtered and sorted Go functions in JavaScript Object Notation (JSON).",
-		Example: "  dependencygraph functions --component internal/library/foundationdomain " +
+		Example: "  dependencygraph functions --component internal/library/logging " +
 			"--sort incoming-call-sites --limit 20",
 		Args: cobra.NoArgs,
 		RunE: func(command *cobra.Command, _ []string) error {
@@ -26,7 +26,7 @@ func newFunctionsCommand(options *commandConfigurationOptions) *cobra.Command {
 			if err := validateQueryLimit(limit); err != nil {
 				return err
 			}
-			graph, err := loadGraphForCommand(command, options)
+			graph, err := loadGraphForCommand(command, configurationFlags, analyzer)
 			if err != nil {
 				return err
 			}
@@ -69,16 +69,16 @@ func newFunctionsCommand(options *commandConfigurationOptions) *cobra.Command {
 	return command
 }
 
-func newFunctionCommand(options *commandConfigurationOptions) *cobra.Command {
+func newFunctionCommand(configurationFlags *commandConfigurationFlags, analyzer graphAnalyzer) *cobra.Command {
 	var includeTests bool
 	command := &cobra.Command{
 		Use: "function <identifier>",
 		Short: "Write one Go function with its caller functions, callee functions, " +
 			"metrics, and call sites as JSON.",
-		Example: "  dependencygraph function internal/library/foundationdomain.NewError --include-tests",
+		Example: "  dependencygraph function internal/library/logging.NewLogger --include-tests",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(command *cobra.Command, arguments []string) error {
-			graph, err := loadGraphForCommand(command, options)
+			graph, err := loadGraphForCommand(command, configurationFlags, analyzer)
 			if err != nil {
 				return err
 			}
@@ -93,19 +93,19 @@ func newFunctionCommand(options *commandConfigurationOptions) *cobra.Command {
 	return command
 }
 
-func newFunctionCallsCommand(options *commandConfigurationOptions) *cobra.Command {
+func newFunctionCallsCommand(configurationFlags *commandConfigurationFlags, analyzer graphAnalyzer) *cobra.Command {
 	var params query.FunctionCallsParams
 	command := &cobra.Command{
 		Use:   "calls",
 		Short: "Write exact resolved function calls and source locations as JSON.",
 		Example: "  dependencygraph calls --source-component cmd/control " +
-			"--target-component internal/library/foundationdomain",
+			"--target-component internal/library/logging",
 		Args: cobra.NoArgs,
 		RunE: func(command *cobra.Command, _ []string) error {
 			if err := validateQueryLimit(params.Limit); err != nil {
 				return err
 			}
-			graph, err := loadGraphForCommand(command, options)
+			graph, err := loadGraphForCommand(command, configurationFlags, analyzer)
 			if err != nil {
 				return err
 			}
@@ -147,5 +147,5 @@ func newFunctionCallsCommand(options *commandConfigurationOptions) *cobra.Comman
 }
 
 // mutate4go-manifest-begin
-// {"version":1,"tested_at":"2026-08-21T17:15:23Z","module_hash":"8e8813cfae282182b100419c9c30c14b4aa85c7adab3da1c12d12eee682b711f","functions":[{"id":"func/newFunctionsCommand","name":"newFunctionsCommand","line":9,"end_line":70,"hash":"77842b653d3fbb065b3ccc03667838071adf62339c43aae91ad0b3a85b80c061"},{"id":"func/newFunctionCommand","name":"newFunctionCommand","line":72,"end_line":94,"hash":"352b11cdac55ff38e9d2fa4e0fe7538e4ba665cc9846803a4a2cb8eb312b3ff7"},{"id":"func/newFunctionCallsCommand","name":"newFunctionCallsCommand","line":96,"end_line":147,"hash":"241cd802be419984ecedb533fba9daa87fa2405067746e690cca3f69f99f1b33"}]}
+// {"version":1,"tested_at":"2026-08-21T19:48:15Z","module_hash":"ae258c9c6060f8b2b00096725c888642f78cb976e1bed5190613d12c495751ff","functions":[{"id":"func/newFunctionsCommand","name":"newFunctionsCommand","line":9,"end_line":70,"hash":"557e0bef1426fc0ca5f4a178db325b9aab756b969e59b14f1e70698adf78f04a"},{"id":"func/newFunctionCommand","name":"newFunctionCommand","line":72,"end_line":94,"hash":"8b216f4dd9d9611a2ee4c64888abd3cf00ab9e290619f6dc5bae672f73b6cc99"},{"id":"func/newFunctionCallsCommand","name":"newFunctionCallsCommand","line":96,"end_line":147,"hash":"251576ca7263b39568cd5f3a45091cc8e182e9eeaa29fed3f39a89210a44a6db"}]}
 // mutate4go-manifest-end
