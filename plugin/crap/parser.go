@@ -6,6 +6,8 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+
+	"github.com/cgardev/goconduct/failure"
 )
 
 var reportRowPattern = regexp.MustCompile(
@@ -29,15 +31,15 @@ func parseReport(payload []byte) ([]functionMetric, error) {
 		}
 		complexity, err := strconv.Atoi(matches[3])
 		if err != nil {
-			return nil, fmt.Errorf("parse complexity for %q: %w", matches[1], err)
+			return nil, failure.DataIntegrity(fmt.Sprintf("parse complexity for %q", matches[1]), err)
 		}
 		coverage, err := strconv.ParseFloat(matches[4], 64)
 		if err != nil {
-			return nil, fmt.Errorf("parse coverage for %q: %w", matches[1], err)
+			return nil, failure.DataIntegrity(fmt.Sprintf("parse coverage for %q", matches[1]), err)
 		}
 		score, err := strconv.ParseFloat(matches[5], 64)
 		if err != nil {
-			return nil, fmt.Errorf("parse CRAP score for %q: %w", matches[1], err)
+			return nil, failure.DataIntegrity(fmt.Sprintf("parse CRAP score for %q", matches[1]), err)
 		}
 		metrics = append(metrics, functionMetric{
 			function: matches[1], packageID: matches[2], complexity: complexity,

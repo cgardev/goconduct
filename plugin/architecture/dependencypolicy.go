@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/cgardev/goconduct/failure"
 	"github.com/cgardev/goconduct/internal/application"
 )
 
@@ -105,7 +106,7 @@ func dependencyPolicyCacheKey(baseKey string, policy DependencyPolicyConfigurati
 		Policy  DependencyPolicyConfiguration `json:"policy"`
 	}{BaseKey: baseKey, Policy: policy})
 	if err != nil {
-		return "", fmt.Errorf("encode dependency policy cache identity: %w", err)
+		return "", failure.Internal("encode dependency policy cache identity", err)
 	}
 	digest := sha256.Sum256(payload)
 	return hex.EncodeToString(digest[:]), nil
@@ -131,7 +132,7 @@ func applyDependencyPolicy(graph *Graph, policy DependencyPolicyConfiguration) e
 		source, sourceExists := components[relationship.Source]
 		target, targetExists := components[relationship.Target]
 		if !sourceExists || !targetExists {
-			return newInternalError(
+			return failure.Internal(
 				fmt.Sprintf("resolve configured dependency %s -> %s", relationship.Source, relationship.Target),
 				nil,
 			)
@@ -188,7 +189,7 @@ func refreshGraphRevision(graph *Graph) error {
 	graph.Revision = ""
 	payload, err := json.Marshal(graph)
 	if err != nil {
-		return newInternalError("encode configured graph revision input", err)
+		return failure.Internal("encode configured graph revision input", err)
 	}
 	digest := sha256.Sum256(payload)
 	graph.Revision = hex.EncodeToString(digest[:])
@@ -206,20 +207,20 @@ func validateDependencyPolicy(policy DependencyPolicyConfiguration) error {
 	for _, group := range [][]DependencyRuleConfiguration{policy.Allow, policy.Deny} {
 		for _, rule := range group {
 			if strings.TrimSpace(rule.Identifier) == "" || strings.TrimSpace(rule.Identifier) != rule.Identifier {
-				return newValidationError(fmt.Sprintf("dependency rule identifier %q is invalid", rule.Identifier), nil)
+				return failure.Validation(fmt.Sprintf("dependency rule identifier %q is invalid", rule.Identifier), nil)
 			}
 			if _, duplicate := identifiers[rule.Identifier]; duplicate {
-				return newValidationError(fmt.Sprintf("dependency rule %q is duplicated", rule.Identifier), nil)
+				return failure.Validation(fmt.Sprintf("dependency rule %q is duplicated", rule.Identifier), nil)
 			}
 			identifiers[rule.Identifier] = struct{}{}
 			if strings.TrimSpace(rule.Reason) == "" {
-				return newValidationError(fmt.Sprintf("dependency rule %q reason is empty", rule.Identifier), nil)
+				return failure.Validation(fmt.Sprintf("dependency rule %q reason is empty", rule.Identifier), nil)
 			}
 			if err := validateComponentSelector(rule.From); err != nil {
-				return newValidationError(fmt.Sprintf("dependency rule %q source selector", rule.Identifier), err)
+				return failure.Validation(fmt.Sprintf("dependency rule %q source selector", rule.Identifier), err)
 			}
 			if err := validateComponentSelector(rule.To); err != nil {
-				return newValidationError(fmt.Sprintf("dependency rule %q target selector", rule.Identifier), err)
+				return failure.Validation(fmt.Sprintf("dependency rule %q target selector", rule.Identifier), err)
 			}
 		}
 	}
@@ -228,14 +229,14 @@ func validateDependencyPolicy(policy DependencyPolicyConfiguration) error {
 
 func validateDependencyDefault(kind string, value DependencyDefault) error {
 	if value != "" && value != DependencyDefaultAllow && value != DependencyDefaultDeny {
-		return newValidationError(fmt.Sprintf("%s dependency default %q is invalid", kind, value), nil)
+		return failure.Validation(fmt.Sprintf("%s dependency default %q is invalid", kind, value), nil)
 	}
 	return nil
 }
 
 func validateComponentSelector(selector ComponentSelectorConfiguration) error {
 	if len(selector.Identifiers)+len(selector.Roles)+len(selector.Categories)+len(selector.Applications) == 0 {
-		return fmt.Errorf("selector is empty")
+		return failure.Validation("selector is empty", nil)
 	}
 	if err := validateSelectorStrings("identifier", selector.Identifiers); err != nil {
 		return err
@@ -249,10 +250,10 @@ func validateComponentSelector(selector ComponentSelectorConfiguration) error {
 	roles := make(map[ComponentRole]struct{}, len(selector.Roles))
 	for _, role := range selector.Roles {
 		if !validComponentRole(role) {
-			return fmt.Errorf("role %q is invalid", role)
+			return failure.Validation(fmt.Sprintf("role %q is invalid", role), nil)
 		}
 		if _, duplicate := roles[role]; duplicate {
-			return fmt.Errorf("role %q is duplicated", role)
+			return failure.Validation(fmt.Sprintf("role %q is duplicated", role), nil)
 		}
 		roles[role] = struct{}{}
 	}
@@ -263,10 +264,10 @@ func validateSelectorStrings(kind string, values []string) error {
 	seen := make(map[string]struct{}, len(values))
 	for _, value := range values {
 		if strings.TrimSpace(value) == "" || strings.TrimSpace(value) != value {
-			return fmt.Errorf("%s %q is invalid", kind, value)
+			return failure.Validation(fmt.Sprintf("%s %q is invalid", kind, value), nil)
 		}
 		if _, duplicate := seen[value]; duplicate {
-			return fmt.Errorf("%s %q is duplicated", kind, value)
+			return failure.Validation(fmt.Sprintf("%s %q is duplicated", kind, value), nil)
 		}
 		seen[value] = struct{}{}
 	}
@@ -280,10 +281,16 @@ func validateDependencyRuleReferences(
 	for _, group := range [][]DependencyRuleConfiguration{policy.Allow, policy.Deny} {
 		for _, rule := range group {
 			if !selectorMatchesAny(rule.From, components) {
-				return newValidationError(fmt.Sprintf("dependency rule %q source selector matches no components", rule.Identifier), nil)
+				return failure.Validation(fmt.Sprintf(
+					"dependency rule %q source selector matches no components",
+					rule.Identifier,
+				), nil)
 			}
 			if !selectorMatchesAny(rule.To, components) {
-				return newValidationError(fmt.Sprintf("dependency rule %q target selector matches no components", rule.Identifier), nil)
+				return failure.Validation(fmt.Sprintf(
+					"dependency rule %q target selector matches no components",
+					rule.Identifier,
+				), nil)
 			}
 		}
 	}

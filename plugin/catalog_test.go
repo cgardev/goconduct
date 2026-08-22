@@ -5,6 +5,8 @@ import (
 	"errors"
 	"reflect"
 	"testing"
+
+	"github.com/cgardev/goconduct/failure"
 )
 
 type catalogEvaluator struct {
@@ -58,11 +60,13 @@ func TestCatalogRejectsAmbiguousAndUnknownEvaluators(t *testing.T) {
 	if err := catalog.Register(evaluator); err == nil {
 		t.Fatal("expected duplicate evaluator error")
 	}
-	if _, err := catalog.Evaluate(t.Context(), []string{"missing"}, Request{}); !errors.Is(
-		err,
-		ErrEvaluatorNotRegistered,
-	) {
+	_, err := catalog.Evaluate(t.Context(), []string{"missing"}, Request{})
+	if !errors.Is(err, failure.ErrValidation) {
 		t.Fatalf("unknown evaluator error is %v", err)
+	}
+	var classifiedError *failure.Error
+	if !errors.As(err, &classifiedError) || classifiedError.ID != "missing" {
+		t.Fatalf("unknown evaluator error keeps identity %v", err)
 	}
 }
 

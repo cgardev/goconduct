@@ -2,30 +2,13 @@ package plugin
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"slices"
 	"strings"
 	"sync"
+
+	"github.com/cgardev/goconduct/failure"
 )
-
-// ErrEvaluatorNotRegistered classifies a requested evaluator missing from a catalog.
-var ErrEvaluatorNotRegistered = errors.New("evaluator is not registered")
-
-// EvaluatorNotRegisteredError identifies one missing evaluator selection.
-type EvaluatorNotRegisteredError struct {
-	Name string
-}
-
-// Error returns the missing evaluator name.
-func (selectionError *EvaluatorNotRegisteredError) Error() string {
-	return fmt.Sprintf("evaluator %q is not registered", selectionError.Name)
-}
-
-// Unwrap exposes the stable missing-evaluator classification.
-func (*EvaluatorNotRegisteredError) Unwrap() error {
-	return ErrEvaluatorNotRegistered
-}
 
 // Catalog composes evaluators from independently linked plugins.
 type Catalog struct {
@@ -41,16 +24,16 @@ func NewCatalog() *Catalog {
 // Register adds one evaluator and rejects ambiguous names.
 func (catalog *Catalog) Register(evaluator Evaluator) error {
 	if evaluator == nil {
-		return fmt.Errorf("evaluator is nil")
+		return failure.Validation("evaluator is nil", nil)
 	}
 	name := evaluator.Name()
 	if strings.TrimSpace(name) == "" || strings.TrimSpace(name) != name {
-		return fmt.Errorf("evaluator name %q is invalid", name)
+		return failure.Validation(fmt.Sprintf("evaluator name %q is invalid", name), nil)
 	}
 	catalog.mutex.Lock()
 	defer catalog.mutex.Unlock()
 	if _, duplicate := catalog.evaluators[name]; duplicate {
-		return fmt.Errorf("evaluator name %q is duplicated", name)
+		return failure.Duplicate("evaluator", name, nil)
 	}
 	catalog.evaluators[name] = evaluator
 	return nil
@@ -88,11 +71,11 @@ func (catalog *Catalog) Evaluate(
 			return nil, fmt.Errorf("evaluate plugin %q: %w", evaluator.Name(), err)
 		}
 		if report.Plugin != evaluator.Name() {
-			return nil, fmt.Errorf(
+			return nil, failure.DataIntegrity(fmt.Sprintf(
 				"evaluator %q returned report for %q",
 				evaluator.Name(),
 				report.Plugin,
-			)
+			), nil)
 		}
 		reports = append(reports, report)
 	}
@@ -115,7 +98,12 @@ func (catalog *Catalog) selectEvaluators(names []string) ([]Evaluator, error) {
 	for _, name := range selectedNames {
 		evaluator, available := catalog.evaluators[name]
 		if !available {
-			return nil, &EvaluatorNotRegisteredError{Name: name}
+			return nil, &failure.Error{
+				Category: failure.ErrValidation,
+				Message:  fmt.Sprintf("evaluator %q is not registered", name),
+				Entity:   "evaluator",
+				ID:       name,
+			}
 		}
 		selected = append(selected, evaluator)
 	}

@@ -10,6 +10,7 @@ import (
 	"github.com/samber/do/v2"
 	"github.com/spf13/cobra"
 
+	"github.com/cgardev/goconduct/failure"
 	"github.com/cgardev/goconduct/plugin"
 )
 
@@ -107,10 +108,13 @@ func newMutationCommand(runner plugin.CommandRunner) *cobra.Command {
 				encoder.SetIndent("", "  ")
 			}
 			if err := encoder.Encode(report); err != nil {
-				return fmt.Errorf("write mutation report: %w", err)
+				return failure.Unavailable("write mutation report", err)
 			}
 			if len(report.Findings) != 0 {
-				return fmt.Errorf("mutation analysis has %d policy findings", len(report.Findings))
+				return failure.BusinessRule(fmt.Sprintf(
+					"mutation analysis has %d policy findings",
+					len(report.Findings),
+				), nil)
 			}
 			return nil
 		},

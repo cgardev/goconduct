@@ -6,6 +6,7 @@ import (
 
 	"github.com/cgardev/gokeel/conf"
 
+	"github.com/cgardev/goconduct/failure"
 	"github.com/cgardev/goconduct/internal/application"
 )
 
@@ -188,7 +189,7 @@ func (configuration ComponentRulesConfiguration) domainRules() ComponentRules {
 func loadApplicationConfiguration(configurationPath string) (ApplicationConfiguration, error) {
 	configuration := DefaultApplicationConfiguration()
 	if err := conf.NewLoader(conf.WithOptionalFile(configurationPath)).Load(&configuration); err != nil {
-		return ApplicationConfiguration{}, newValidationError("load application configuration", err)
+		return ApplicationConfiguration{}, failure.Validation("load application configuration", err)
 	}
 	if err := ValidateApplicationConfiguration(configuration); err != nil {
 		return ApplicationConfiguration{}, err
@@ -209,7 +210,7 @@ func validateCacheConfiguration(configuration CacheConfiguration) error {
 		return err
 	}
 	if configuration.RequestTimeout <= 0 {
-		return newValidationError("cache request timeout must be greater than zero", nil)
+		return failure.Validation("cache request timeout must be greater than zero", nil)
 	}
 	return nil
 }

@@ -157,6 +157,42 @@ The host also forwards shared Connect options and owns injector shutdown.
 - Use `notice`, `warning`, or `error` severity.
 - Sort tool output before creating a report.
 
+## Error classification
+
+Return classified failures from `github.com/cgardev/goconduct/failure`.
+A caller then reacts to a stable category instead of the message text.
+The application maps every category to one Connect code at the transport boundary.
+
+| Category | Use it for |
+| --- | --- |
+| `ErrValidation` | Rejected configuration, arguments, request fields, or submitted evidence. |
+| `ErrAlreadyExists` | An identity that a live registry already holds. |
+| `ErrNotFound` | An entity that an existing collection does not hold. |
+| `ErrUnavailable` | A failed file system, network, or child process. |
+| `ErrDataIntegrity` | Malformed or inconsistent data from an external source. |
+| `ErrBusinessRule` | A state or rule of the product that rejects the operation. |
+| `ErrInternal` | A failure that the code invariants must prevent. |
+
+Create each failure with the constructor of its category:
+
+```go
+if strings.TrimSpace(configuration.Command) == "" {
+    return nil, failure.Validation("example command is empty", nil)
+}
+if _, err := runner.Run(ctx, command); err != nil {
+    return plugin.Report{}, failure.Unavailable("run the example tool", err)
+}
+```
+
+Use `failure.NotFound` and `failure.Duplicate` when the caller needs the entity identity.
+Both keep the entity name and the identifier for `errors.As`.
+
+Add context to a classified failure with `fmt.Errorf` and `%w`.
+The wrapper keeps the category, so `errors.Is` still matches it.
+
+One architecture test reads every production file of the repository.
+It rejects `errors.New` and it rejects `fmt.Errorf` without `%w`.
+
 ## Verification
 
 Every plugin needs unit tests for configuration, parsing, evidence, and failure behavior.

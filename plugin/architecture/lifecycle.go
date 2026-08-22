@@ -12,6 +12,7 @@ import (
 	"connectrpc.com/connect"
 	"connectrpc.com/validate"
 
+	"github.com/cgardev/goconduct/failure"
 	"github.com/cgardev/goconduct/internal/library/connectlog"
 )
 
@@ -45,7 +46,7 @@ func runDashboard(
 ) error {
 	listener, err := net.Listen("tcp", address)
 	if err != nil {
-		return newUnavailableError(fmt.Sprintf("listen on %s", address), err)
+		return failure.Unavailable(fmt.Sprintf("listen on %s", address), err)
 	}
 	server := newHTTPServer(
 		ctx,
@@ -77,7 +78,7 @@ func runDashboard(
 		if errors.Is(err, http.ErrServerClosed) {
 			return nil
 		}
-		return newUnavailableError("serve dependency graph dashboard", err)
+		return failure.Unavailable("serve dependency graph dashboard", err)
 	case <-ctx.Done():
 		shutdownContext, cancelShutdown := context.WithTimeout(
 			context.Background(),
@@ -90,14 +91,14 @@ func runDashboard(
 			if errors.Is(serveError, http.ErrServerClosed) {
 				serveError = nil
 			}
-			return newUnavailableError(
+			return failure.Unavailable(
 				"shut down dashboard",
 				errors.Join(shutdownError, closeError, serveError),
 			)
 		}
 		serveError := <-serveErrors
 		if !errors.Is(serveError, http.ErrServerClosed) {
-			return newUnavailableError("serve dependency graph dashboard", serveError)
+			return failure.Unavailable("serve dependency graph dashboard", serveError)
 		}
 		return nil
 	}

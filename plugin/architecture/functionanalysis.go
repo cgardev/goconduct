@@ -13,6 +13,8 @@ import (
 	"strings"
 
 	"golang.org/x/tools/go/packages"
+
+	"github.com/cgardev/goconduct/failure"
 )
 
 func (analyzer *analyzer) inspectFunctions(
@@ -32,7 +34,7 @@ func (analyzer *analyzer) inspectFunctions(
 		if contextError := ctx.Err(); contextError != nil {
 			return nil, nil, fmt.Errorf("load Go type information: %w", contextError)
 		}
-		return nil, nil, newUnavailableError("load Go type information", err)
+		return nil, nil, failure.Unavailable("load Go type information", err)
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, nil, err

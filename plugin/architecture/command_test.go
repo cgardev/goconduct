@@ -13,7 +13,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/cgardev/goconduct/internal/library/foundationdomain"
+	"github.com/cgardev/goconduct/failure"
 	querymodel "github.com/cgardev/goconduct/internal/query"
 )
 
@@ -404,7 +404,7 @@ func TestAnalyzeCommand_ApplyFailureThreshold(t *testing.T) {
 			})
 
 			t.Run("Then the command returns the business rule error category", func(t *testing.T) {
-				if !errors.Is(commandError, foundationdomain.ErrBusinessRule) {
+				if !errors.Is(commandError, failure.ErrBusinessRule) {
 					t.Fatalf("command error is %v, want ErrBusinessRule", commandError)
 				}
 			})
@@ -518,7 +518,7 @@ func TestFindingThreshold_FilterSeverity(t *testing.T) {
 			})
 
 			t.Run("Then the failure threshold returns the expected typed result", func(t *testing.T) {
-				hasFailure := errors.Is(result, foundationdomain.ErrBusinessRule)
+				hasFailure := errors.Is(result, failure.ErrBusinessRule)
 				if hasFailure != testCase.wantFailure {
 					t.Fatalf("threshold error is %v, want failure %t", result, testCase.wantFailure)
 				}

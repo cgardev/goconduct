@@ -8,6 +8,7 @@ import (
 
 	"github.com/cgardev/gokeel/conf"
 
+	"github.com/cgardev/goconduct/failure"
 	"github.com/cgardev/goconduct/plugin/architecture"
 	"github.com/cgardev/goconduct/plugin/coverage"
 	"github.com/cgardev/goconduct/plugin/crap"
@@ -77,7 +78,7 @@ func Default() ApplicationConfiguration {
 func Load(path string) (ApplicationConfiguration, error) {
 	configuration := Default()
 	if err := conf.NewLoader(conf.WithOptionalFile(path)).Load(&configuration); err != nil {
-		return ApplicationConfiguration{}, fmt.Errorf("load application configuration: %w", err)
+		return ApplicationConfiguration{}, failure.Validation("load application configuration", err)
 	}
 	if err := Validate(configuration); err != nil {
 		return ApplicationConfiguration{}, err
@@ -91,7 +92,7 @@ func Validate(configuration ApplicationConfiguration) error {
 		return err
 	}
 	if len(configuration.Quality.Check.Plugins) == 0 {
-		return fmt.Errorf("quality check plugin list is empty")
+		return failure.Validation("quality check plugin list is empty", nil)
 	}
 	knownPlugins := map[string]struct{}{
 		"architecture": {}, "coverage": {}, "crap": {}, "duplication": {}, "mutation": {},
@@ -99,10 +100,10 @@ func Validate(configuration ApplicationConfiguration) error {
 	seen := make(map[string]struct{}, len(configuration.Quality.Check.Plugins))
 	for _, name := range configuration.Quality.Check.Plugins {
 		if _, known := knownPlugins[name]; !known {
-			return fmt.Errorf("quality check plugin %q is unknown", name)
+			return failure.Validation(fmt.Sprintf("quality check plugin %q is unknown", name), nil)
 		}
 		if _, duplicate := seen[name]; duplicate {
-			return fmt.Errorf("quality check plugin %q is duplicated", name)
+			return failure.Validation(fmt.Sprintf("quality check plugin %q is duplicated", name), nil)
 		}
 		seen[name] = struct{}{}
 	}
@@ -110,7 +111,10 @@ func Validate(configuration ApplicationConfiguration) error {
 	case FailureThresholdNone, FailureThresholdWarning, FailureThresholdError:
 		return nil
 	default:
-		return fmt.Errorf("quality failure threshold %q is invalid", configuration.Quality.Check.FailOn)
+		return failure.Validation(fmt.Sprintf(
+			"quality failure threshold %q is invalid",
+			configuration.Quality.Check.FailOn,
+		), nil)
 	}
 }
 

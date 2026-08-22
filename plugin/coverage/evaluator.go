@@ -11,6 +11,7 @@ import (
 
 	"golang.org/x/tools/cover"
 
+	"github.com/cgardev/goconduct/failure"
 	"github.com/cgardev/goconduct/plugin"
 	"github.com/cgardev/goconduct/policy"
 )
@@ -33,13 +34,13 @@ var _ plugin.Evaluator = (*Evaluator)(nil)
 // NewEvaluator validates configuration and creates a coverage evaluator.
 func NewEvaluator(runner plugin.CommandRunner, configuration Configuration) (*Evaluator, error) {
 	if runner == nil {
-		return nil, fmt.Errorf("coverage command runner is nil")
+		return nil, failure.Validation("coverage command runner is nil", nil)
 	}
 	if strings.TrimSpace(configuration.Command) == "" {
-		return nil, fmt.Errorf("coverage command is empty")
+		return nil, failure.Validation("coverage command is empty", nil)
 	}
 	if len(configuration.Packages) == 0 {
-		return nil, fmt.Errorf("coverage package list is empty")
+		return nil, failure.Validation("coverage package list is empty", nil)
 	}
 	resolver, err := policy.NewResolver(configuration.Policies)
 	if err != nil {
@@ -48,11 +49,11 @@ func NewEvaluator(runner plugin.CommandRunner, configuration Configuration) (*Ev
 	for _, candidate := range configuration.Policies {
 		for _, threshold := range candidate.Thresholds {
 			if threshold.Metric == metricCoveragePercent && (threshold.Value < 0 || threshold.Value > 100) {
-				return nil, fmt.Errorf(
+				return nil, failure.Validation(fmt.Sprintf(
 					"coverage policy %q limit %.2f is outside 0 through 100",
 					candidate.ID,
 					threshold.Value,
-				)
+				), nil)
 			}
 		}
 	}
@@ -77,15 +78,15 @@ func (evaluator *Evaluator) Evaluate(
 	}
 	profile, err := os.CreateTemp("", "goconduct-coverage-*.out")
 	if err != nil {
-		return plugin.Report{}, fmt.Errorf("create coverage profile: %w", err)
+		return plugin.Report{}, failure.Unavailable("create coverage profile", err)
 	}
 	profilePath := profile.Name()
 	if err := profile.Close(); err != nil {
-		return plugin.Report{}, fmt.Errorf("close coverage profile: %w", err)
+		return plugin.Report{}, failure.Unavailable("close coverage profile", err)
 	}
 	defer func() {
 		if err := os.Remove(profilePath); err != nil && !errors.Is(err, os.ErrNotExist) {
-			resultErr = errors.Join(resultErr, fmt.Errorf("remove coverage profile: %w", err))
+			resultErr = errors.Join(resultErr, failure.Unavailable("remove coverage profile", err))
 		}
 	}()
 	packages := evaluator.packages(request.Paths)
@@ -103,7 +104,7 @@ func (evaluator *Evaluator) Evaluate(
 	}
 	profiles, err := cover.ParseProfiles(profilePath)
 	if err != nil {
-		return plugin.Report{}, fmt.Errorf("parse coverage profile: %w", err)
+		return plugin.Report{}, failure.DataIntegrity("parse coverage profile", err)
 	}
 	files, err := summarizeProfiles(repositoryRoot, profiles)
 	if err != nil {
@@ -156,7 +157,7 @@ func resolveProfilePath(repositoryRoot, profilePath string) (string, error) {
 	if filepath.IsAbs(profilePath) {
 		relative, err := filepath.Rel(repositoryRoot, profilePath)
 		if err != nil {
-			return "", fmt.Errorf("resolve coverage path %q: %w", profilePath, err)
+			return "", failure.Internal(fmt.Sprintf("resolve coverage path %q", profilePath), err)
 		}
 		return filepath.ToSlash(relative), nil
 	}
@@ -169,10 +170,14 @@ func resolveProfilePath(repositoryRoot, profilePath string) (string, error) {
 			return strings.Join(segments[index:], "/"), nil
 		}
 		if err != nil && !errors.Is(err, os.ErrNotExist) {
-			return "", fmt.Errorf("inspect coverage path %q: %w", candidate, err)
+			return "", failure.Unavailable(fmt.Sprintf("inspect coverage path %q", candidate), err)
 		}
 	}
-	return "", fmt.Errorf("coverage path %q is outside repository %q", profilePath, repositoryRoot)
+	return "", failure.DataIntegrity(fmt.Sprintf(
+		"coverage path %q is outside repository %q",
+		profilePath,
+		repositoryRoot,
+	), nil)
 }
 
 func (evaluator *Evaluator) report(files []fileCoverage) (plugin.Report, error) {

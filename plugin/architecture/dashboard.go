@@ -9,6 +9,8 @@ import (
 	"sync"
 
 	"connectrpc.com/connect"
+
+	"github.com/cgardev/goconduct/failure"
 )
 
 type dashboardService struct {
@@ -28,7 +30,7 @@ func (service *dashboardService) ConfigureHandlerOptions(options ...connect.Hand
 	service.mutex.Lock()
 	defer service.mutex.Unlock()
 	if service.handler != nil {
-		return fmt.Errorf("architecture dashboard handler is already initialized")
+		return failure.BusinessRule("architecture dashboard handler is already initialized", nil)
 	}
 	service.options = slices.Clone(options)
 	return nil
@@ -52,7 +54,7 @@ func (service *dashboardService) Activate(ctx context.Context) error {
 	service.mutex.Lock()
 	defer service.mutex.Unlock()
 	if service.ctx != nil {
-		return fmt.Errorf("architecture dashboard is already active")
+		return failure.BusinessRule("architecture dashboard is already active", nil)
 	}
 	service.ctx, service.cancel = context.WithCancel(ctx)
 	return nil
@@ -75,13 +77,13 @@ func (service *dashboardService) initialize(requestContext context.Context) (htt
 		return service.handler, nil
 	}
 	if service.ctx == nil {
-		return nil, fmt.Errorf("architecture dashboard is not active")
+		return nil, failure.BusinessRule("architecture dashboard is not active", nil)
 	}
 	if err := service.ctx.Err(); err != nil {
 		return nil, fmt.Errorf("architecture dashboard context: %w", err)
 	}
 	if service.configuration.Server.RefreshInterval < minimumRefreshInterval() {
-		return nil, newValidationError(
+		return nil, failure.Validation(
 			"refresh interval must be at least "+minimumRefreshInterval().String(),
 			nil,
 		)

@@ -14,8 +14,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cgardev/goconduct/failure"
 	application "github.com/cgardev/goconduct/internal/application"
-	"github.com/cgardev/goconduct/internal/library/foundationdomain"
 	querymodel "github.com/cgardev/goconduct/internal/query"
 )
 
@@ -176,7 +176,7 @@ func TestGraphCache_RejectDifferentScope(t *testing.T) {
 		})
 
 		t.Run("Then the server rejects the incompatible cache", func(t *testing.T) {
-			if !errors.Is(loadError, foundationdomain.ErrDataIntegrity) {
+			if !errors.Is(loadError, failure.ErrDataIntegrity) {
 				t.Fatalf("cache error is %v, want ErrDataIntegrity", loadError)
 			}
 		})
@@ -328,7 +328,7 @@ func TestCLIQuery_SelectCacheFailureBehavior(t *testing.T) {
 			name:      "server mode reports an unavailable server",
 			mode:      CacheModeServer,
 			address:   "127.0.0.1:0",
-			wantError: foundationdomain.ErrUnavailable,
+			wantError: failure.ErrUnavailable,
 		},
 		{
 			name:    "local mode does not parse the cache address",
@@ -390,24 +390,24 @@ func TestGraphCache_ValidateResponseContract(t *testing.T) {
 	}{
 		{
 			name: "the server status is not successful", status: http.StatusConflict,
-			wantCategory: foundationdomain.ErrUnavailable,
+			wantCategory: failure.ErrUnavailable,
 		},
 		{
 			name: "the server rejects the analysis precondition", status: http.StatusPreconditionFailed,
-			wantCategory: foundationdomain.ErrDataIntegrity,
+			wantCategory: failure.ErrDataIntegrity,
 		},
 		{
 			name: "the protocol header is absent", status: http.StatusOK,
-			wantCategory: foundationdomain.ErrDataIntegrity,
+			wantCategory: failure.ErrDataIntegrity,
 		},
 		{
 			name: "the cache key does not match", status: http.StatusOK,
-			protocol: "1", key: "other", wantCategory: foundationdomain.ErrDataIntegrity,
+			protocol: "1", key: "other", wantCategory: failure.ErrDataIntegrity,
 		},
 		{
 			name: "the schema header does not match", status: http.StatusOK,
 			protocol: "1", key: "expected", schema: "5",
-			wantCategory: foundationdomain.ErrDataIntegrity,
+			wantCategory: failure.ErrDataIntegrity,
 		},
 		{
 			name:     "the response body is not JSON",
@@ -559,7 +559,7 @@ func TestGraphCache_DetectInvalidPayload(t *testing.T) {
 			})
 
 			t.Run("Then the client reports the selected invalid payload", func(t *testing.T) {
-				if testCase.wantReject && !errors.Is(loadError, foundationdomain.ErrDataIntegrity) {
+				if testCase.wantReject && !errors.Is(loadError, failure.ErrDataIntegrity) {
 					t.Fatalf("cache error is %v, want ErrDataIntegrity", loadError)
 				}
 				if testCase.wantText != "" &&

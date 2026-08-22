@@ -5,11 +5,14 @@ import (
 	"errors"
 	"net/http"
 	"reflect"
+	"strings"
 	"testing"
 
 	"connectrpc.com/connect"
 	"github.com/samber/do/v2"
 	"github.com/spf13/cobra"
+
+	"github.com/cgardev/goconduct/failure"
 )
 
 type hostFixturePlugin struct {
@@ -117,5 +120,35 @@ func TestHostRejectsInvalidRegistryAndNamesActivationErrors(t *testing.T) {
 	}
 	if err := host.Activate(t.Context()); !errors.Is(err, sentinel) {
 		t.Fatalf("activation error is %v", err)
+	}
+}
+
+func TestShutdownReportClassifiesAndOrdersServiceFailures(t *testing.T) {
+	alphaFailure := errors.New("alpha service failure")
+	betaFailure := errors.New("beta service failure")
+	report := &do.ShutdownReport{
+		Errors: map[do.ServiceDescription]error{
+			{ScopeName: "root", Service: "beta"}:  betaFailure,
+			{ScopeName: "root", Service: "alpha"}: alphaFailure,
+		},
+	}
+
+	shutdownError := shutdownReport(report)
+
+	if !errors.Is(shutdownError, failure.ErrInternal) {
+		t.Fatalf("shutdown error is %v, want an internal failure", shutdownError)
+	}
+	if !errors.Is(shutdownError, alphaFailure) || !errors.Is(shutdownError, betaFailure) {
+		t.Fatalf("shutdown error %v drops one service cause", shutdownError)
+	}
+	message := shutdownError.Error()
+	if strings.Index(message, "alpha") > strings.Index(message, "beta") {
+		t.Errorf("shutdown error %q does not order services", message)
+	}
+	if err := shutdownReport(&do.ShutdownReport{Succeed: true}); err != nil {
+		t.Errorf("a successful shutdown returns %v", err)
+	}
+	if err := shutdownReport(nil); err != nil {
+		t.Errorf("a missing report returns %v", err)
 	}
 }

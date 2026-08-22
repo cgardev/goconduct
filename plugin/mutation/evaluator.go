@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/cgardev/goconduct/failure"
 	"github.com/cgardev/goconduct/plugin"
 )
 
@@ -24,19 +25,19 @@ var _ plugin.Evaluator = (*Evaluator)(nil)
 // NewEvaluator validates configuration and creates a mutation evaluator.
 func NewEvaluator(runner plugin.CommandRunner, configuration Configuration) (*Evaluator, error) {
 	if runner == nil {
-		return nil, fmt.Errorf("mutation command runner is nil")
+		return nil, failure.Validation("mutation command runner is nil", nil)
 	}
 	if strings.TrimSpace(configuration.Command) == "" {
-		return nil, fmt.Errorf("mutation command is empty")
+		return nil, failure.Validation("mutation command is empty", nil)
 	}
 	if configuration.MaxWorkers < 0 {
-		return nil, fmt.Errorf("mutation worker count is negative")
+		return nil, failure.Validation("mutation worker count is negative", nil)
 	}
 	if configuration.TimeoutFactor <= 0 {
-		return nil, fmt.Errorf("mutation timeout factor must be positive")
+		return nil, failure.Validation("mutation timeout factor must be positive", nil)
 	}
 	if configuration.MaximumSurvivors < 0 || configuration.MaximumUncovered < 0 {
-		return nil, fmt.Errorf("mutation limits must not be negative")
+		return nil, failure.Validation("mutation limits must not be negative", nil)
 	}
 	return &Evaluator{runner: runner, configuration: cloneConfiguration(configuration)}, nil
 }
@@ -122,25 +123,31 @@ func (evaluator *Evaluator) evaluateFile(
 
 func mutationFiles(root string, selectedPaths []string) ([]string, error) {
 	if len(selectedPaths) == 0 {
-		return nil, fmt.Errorf("mutation evaluation requires at least one path")
+		return nil, failure.Validation("mutation evaluation requires at least one path", nil)
 	}
 	rootPath, err := filepath.Abs(root)
 	if err != nil {
-		return nil, fmt.Errorf("resolve mutation repository root: %w", err)
+		return nil, failure.Internal("resolve mutation repository root", err)
 	}
 	files := make([]string, 0)
 	for _, selectedPath := range selectedPaths {
 		if filepath.IsAbs(selectedPath) {
-			return nil, fmt.Errorf("mutation path %q is not repository-relative", selectedPath)
+			return nil, failure.Validation(
+				fmt.Sprintf("mutation path %q is not repository-relative", selectedPath),
+				nil,
+			)
 		}
 		fullPath := filepath.Join(rootPath, filepath.Clean(selectedPath))
 		relative, err := filepath.Rel(rootPath, fullPath)
 		if err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
-			return nil, fmt.Errorf("mutation path %q is outside the repository", selectedPath)
+			return nil, failure.Validation(
+				fmt.Sprintf("mutation path %q is outside the repository", selectedPath),
+				nil,
+			)
 		}
 		information, err := os.Stat(fullPath)
 		if err != nil {
-			return nil, fmt.Errorf("inspect mutation path %q: %w", selectedPath, err)
+			return nil, failure.Unavailable(fmt.Sprintf("inspect mutation path %q", selectedPath), err)
 		}
 		if !information.IsDir() {
 			if validMutationFile(fullPath) {
@@ -169,13 +176,16 @@ func mutationFiles(root string, selectedPaths []string) ([]string, error) {
 			return nil
 		})
 		if err != nil {
-			return nil, fmt.Errorf("discover mutation files in %q: %w", selectedPath, err)
+			return nil, failure.Unavailable(
+				fmt.Sprintf("discover mutation files in %q", selectedPath),
+				err,
+			)
 		}
 	}
 	slices.Sort(files)
 	files = slices.Compact(files)
 	if len(files) == 0 {
-		return nil, fmt.Errorf("selected mutation paths contain no production Go files")
+		return nil, failure.Validation("selected mutation paths contain no production Go files", nil)
 	}
 	return files, nil
 }

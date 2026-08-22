@@ -6,6 +6,8 @@ import (
 	"math"
 	"slices"
 	"strings"
+
+	"github.com/cgardev/goconduct/failure"
 )
 
 const (
@@ -62,7 +64,7 @@ type Report struct {
 // NewReport validates and orders one evaluator report.
 func NewReport(name string, metrics []Metric, findings []Finding) (Report, error) {
 	if strings.TrimSpace(name) == "" || strings.TrimSpace(name) != name {
-		return Report{}, fmt.Errorf("plugin name %q is invalid", name)
+		return Report{}, failure.Validation(fmt.Sprintf("plugin name %q is invalid", name), nil)
 	}
 	orderedMetrics := slices.Clone(metrics)
 	orderedFindings := slices.Clone(findings)
@@ -86,16 +88,16 @@ func validateMetrics(metrics []Metric) error {
 	identifiers := make(map[string]struct{}, len(metrics))
 	for _, metric := range metrics {
 		if strings.TrimSpace(metric.ID) == "" {
-			return fmt.Errorf("metric identifier is empty")
+			return failure.Validation("metric identifier is empty", nil)
 		}
 		if strings.TrimSpace(metric.Name) == "" {
-			return fmt.Errorf("metric %q name is empty", metric.ID)
+			return failure.Validation(fmt.Sprintf("metric %q name is empty", metric.ID), nil)
 		}
 		if math.IsNaN(metric.Value) || math.IsInf(metric.Value, 0) {
-			return fmt.Errorf("metric %q value is not finite", metric.ID)
+			return failure.Validation(fmt.Sprintf("metric %q value is not finite", metric.ID), nil)
 		}
 		if _, duplicate := identifiers[metric.ID]; duplicate {
-			return fmt.Errorf("metric identifier %q is duplicated", metric.ID)
+			return failure.Validation(fmt.Sprintf("metric identifier %q is duplicated", metric.ID), nil)
 		}
 		identifiers[metric.ID] = struct{}{}
 	}
@@ -106,19 +108,22 @@ func validateFindings(findings []Finding) error {
 	identifiers := make(map[string]struct{}, len(findings))
 	for _, finding := range findings {
 		if strings.TrimSpace(finding.ID) == "" {
-			return fmt.Errorf("finding identifier is empty")
+			return failure.Validation("finding identifier is empty", nil)
 		}
 		if strings.TrimSpace(finding.Rule) == "" {
-			return fmt.Errorf("finding %q rule is empty", finding.ID)
+			return failure.Validation(fmt.Sprintf("finding %q rule is empty", finding.ID), nil)
 		}
 		if strings.TrimSpace(finding.Message) == "" {
-			return fmt.Errorf("finding %q message is empty", finding.ID)
+			return failure.Validation(fmt.Sprintf("finding %q message is empty", finding.ID), nil)
 		}
 		if err := validateSeverity(finding.Severity); err != nil {
 			return fmt.Errorf("finding %q: %w", finding.ID, err)
 		}
 		if _, duplicate := identifiers[finding.ID]; duplicate {
-			return fmt.Errorf("finding identifier %q is duplicated", finding.ID)
+			return failure.Validation(
+				fmt.Sprintf("finding identifier %q is duplicated", finding.ID),
+				nil,
+			)
 		}
 		identifiers[finding.ID] = struct{}{}
 	}
@@ -130,7 +135,7 @@ func validateSeverity(severity Severity) error {
 	case SeverityNotice, SeverityWarning, SeverityError:
 		return nil
 	default:
-		return fmt.Errorf("severity %q is invalid", severity)
+		return failure.Validation(fmt.Sprintf("severity %q is invalid", severity), nil)
 	}
 }
 

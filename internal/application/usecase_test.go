@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/cgardev/goconduct/internal/library/foundationdomain"
+	"github.com/cgardev/goconduct/failure"
 )
 
 var (
@@ -130,7 +130,7 @@ func TestAnalyzeGraphUseCase_Execute(t *testing.T) {
 			mode:           CacheModeServer,
 			cacheError:     errTestCache,
 			wantCacheCalls: 1,
-			wantError:      foundationdomain.ErrUnavailable,
+			wantError:      failure.ErrUnavailable,
 			wantCacheError: true,
 		},
 	}
@@ -262,7 +262,7 @@ func TestAnalyzeGraphUseCase_RejectInvalidMode(t *testing.T) {
 		})
 
 		t.Run("Then the use case rejects the mode before source creation", func(t *testing.T) {
-			if !errors.Is(executeError, foundationdomain.ErrValidation) {
+			if !errors.Is(executeError, failure.ErrValidation) {
 				t.Fatalf("execute error is %v, want ErrValidation", executeError)
 			}
 			if !strings.Contains(executeError.Error(), `"remote"`) {

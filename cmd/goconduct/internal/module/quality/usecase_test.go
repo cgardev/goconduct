@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/cgardev/goconduct/internal/library/foundationdomain"
+	"github.com/cgardev/goconduct/failure"
 	"github.com/cgardev/goconduct/plugin"
 )
 
@@ -67,10 +67,11 @@ func TestRunCheckUseCaseClassifiesUnknownEvaluatorAsValidation(t *testing.T) {
 		t.Context(),
 		RunCheckUseCaseParams{Plugins: []string{"missing"}},
 	)
-	if !errors.Is(err, foundationdomain.ErrValidation) || !errors.Is(
-		err,
-		plugin.ErrEvaluatorNotRegistered,
-	) {
+	if !errors.Is(err, failure.ErrValidation) {
 		t.Fatalf("run check error is %v", err)
+	}
+	var classifiedError *failure.Error
+	if !errors.As(err, &classifiedError) || classifiedError.ID != "missing" {
+		t.Fatalf("run check error keeps identity %v", err)
 	}
 }

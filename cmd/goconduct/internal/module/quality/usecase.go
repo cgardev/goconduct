@@ -2,12 +2,10 @@ package quality
 
 import (
 	"context"
-	"errors"
 	"slices"
 
 	"github.com/samber/do/v2"
 
-	"github.com/cgardev/goconduct/internal/library/foundationdomain"
 	"github.com/cgardev/goconduct/internal/library/injection"
 	"github.com/cgardev/goconduct/plugin"
 )
@@ -102,13 +100,6 @@ func (useCase *RunCheckUseCase) Execute(
 		Paths:          paths,
 	})
 	if err != nil {
-		if errors.Is(err, plugin.ErrEvaluatorNotRegistered) {
-			return CheckResult{}, foundationdomain.NewError(
-				foundationdomain.ErrValidation,
-				err.Error(),
-				err,
-			)
-		}
 		return CheckResult{}, err
 	}
 	return newCheckResult(reports), nil

@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/cgardev/goconduct/failure"
 	"github.com/cgardev/goconduct/plugin"
 )
 
@@ -41,19 +42,22 @@ var _ plugin.Evaluator = (*Evaluator)(nil)
 // NewEvaluator validates configuration and creates a duplication evaluator.
 func NewEvaluator(runner plugin.CommandRunner, configuration Configuration) (*Evaluator, error) {
 	if runner == nil {
-		return nil, fmt.Errorf("duplication command runner is nil")
+		return nil, failure.Validation("duplication command runner is nil", nil)
 	}
 	if strings.TrimSpace(configuration.Command) == "" {
-		return nil, fmt.Errorf("duplication command is empty")
+		return nil, failure.Validation("duplication command is empty", nil)
 	}
 	if configuration.Similarity < 0 || configuration.Similarity > 1 {
-		return nil, fmt.Errorf("duplication similarity %.3f is outside 0 through 1", configuration.Similarity)
+		return nil, failure.Validation(fmt.Sprintf(
+			"duplication similarity %.3f is outside 0 through 1",
+			configuration.Similarity,
+		), nil)
 	}
 	if configuration.MinimumLines <= 0 || configuration.MinimumNodes <= 0 {
-		return nil, fmt.Errorf("duplication minimum lines and nodes must be positive")
+		return nil, failure.Validation("duplication minimum lines and nodes must be positive", nil)
 	}
 	if configuration.MaximumCandidates < 0 {
-		return nil, fmt.Errorf("maximum duplication candidates is negative")
+		return nil, failure.Validation("maximum duplication candidates is negative", nil)
 	}
 	return &Evaluator{runner: runner, configuration: configuration}, nil
 }
@@ -99,7 +103,7 @@ func parseDryReport(payload []byte) (dryReport, error) {
 	decoder.DisallowUnknownFields()
 	var report dryReport
 	if err := decoder.Decode(&report); err != nil {
-		return dryReport{}, fmt.Errorf("decode dry4go report: %w", err)
+		return dryReport{}, failure.DataIntegrity("decode dry4go report", err)
 	}
 	slices.SortFunc(report.Candidates, compareCandidate)
 	return report, nil

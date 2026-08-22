@@ -258,6 +258,16 @@ reports, err := catalog.Evaluate(ctx, nil, plugin.Request{RepositoryRoot: "."})
 Passing no evaluator names runs every registered evaluator in stable name order.
 The constructors validate configuration and defensively copy mutable inputs.
 
+Every public package classifies its failures with the `failure` package.
+Match one stable category with `errors.Is` instead of the message text:
+
+```go
+_, err := catalog.Evaluate(ctx, []string{"missing"}, plugin.Request{RepositoryRoot: "."})
+if errors.Is(err, failure.ErrValidation) {
+    // The request names an evaluator that the catalog does not hold.
+}
+```
+
 Use each package's `Plugin()` adapter when building a complete application host.
 The adapter contributes lazy services, lifecycle activation, Cobra commands, and Connect endpoints.
 
@@ -284,6 +294,7 @@ api/proto/v1/                         Protocol Buffer contracts
 cmd/goconduct/                        Cobra composition root
 cmd/goconduct/internal/configuration  Unified application configuration
 cmd/goconduct/internal/module/quality Application-owned Connect module
+failure/                              Public error categories for every package
 internal/appmodule/                   Application host adapter and request scope
 internal/kernel/                      Logger, evaluator catalog, and command runner
 internal/library/                     Shared application infrastructure

@@ -14,7 +14,7 @@ import (
 
 	"golang.org/x/tools/go/packages"
 
-	"github.com/cgardev/goconduct/internal/library/foundationdomain"
+	"github.com/cgardev/goconduct/failure"
 )
 
 func TestFunctionAnalysis_StopCanceledPackageLoad(t *testing.T) {
@@ -47,7 +47,7 @@ func TestFunctionAnalysis_StopCanceledPackageLoad(t *testing.T) {
 			if !errors.Is(analysisError, context.Canceled) {
 				t.Fatalf("package load error is %v, want context.Canceled", analysisError)
 			}
-			if errors.Is(analysisError, foundationdomain.ErrUnavailable) {
+			if errors.Is(analysisError, failure.ErrUnavailable) {
 				t.Fatalf("package load error is %v, do not want ErrUnavailable", analysisError)
 			}
 		})

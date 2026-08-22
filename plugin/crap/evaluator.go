@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/cgardev/goconduct/failure"
 	"github.com/cgardev/goconduct/plugin"
 	"github.com/cgardev/goconduct/policy"
 )
@@ -23,16 +24,22 @@ var _ plugin.Evaluator = (*Evaluator)(nil)
 // NewEvaluator validates configuration and creates a CRAP evaluator.
 func NewEvaluator(runner plugin.CommandRunner, configuration Configuration) (*Evaluator, error) {
 	if runner == nil {
-		return nil, fmt.Errorf("CRAP command runner is nil")
+		return nil, failure.Validation("CRAP command runner is nil", nil)
 	}
 	if strings.TrimSpace(configuration.Command) == "" {
-		return nil, fmt.Errorf("CRAP command is empty")
+		return nil, failure.Validation("CRAP command is empty", nil)
 	}
 	if configuration.MaximumScore < 0 {
-		return nil, fmt.Errorf("maximum CRAP score %.2f is negative", configuration.MaximumScore)
+		return nil, failure.Validation(
+			fmt.Sprintf("maximum CRAP score %.2f is negative", configuration.MaximumScore),
+			nil,
+		)
 	}
 	if configuration.MaxWorkers < 0 {
-		return nil, fmt.Errorf("CRAP worker count %d is negative", configuration.MaxWorkers)
+		return nil, failure.Validation(
+			fmt.Sprintf("CRAP worker count %d is negative", configuration.MaxWorkers),
+			nil,
+		)
 	}
 	resolver, err := policy.NewResolver(configuration.Policies)
 	if err != nil {

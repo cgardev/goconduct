@@ -10,6 +10,7 @@ import (
 	"connectrpc.com/connect"
 
 	applicationconfiguration "github.com/cgardev/goconduct/cmd/goconduct/internal/configuration"
+	"github.com/cgardev/goconduct/failure"
 	"github.com/cgardev/goconduct/internal/appmodule"
 	"github.com/cgardev/goconduct/internal/library/httpserver"
 )
@@ -40,7 +41,7 @@ func (app *application) Activate(
 	app.mutex.Lock()
 	defer app.mutex.Unlock()
 	if app.attempted {
-		return fmt.Errorf("application activation was already attempted")
+		return failure.BusinessRule("application activation was already attempted", nil)
 	}
 	app.attempted = true
 	if err := applicationconfiguration.Validate(configuration); err != nil {
@@ -59,10 +60,10 @@ func (app *application) ComposeServer() (*httpserver.Server, error) {
 	app.mutex.Lock()
 	defer app.mutex.Unlock()
 	if !app.activated {
-		return nil, fmt.Errorf("application is not active")
+		return nil, failure.BusinessRule("application is not active", nil)
 	}
 	if app.serverComposed {
-		return nil, fmt.Errorf("application server is already composed")
+		return nil, failure.BusinessRule("application server is already composed", nil)
 	}
 	app.serverComposed = true
 	server := newApplicationServer(app.configuration, app.logger)

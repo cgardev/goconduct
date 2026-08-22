@@ -9,6 +9,8 @@ import (
 	"os/exec"
 	"slices"
 	"strings"
+
+	"github.com/cgardev/goconduct/failure"
 )
 
 // Command describes one deterministic child-process invocation.
@@ -43,7 +45,7 @@ func NewCommandRunner() CommandRunner {
 // Run executes one command and captures both output streams.
 func (commandRunner) Run(ctx context.Context, command Command) (CommandResult, error) {
 	if strings.TrimSpace(command.Path) == "" {
-		return CommandResult{}, fmt.Errorf("command path is empty")
+		return CommandResult{}, failure.Validation("command path is empty", nil)
 	}
 	invocation := exec.CommandContext(ctx, command.Path, slices.Clone(command.Arguments)...)
 	invocation.Dir = command.Directory
@@ -68,5 +70,5 @@ func (commandRunner) Run(ctx context.Context, command Command) (CommandResult, e
 	} else {
 		result.ExitCode = -1
 	}
-	return result, fmt.Errorf("run command %q: %w", command.Path, err)
+	return result, failure.Unavailable(fmt.Sprintf("run command %q", command.Path), err)
 }

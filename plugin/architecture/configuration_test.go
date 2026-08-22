@@ -13,7 +13,7 @@ import (
 
 	"github.com/cgardev/gokeel/conf"
 
-	"github.com/cgardev/goconduct/internal/library/foundationdomain"
+	"github.com/cgardev/goconduct/failure"
 )
 
 func TestApplicationConfiguration_LoadDefaults(t *testing.T) {
@@ -301,7 +301,7 @@ func TestCacheConfiguration_ValidateModeAndTimeout(t *testing.T) {
 				if (validationError != nil) != testCase.wantError {
 					t.Errorf("validation error is %v, want error %t", validationError, testCase.wantError)
 				}
-				if testCase.wantError && !errors.Is(validationError, foundationdomain.ErrValidation) {
+				if testCase.wantError && !errors.Is(validationError, failure.ErrValidation) {
 					t.Errorf("validation error is %v, want ErrValidation", validationError)
 				}
 			})

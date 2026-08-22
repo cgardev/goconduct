@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+
+	"github.com/cgardev/goconduct/failure"
 )
 
 type mutationResult struct {
@@ -75,10 +77,10 @@ func parseMutationReport(payload []byte) (mutationResult, error) {
 		}
 	}
 	if err := scanner.Err(); err != nil {
-		return mutationResult{}, fmt.Errorf("read mutate4go report: %w", err)
+		return mutationResult{}, failure.DataIntegrity("read mutate4go report", err)
 	}
 	if result.path == "" {
-		return mutationResult{}, fmt.Errorf("mutate4go report has no source path")
+		return mutationResult{}, failure.DataIntegrity("mutate4go report has no source path", nil)
 	}
 	return result, nil
 }
@@ -86,7 +88,7 @@ func parseMutationReport(payload []byte) (mutationResult, error) {
 func parseMutationCount(line, prefix string) (int, error) {
 	value, err := strconv.Atoi(strings.TrimSpace(strings.TrimPrefix(line, prefix)))
 	if err != nil {
-		return 0, fmt.Errorf("parse mutate4go count from %q: %w", line, err)
+		return 0, failure.DataIntegrity(fmt.Sprintf("parse mutate4go count from %q", line), err)
 	}
 	return value, nil
 }

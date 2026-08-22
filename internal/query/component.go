@@ -7,8 +7,8 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/cgardev/goconduct/failure"
 	"github.com/cgardev/goconduct/internal/architecture"
-	"github.com/cgardev/goconduct/internal/library/foundationdomain"
 	"github.com/cgardev/goconduct/internal/report"
 )
 
@@ -211,8 +211,8 @@ func ParseFindingSeverity(value string) (FindingSeverity, error) {
 	case FindingSeverityAll, FindingSeverityError, FindingSeverityWarning:
 		return filter, nil
 	default:
-		return "", foundationdomain.NewError(
-			foundationdomain.ErrValidation,
+		return "", failure.New(
+			failure.ErrValidation,
 			fmt.Sprintf("finding severity %q must be all, warning, or error", value),
 			nil,
 		)
@@ -256,8 +256,8 @@ func ParseComponentRole(value string) (string, error) {
 	if value == "all" || architecture.ValidRole(report.ComponentRole(value)) {
 		return value, nil
 	}
-	return "", foundationdomain.NewError(
-		foundationdomain.ErrValidation,
+	return "", failure.New(
+		failure.ErrValidation,
 		fmt.Sprintf(
 			"component role %q must be all, application, application-module, shared-module, "+
 				"library, infrastructure, or development",
@@ -273,8 +273,8 @@ func ParseComponentSort(value string) (ComponentSort, error) {
 	if _, found := componentSortDescriptorFor(sortOrder); found {
 		return sortOrder, nil
 	}
-	return "", foundationdomain.NewError(
-		foundationdomain.ErrValidation,
+	return "", failure.New(
+		failure.ErrValidation,
 		fmt.Sprintf("component sort %q must be %s", value, describeComponentSorts()),
 		nil,
 	)
@@ -368,7 +368,7 @@ func GetComponent(graph report.Graph, identifier string) (ComponentResult, error
 		}
 	}
 	if !found {
-		return ComponentResult{}, foundationdomain.NewEntityNotFoundError(
+		return ComponentResult{}, failure.NotFound(
 			"dependency graph component",
 			identifier,
 			nil,

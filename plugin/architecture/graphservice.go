@@ -9,6 +9,7 @@ import (
 
 	"connectrpc.com/connect"
 
+	"github.com/cgardev/goconduct/failure"
 	"github.com/cgardev/goconduct/internal/library/connecterror"
 	goconductv1 "github.com/cgardev/goconduct/internal/protogen/v1"
 	"github.com/cgardev/goconduct/internal/protogen/v1/goconductv1connect"
@@ -52,14 +53,14 @@ func (service *graphService) GetGraph(
 			"The graph service cannot identify the dependency graph cache.",
 			slog.Any("error", err),
 		)
-		return nil, connecterror.From(ctx, newUnavailableError("identify dependency graph cache", err))
+		return nil, connecterror.From(ctx, failure.Unavailable("identify dependency graph cache", err))
 	}
 	if err := validateGraphCacheContract(
 		request.Msg.GetCacheKey(),
 		request.Msg.GetCacheProtocol(),
 		cacheKey,
 	); err != nil {
-		return nil, connect.NewError(connect.CodeFailedPrecondition, err)
+		return nil, connecterror.From(ctx, err)
 	}
 
 	graph := service.source.currentGraph()
@@ -70,7 +71,7 @@ func (service *graphService) GetGraph(
 				"The graph service cannot refresh the dependency graph.",
 				slog.Any("error", err),
 			)
-			return nil, connecterror.From(ctx, newUnavailableError("refresh dependency graph", err))
+			return nil, connecterror.From(ctx, failure.Unavailable("refresh dependency graph", err))
 		}
 	}
 
@@ -134,10 +135,10 @@ func validateGraphCacheContract(requestedKey string, protocol uint32, expectedKe
 		return nil
 	}
 	if protocol != graphCacheProtocolVersion {
-		return newValidationError("cache protocol does not match", nil)
+		return failure.BusinessRule("cache protocol does not match", nil)
 	}
 	if requestedKey != expectedKey {
-		return newValidationError("analysis scope does not match", nil)
+		return failure.BusinessRule("analysis scope does not match", nil)
 	}
 	return nil
 }

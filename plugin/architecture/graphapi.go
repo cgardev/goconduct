@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+
+	"github.com/cgardev/goconduct/failure"
 )
 
 type graphEndpoint struct {
@@ -80,10 +82,10 @@ func validateGraphCacheRequest(request *http.Request, cacheKey string) error {
 		return nil
 	}
 	if request.Header.Get(graphCacheProtocolHeader) != strconv.Itoa(graphCacheProtocolVersion) {
-		return newValidationError("cache protocol does not match", nil)
+		return failure.BusinessRule("cache protocol does not match", nil)
 	}
 	if requestedKey != cacheKey {
-		return newValidationError("analysis scope does not match", nil)
+		return failure.BusinessRule("analysis scope does not match", nil)
 	}
 	return nil
 }
@@ -91,7 +93,7 @@ func validateGraphCacheRequest(request *http.Request, cacheKey string) error {
 func writeGraphResponse(response http.ResponseWriter, request *http.Request, graph Graph) error {
 	if request == nil || !acceptsGzip(request.Header.Get("Accept-Encoding")) {
 		if err := json.NewEncoder(response).Encode(graph); err != nil {
-			return newUnavailableError("encode dependency graph", err)
+			return failure.Unavailable("encode dependency graph", err)
 		}
 		return nil
 	}
@@ -100,13 +102,13 @@ func writeGraphResponse(response http.ResponseWriter, request *http.Request, gra
 	compressor := gzip.NewWriter(response)
 	if err := json.NewEncoder(compressor).Encode(graph); err != nil {
 		closeError := compressor.Close()
-		return newUnavailableError(
+		return failure.Unavailable(
 			"encode dependency graph",
 			errors.Join(err, closeError),
 		)
 	}
 	if err := compressor.Close(); err != nil {
-		return newUnavailableError("close dependency graph compressor", err)
+		return failure.Unavailable("close dependency graph compressor", err)
 	}
 	return nil
 }

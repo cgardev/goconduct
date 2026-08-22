@@ -12,6 +12,7 @@ import (
 	"github.com/cgardev/gokeel/conf"
 	"github.com/spf13/cobra"
 
+	"github.com/cgardev/goconduct/failure"
 	"github.com/cgardev/goconduct/internal/query"
 )
 
@@ -402,7 +403,7 @@ func newComponentCommand(configurationFlags *commandConfigurationFlags, analyzer
 
 func validateQueryLimit(limit int) error {
 	if limit < 0 {
-		return newValidationError("query limit must not be negative", nil)
+		return failure.Validation("query limit must not be negative", nil)
 	}
 	return nil
 }
@@ -412,7 +413,7 @@ func writeQueryJSON(output io.Writer, queryResult any) error {
 	encoder.SetEscapeHTML(false)
 	encoder.SetIndent("", "  ")
 	if err := encoder.Encode(queryResult); err != nil {
-		return newUnavailableError("encode query result", err)
+		return failure.Unavailable("encode query result", err)
 	}
 	return nil
 }
@@ -428,10 +429,10 @@ func newConfigurationSchemaCommand() *cobra.Command {
 				applicationSchemaDefinition(),
 			)
 			if err != nil {
-				return newInternalError("generate configuration schema", err)
+				return failure.Internal("generate configuration schema", err)
 			}
 			if _, err := command.OutOrStdout().Write(schema); err != nil {
-				return newUnavailableError("write configuration schema", err)
+				return failure.Unavailable("write configuration schema", err)
 			}
 			return nil
 		},
@@ -444,7 +445,7 @@ func parseAnalysisView(value string) (analysisView, error) {
 	case analysisViewReport, analysisViewGraph:
 		return view, nil
 	default:
-		return "", newValidationError(
+		return "", failure.Validation(
 			fmt.Sprintf("analysis view %q must be report or graph", value),
 			nil,
 		)
@@ -457,7 +458,7 @@ func parseFindingThreshold(value string) (findingThreshold, error) {
 	case findingThresholdNone, findingThresholdWarning, findingThresholdError:
 		return threshold, nil
 	default:
-		return "", newValidationError(
+		return "", failure.Validation(
 			fmt.Sprintf("finding threshold %q must be none, warning, or error", value),
 			nil,
 		)
@@ -488,7 +489,7 @@ func writeAnalysisJSON(
 		analysisOutput = graph
 	}
 	if err := encoder.Encode(analysisOutput); err != nil {
-		return newUnavailableError("encode architecture analysis", err)
+		return failure.Unavailable("encode architecture analysis", err)
 	}
 	return nil
 }
@@ -506,7 +507,7 @@ func enforceFindingThreshold(findings []Finding, threshold findingThreshold) err
 	if failures == 0 {
 		return nil
 	}
-	return newBusinessRuleError(
+	return failure.BusinessRule(
 		fmt.Sprintf("%d findings at %s severity or higher", failures, threshold),
 		nil,
 	)

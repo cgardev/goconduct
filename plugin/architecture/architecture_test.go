@@ -39,8 +39,13 @@ func TestLayerArchitecture_KeepCoreFilesWithinImportBoundaries(t *testing.T) {
 			},
 		},
 		{
-			file:           "classification.go",
-			allowedImports: []string{"fmt", "slices", "strings"},
+			file: "classification.go",
+			allowedImports: []string{
+				"fmt",
+				"github.com/cgardev/goconduct/failure",
+				"slices",
+				"strings",
+			},
 		},
 		{
 			file: "functioncalculation.go",
@@ -63,7 +68,7 @@ func TestLayerArchitecture_KeepCoreFilesWithinImportBoundaries(t *testing.T) {
 			allowedImports: []string{
 				"context",
 				"fmt",
-				"github.com/cgardev/goconduct/internal/library/foundationdomain",
+				"github.com/cgardev/goconduct/failure",
 			},
 		},
 	}

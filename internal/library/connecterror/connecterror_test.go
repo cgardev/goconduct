@@ -7,7 +7,7 @@ import (
 
 	"connectrpc.com/connect"
 
-	"github.com/cgardev/goconduct/internal/library/foundationdomain"
+	"github.com/cgardev/goconduct/failure"
 )
 
 func TestFromMapsClassifiedErrors(t *testing.T) {
@@ -16,9 +16,9 @@ func TestFromMapsClassifiedErrors(t *testing.T) {
 		err      error
 		wantCode connect.Code
 	}{
-		{name: "validation", err: foundationdomain.ErrValidation, wantCode: connect.CodeInvalidArgument},
-		{name: "missing entity", err: foundationdomain.ErrNotFound, wantCode: connect.CodeNotFound},
-		{name: "unavailable dependency", err: foundationdomain.ErrUnavailable, wantCode: connect.CodeUnavailable},
+		{name: "validation", err: failure.ErrValidation, wantCode: connect.CodeInvalidArgument},
+		{name: "missing entity", err: failure.ErrNotFound, wantCode: connect.CodeNotFound},
+		{name: "unavailable dependency", err: failure.ErrUnavailable, wantCode: connect.CodeUnavailable},
 		{name: "canceled context", err: context.Canceled, wantCode: connect.CodeCanceled},
 		{name: "expired context", err: context.DeadlineExceeded, wantCode: connect.CodeDeadlineExceeded},
 	}
@@ -32,12 +32,12 @@ func TestFromMapsClassifiedErrors(t *testing.T) {
 }
 
 func TestFromUsesSafeDomainMessageAndSanitizesUnknownErrors(t *testing.T) {
-	domainError := foundationdomain.NewError(
-		foundationdomain.ErrBusinessRule,
+	classifiedError := failure.New(
+		failure.ErrBusinessRule,
 		"configured policy rejects this dependency",
 		errors.New("private implementation detail"),
 	)
-	converted := From(t.Context(), domainError)
+	converted := From(t.Context(), classifiedError)
 	if converted.Error() != "failed_precondition: configured policy rejects this dependency" {
 		t.Fatalf("classified error is %q", converted.Error())
 	}

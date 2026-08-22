@@ -12,6 +12,7 @@ import (
 	"github.com/spf13/cobra"
 
 	applicationconfiguration "github.com/cgardev/goconduct/cmd/goconduct/internal/configuration"
+	"github.com/cgardev/goconduct/failure"
 	"github.com/cgardev/goconduct/plugin"
 )
 
@@ -126,10 +127,10 @@ func newApplicationConfigurationSchemaCommand() *cobra.Command {
 				applicationconfiguration.SchemaDefinition(),
 			)
 			if err != nil {
-				return fmt.Errorf("generate application configuration schema: %w", err)
+				return failure.Internal("generate application configuration schema", err)
 			}
 			if _, err := command.OutOrStdout().Write(schema); err != nil {
-				return fmt.Errorf("write application configuration schema: %w", err)
+				return failure.Unavailable("write application configuration schema", err)
 			}
 			return nil
 		},
@@ -171,7 +172,7 @@ func writeJSON(destination io.Writer, value any, indent bool) error {
 		encoder.SetIndent("", "  ")
 	}
 	if err := encoder.Encode(value); err != nil {
-		return fmt.Errorf("write JSON report: %w", err)
+		return failure.Unavailable("write JSON report", err)
 	}
 	return nil
 }
@@ -190,11 +191,11 @@ func enforceCheckThreshold(
 				fails = fails || finding.Severity == plugin.SeverityWarning
 			}
 			if fails {
-				return fmt.Errorf(
+				return failure.BusinessRule(fmt.Sprintf(
 					"quality check failed on %s finding %q",
 					strings.ToLower(string(finding.Severity)),
 					finding.ID,
-				)
+				), nil)
 			}
 		}
 	}

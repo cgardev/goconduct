@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+
+	"github.com/cgardev/goconduct/failure"
 )
 
 type componentClassifier struct {
@@ -39,7 +41,7 @@ func newComponentClassifier(configuration ComponentRules) (componentClassifier, 
 	for _, set := range sets {
 		for _, template := range set.templates {
 			if previousCategory, exists := seen[template]; exists {
-				return componentClassifier{}, newValidationError(fmt.Sprintf(
+				return componentClassifier{}, failure.Validation(fmt.Sprintf(
 					"the configuration assigns component template %q to both %s and %s",
 					template,
 					previousCategory,
@@ -55,7 +57,7 @@ func newComponentClassifier(configuration ComponentRules) (componentClassifier, 
 		}
 	}
 	if len(rules) == 0 {
-		return componentClassifier{}, newValidationError(
+		return componentClassifier{}, failure.Validation(
 			"component rules must contain at least one path template",
 			nil,
 		)
@@ -68,25 +70,25 @@ func componentRuleSets(configuration ComponentRules) ([]componentRuleSet, error)
 	categoryIdentifiers := make(stringSet)
 	for _, category := range configuration.Taxonomy {
 		if category.Identifier == "" || category.Identifier != strings.TrimSpace(category.Identifier) {
-			return nil, newValidationError(fmt.Sprintf(
+			return nil, failure.Validation(fmt.Sprintf(
 				"component category identifier %q must be non-empty and have no surrounding spaces",
 				category.Identifier,
 			), nil)
 		}
 		if categoryIdentifiers.contains(category.Identifier) {
-			return nil, newValidationError(
+			return nil, failure.Validation(
 				fmt.Sprintf("the taxonomy repeats component category identifier %q", category.Identifier),
 				nil,
 			)
 		}
 		if !validComponentRole(category.Role) {
-			return nil, newValidationError(
+			return nil, failure.Validation(
 				fmt.Sprintf("component category %q has unknown role %q", category.Identifier, category.Role),
 				nil,
 			)
 		}
 		if len(category.Paths) == 0 {
-			return nil, newValidationError(fmt.Sprintf(
+			return nil, failure.Validation(fmt.Sprintf(
 				"component category %q must contain at least one path template",
 				category.Identifier,
 			), nil)
@@ -119,13 +121,13 @@ func compileComponentPathRule(
 	category string,
 ) (componentPathRule, error) {
 	if !validComponentRole(role) {
-		return componentPathRule{}, newValidationError(
+		return componentPathRule{}, failure.Validation(
 			fmt.Sprintf("component template %q has unknown role %q", template, role),
 			nil,
 		)
 	}
 	if template == "" || template != strings.TrimSpace(template) || strings.Contains(template, "\\") {
-		return componentPathRule{}, newValidationError(fmt.Sprintf(
+		return componentPathRule{}, failure.Validation(fmt.Sprintf(
 			"component template %q must be a non-empty relative path that uses forward slashes "+
 				"and has no surrounding spaces",
 			template,
@@ -136,7 +138,7 @@ func compileComponentPathRule(
 	segments := make([]componentPathSegment, 0, len(pathSegments))
 	for _, pathSegment := range pathSegments {
 		if pathSegment == "" || pathSegment == "." || pathSegment == ".." {
-			return componentPathRule{}, newValidationError(
+			return componentPathRule{}, failure.Validation(
 				fmt.Sprintf("component template %q contains an invalid path segment", template),
 				nil,
 			)
@@ -144,14 +146,14 @@ func compileComponentPathRule(
 		if strings.HasPrefix(pathSegment, "{") && strings.HasSuffix(pathSegment, "}") {
 			placeholder := strings.TrimSuffix(strings.TrimPrefix(pathSegment, "{"), "}")
 			if placeholder != "component" && placeholder != "application" {
-				return componentPathRule{}, newValidationError(fmt.Sprintf(
+				return componentPathRule{}, failure.Validation(fmt.Sprintf(
 					"component template %q has unknown placeholder %q",
 					template,
 					placeholder,
 				), nil)
 			}
 			if placeholders.contains(placeholder) {
-				return componentPathRule{}, newValidationError(fmt.Sprintf(
+				return componentPathRule{}, failure.Validation(fmt.Sprintf(
 					"component template %q repeats placeholder %q",
 					template,
 					placeholder,
@@ -162,7 +164,7 @@ func compileComponentPathRule(
 			continue
 		}
 		if strings.ContainsAny(pathSegment, "{}*?[") {
-			return componentPathRule{}, newValidationError(fmt.Sprintf(
+			return componentPathRule{}, failure.Validation(fmt.Sprintf(
 				"component template %q contains an invalid literal segment %q",
 				template,
 				pathSegment,
@@ -172,26 +174,26 @@ func compileComponentPathRule(
 	}
 	if role == componentRoleApplication {
 		if !placeholders.contains("application") {
-			return componentPathRule{}, newValidationError(fmt.Sprintf(
+			return componentPathRule{}, failure.Validation(fmt.Sprintf(
 				"application template %q must contain {application}",
 				template,
 			), nil)
 		}
 	} else if role == componentRoleApplicationModule && !placeholders.contains("component") {
-		return componentPathRule{}, newValidationError(fmt.Sprintf(
+		return componentPathRule{}, failure.Validation(fmt.Sprintf(
 			"%s template %q must contain {component}",
 			role,
 			template,
 		), nil)
 	} else if placeholders.contains("application") && !placeholders.contains("component") {
-		return componentPathRule{}, newValidationError(fmt.Sprintf(
+		return componentPathRule{}, failure.Validation(fmt.Sprintf(
 			"%s template %q must contain {component} when it contains {application}",
 			role,
 			template,
 		), nil)
 	}
 	if role == componentRoleApplicationModule && !placeholders.contains("application") {
-		return componentPathRule{}, newValidationError(fmt.Sprintf(
+		return componentPathRule{}, failure.Validation(fmt.Sprintf(
 			"application-module template %q must contain {application}",
 			template,
 		), nil)

@@ -13,6 +13,7 @@ import (
 	"github.com/samber/do/v2"
 	"github.com/spf13/cobra"
 
+	"github.com/cgardev/goconduct/failure"
 	"github.com/cgardev/goconduct/plugin"
 	"github.com/cgardev/goconduct/policy"
 )
@@ -108,7 +109,10 @@ func newCoverageCommand(runner plugin.CommandRunner) *cobra.Command {
 				return err
 			}
 			if len(report.Findings) != 0 {
-				return fmt.Errorf("coverage has %d policy findings", len(report.Findings))
+				return failure.BusinessRule(
+					fmt.Sprintf("coverage has %d policy findings", len(report.Findings)),
+					nil,
+				)
 			}
 			return nil
 		},
@@ -139,7 +143,7 @@ func writeReport(destination io.Writer, report plugin.Report, indent bool) error
 		encoder.SetIndent("", "  ")
 	}
 	if err := encoder.Encode(report); err != nil {
-		return fmt.Errorf("write coverage report: %w", err)
+		return failure.Unavailable("write coverage report", err)
 	}
 	return nil
 }

@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"net/http"
 	"time"
+
+	"github.com/cgardev/goconduct/failure"
 )
 
 type graphEventStream struct {
@@ -59,7 +61,7 @@ func (stream *graphEventStream) serve(
 
 func writeServerEvent(response http.ResponseWriter, event, data string) error {
 	if _, err := fmt.Fprintf(response, "event: %s\ndata: %s\n\n", event, data); err != nil {
-		return newUnavailableError("write server event", err)
+		return failure.Unavailable("write server event", err)
 	}
 	return nil
 }

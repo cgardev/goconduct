@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/cgardev/goconduct/failure"
 	"github.com/cgardev/goconduct/internal/application"
 )
 
@@ -59,7 +60,7 @@ func (runtime *dependencyGraphRuntime) runDashboard(
 	configuration ApplicationConfiguration,
 ) error {
 	if configuration.Server.RefreshInterval < minimumRefreshInterval() {
-		return newValidationError(
+		return failure.Validation(
 			"refresh interval must be at least "+minimumRefreshInterval().String(),
 			nil,
 		)

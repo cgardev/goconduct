@@ -17,6 +17,8 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+
+	"github.com/cgardev/goconduct/failure"
 )
 
 type analyzer struct {
@@ -35,11 +37,11 @@ type ignoredPathMatcher struct {
 
 func newAnalyzer(configuration AnalysisConfiguration) (*analyzer, error) {
 	if strings.TrimSpace(configuration.RepositoryRoot) == "" {
-		return nil, newValidationError("repository root must not be empty", nil)
+		return nil, failure.Validation("repository root must not be empty", nil)
 	}
 	absoluteRoot, err := filepath.Abs(configuration.RepositoryRoot)
 	if err != nil {
-		return nil, newValidationError(
+		return nil, failure.Validation(
 			fmt.Sprintf("resolve repository root %s", configuration.RepositoryRoot),
 			err,
 		)
@@ -47,12 +49,12 @@ func newAnalyzer(configuration AnalysisConfiguration) (*analyzer, error) {
 	moduleFileInfo, err := os.Stat(filepath.Join(absoluteRoot, "go.mod"))
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return nil, newValidationError("inspect repository module file", err)
+			return nil, failure.Validation("inspect repository module file", err)
 		}
-		return nil, newUnavailableError("inspect repository module file", err)
+		return nil, failure.Unavailable("inspect repository module file", err)
 	}
 	if moduleFileInfo.IsDir() {
-		return nil, newValidationError("repository module file must be a file", nil)
+		return nil, failure.Validation("repository module file must be a file", nil)
 	}
 	analysisPaths, err := normalizeAnalysisPaths(configuration.Paths)
 	if err != nil {
@@ -131,7 +133,7 @@ func (analyzer *analyzer) analyze(ctx context.Context) (Graph, error) {
 	graph.Scope = analyzer.scope
 	payload, err := json.Marshal(graph)
 	if err != nil {
-		return Graph{}, newInternalError("encode graph revision input", err)
+		return Graph{}, failure.Internal("encode graph revision input", err)
 	}
 	digest := sha256.Sum256(payload)
 	graph.Revision = hex.EncodeToString(digest[:])
@@ -155,7 +157,7 @@ func (analyzer *analyzer) snapshot(ctx context.Context) (string, error) {
 	if _, err := os.Stat(moduleSumPath); err == nil {
 		paths = append(paths, moduleSumPath)
 	} else if !errors.Is(err, os.ErrNotExist) {
-		return "", newUnavailableError("inspect repository module sum", err)
+		return "", failure.Unavailable("inspect repository module sum", err)
 	}
 
 	var buffer []byte
@@ -165,14 +167,14 @@ func (analyzer *analyzer) snapshot(ctx context.Context) (string, error) {
 		}
 		fileInfo, err := os.Stat(path)
 		if err != nil {
-			return "", newUnavailableError(
+			return "", failure.Unavailable(
 				fmt.Sprintf("inspect repository source file %s", path),
 				err,
 			)
 		}
 		relativePath, err := filepath.Rel(analyzer.repositoryRoot, path)
 		if err != nil {
-			return "", newInternalError(
+			return "", failure.Internal(
 				fmt.Sprintf("resolve repository source file %s", path),
 				err,
 			)
@@ -192,7 +194,7 @@ func readModulePath(repositoryRoot string) (string, error) {
 	path := filepath.Join(repositoryRoot, "go.mod")
 	payload, err := os.ReadFile(path)
 	if err != nil {
-		return "", newUnavailableError("read module file", err)
+		return "", failure.Unavailable("read module file", err)
 	}
 	for rawLine := range strings.SplitSeq(string(payload), "\n") {
 		line, _, _ := strings.Cut(rawLine, "//")
@@ -207,12 +209,12 @@ func readModulePath(repositoryRoot string) (string, error) {
 		}
 		return fields[1], nil
 	}
-	return "", newDataIntegrityError("module declaration not found in go.mod", nil)
+	return "", failure.DataIntegrity("module declaration not found in go.mod", nil)
 }
 
 func normalizeAnalysisPaths(configuredPaths []string) ([]string, error) {
 	if len(configuredPaths) == 0 {
-		return nil, newValidationError(
+		return nil, failure.Validation(
 			"analysis paths must contain at least one repository-relative path",
 			nil,
 		)
@@ -230,17 +232,17 @@ func normalizeAnalysisPaths(configuredPaths []string) ([]string, error) {
 
 func normalizeRepositoryPath(configuredPath string) (string, error) {
 	if configuredPath == "" {
-		return "", newValidationError("path must be a non-empty relative path", nil)
+		return "", failure.Validation("path must be a non-empty relative path", nil)
 	}
 	if configuredPath != strings.TrimSpace(configuredPath) {
-		return "", newValidationError("path must be a non-empty relative path", nil)
+		return "", failure.Validation("path must be a non-empty relative path", nil)
 	}
 	if filepath.IsAbs(configuredPath) {
-		return "", newValidationError("path must be a non-empty relative path", nil)
+		return "", failure.Validation("path must be a non-empty relative path", nil)
 	}
 	cleaned := filepath.Clean(configuredPath)
 	if cleaned == ".." || strings.HasPrefix(cleaned, ".."+string(filepath.Separator)) {
-		return "", newValidationError("path must remain inside the repository root", nil)
+		return "", failure.Validation("path must remain inside the repository root", nil)
 	}
 	return filepath.ToSlash(cleaned), nil
 }
@@ -249,7 +251,7 @@ func newIgnoredPathMatcher(configuredPatterns []string) (ignoredPathMatcher, err
 	patterns := make(stringSet)
 	for _, configuredPattern := range configuredPatterns {
 		if configuredPattern != strings.TrimSpace(configuredPattern) || strings.Contains(configuredPattern, "\\") {
-			return ignoredPathMatcher{}, newValidationError(
+			return ignoredPathMatcher{}, failure.Validation(
 				fmt.Sprintf(
 					"ignored path pattern %q must be a non-empty relative slash path",
 					configuredPattern,
@@ -259,7 +261,7 @@ func newIgnoredPathMatcher(configuredPatterns []string) (ignoredPathMatcher, err
 		}
 		for segment := range strings.SplitSeq(configuredPattern, "/") {
 			if segment == "" || segment == "." || segment == ".." {
-				return ignoredPathMatcher{}, newValidationError(
+				return ignoredPathMatcher{}, failure.Validation(
 					fmt.Sprintf(
 						"ignored path pattern %q contains an invalid segment",
 						configuredPattern,
@@ -269,7 +271,7 @@ func newIgnoredPathMatcher(configuredPatterns []string) (ignoredPathMatcher, err
 			}
 		}
 		if _, err := path.Match(configuredPattern, "validation"); err != nil {
-			return ignoredPathMatcher{}, newValidationError(
+			return ignoredPathMatcher{}, failure.Validation(
 				fmt.Sprintf("compile ignored path pattern %q", configuredPattern),
 				err,
 			)
@@ -290,7 +292,7 @@ func (matcher ignoredPathMatcher) matches(relativePath string) (bool, error) {
 			for _, segment := range segments {
 				matches, err := path.Match(pattern, segment)
 				if err != nil {
-					return matches, newInternalError(
+					return matches, failure.Internal(
 						fmt.Sprintf("match ignored path pattern %q", pattern),
 						err,
 					)
@@ -305,7 +307,7 @@ func (matcher ignoredPathMatcher) matches(relativePath string) (bool, error) {
 			candidate := strings.Join(segments[:end+1], "/")
 			matches, err := path.Match(pattern, candidate)
 			if err != nil {
-				return matches, newInternalError(
+				return matches, failure.Internal(
 					fmt.Sprintf("match ignored path pattern %q", pattern),
 					err,
 				)
@@ -346,9 +348,9 @@ func (analyzer *analyzer) collectConfiguredSourcePath(
 	fileInfo, err := os.Stat(absolutePath)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return newValidationError(fmt.Sprintf("inspect analysis path %s", analysisPath), err)
+			return failure.Validation(fmt.Sprintf("inspect analysis path %s", analysisPath), err)
 		}
-		return newUnavailableError(fmt.Sprintf("inspect analysis path %s", analysisPath), err)
+		return failure.Unavailable(fmt.Sprintf("inspect analysis path %s", analysisPath), err)
 	}
 	if fileInfo.IsDir() {
 		return analyzer.walkSourceDirectory(ctx, paths, analysisPath, absolutePath)
@@ -362,7 +364,7 @@ func (analyzer *analyzer) collectSourceFile(
 	absolutePath string,
 ) error {
 	if filepath.Ext(absolutePath) != ".go" {
-		return newValidationError(
+		return failure.Validation(
 			fmt.Sprintf("analysis path %s must be a directory or Go source file", analysisPath),
 			nil,
 		)
@@ -387,7 +389,7 @@ func (analyzer *analyzer) walkSourceDirectory(
 		return analyzer.collectWalkedSourcePath(ctx, paths, sourcePath, entry, walkError)
 	})
 	if err != nil {
-		return newUnavailableError(fmt.Sprintf("walk analysis path %s", analysisPath), err)
+		return failure.Unavailable(fmt.Sprintf("walk analysis path %s", analysisPath), err)
 	}
 	return nil
 }
@@ -403,11 +405,11 @@ func (analyzer *analyzer) collectWalkedSourcePath(
 		return err
 	}
 	if walkError != nil {
-		return newUnavailableError(fmt.Sprintf("visit %s", sourcePath), walkError)
+		return failure.Unavailable(fmt.Sprintf("visit %s", sourcePath), walkError)
 	}
 	relativePath, err := filepath.Rel(analyzer.repositoryRoot, sourcePath)
 	if err != nil {
-		return newInternalError(
+		return failure.Internal(
 			fmt.Sprintf("resolve repository source path %s", sourcePath),
 			err,
 		)
@@ -432,7 +434,7 @@ func (analyzer *analyzer) collectWalkedSourcePath(
 func (analyzer *analyzer) inspectSourceFile(modulePath, sourcePath string) (*sourceFile, error) {
 	relativePath, err := filepath.Rel(analyzer.repositoryRoot, sourcePath)
 	if err != nil {
-		return nil, newInternalError(fmt.Sprintf("resolve source path %s", sourcePath), err)
+		return nil, failure.Internal(fmt.Sprintf("resolve source path %s", sourcePath), err)
 	}
 	relativePath = filepath.ToSlash(relativePath)
 	descriptor, classified := analyzer.classifier.classify(relativePath)
@@ -441,7 +443,7 @@ func (analyzer *analyzer) inspectSourceFile(modulePath, sourcePath string) (*sou
 	}
 	payload, err := os.ReadFile(sourcePath)
 	if err != nil {
-		return nil, newUnavailableError(fmt.Sprintf("read source file %s", relativePath), err)
+		return nil, failure.Unavailable(fmt.Sprintf("read source file %s", relativePath), err)
 	}
 
 	fileSet := token.NewFileSet()

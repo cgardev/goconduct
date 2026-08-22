@@ -1,4 +1,4 @@
-// Package connecterror translates classified domain errors into Connect errors.
+// Package connecterror translates classified failures into safe Connect errors.
 package connecterror
 
 import (
@@ -8,28 +8,28 @@ import (
 
 	"connectrpc.com/connect"
 
-	"github.com/cgardev/goconduct/internal/library/foundationdomain"
+	"github.com/cgardev/goconduct/failure"
 )
 
 var categoryMappings = []struct {
 	category error
 	code     connect.Code
 }{
-	{foundationdomain.ErrValidation, connect.CodeInvalidArgument},
-	{foundationdomain.ErrOutOfRange, connect.CodeOutOfRange},
-	{foundationdomain.ErrNotFound, connect.CodeNotFound},
-	{foundationdomain.ErrAlreadyExists, connect.CodeAlreadyExists},
-	{foundationdomain.ErrUnauthenticated, connect.CodeUnauthenticated},
-	{foundationdomain.ErrPermissionDenied, connect.CodePermissionDenied},
-	{foundationdomain.ErrResourceConstraint, connect.CodeResourceExhausted},
-	{foundationdomain.ErrBusinessRule, connect.CodeFailedPrecondition},
-	{foundationdomain.ErrAborted, connect.CodeAborted},
-	{foundationdomain.ErrUnavailable, connect.CodeUnavailable},
-	{foundationdomain.ErrTimeout, connect.CodeDeadlineExceeded},
-	{foundationdomain.ErrUnimplemented, connect.CodeUnimplemented},
+	{failure.ErrValidation, connect.CodeInvalidArgument},
+	{failure.ErrOutOfRange, connect.CodeOutOfRange},
+	{failure.ErrNotFound, connect.CodeNotFound},
+	{failure.ErrAlreadyExists, connect.CodeAlreadyExists},
+	{failure.ErrUnauthenticated, connect.CodeUnauthenticated},
+	{failure.ErrPermissionDenied, connect.CodePermissionDenied},
+	{failure.ErrResourceConstraint, connect.CodeResourceExhausted},
+	{failure.ErrBusinessRule, connect.CodeFailedPrecondition},
+	{failure.ErrAborted, connect.CodeAborted},
+	{failure.ErrUnavailable, connect.CodeUnavailable},
+	{failure.ErrTimeout, connect.CodeDeadlineExceeded},
+	{failure.ErrUnimplemented, connect.CodeUnimplemented},
 }
 
-// From converts one domain error into a safe Connect error.
+// From converts one classified failure into a safe Connect error.
 func From(ctx context.Context, err error) error {
 	if err == nil {
 		return nil
@@ -52,10 +52,10 @@ func From(ctx context.Context, err error) error {
 }
 
 func classify(err error) (connect.Code, error, bool) {
-	var domainError *foundationdomain.Error
-	if errors.As(err, &domainError) {
+	var classifiedError *failure.Error
+	if errors.As(err, &classifiedError) {
 		for _, mapping := range categoryMappings {
-			if domainError.Category != nil && errors.Is(domainError.Category, mapping.category) {
+			if classifiedError.Category != nil && errors.Is(classifiedError.Category, mapping.category) {
 				return mapping.code, mapping.category, true
 			}
 		}
@@ -70,9 +70,9 @@ func classify(err error) (connect.Code, error, bool) {
 }
 
 func clientMessage(err error, category error) string {
-	var domainError *foundationdomain.Error
-	if errors.As(err, &domainError) && domainError.Message != "" {
-		return domainError.Message
+	var classifiedError *failure.Error
+	if errors.As(err, &classifiedError) && classifiedError.Message != "" {
+		return classifiedError.Message
 	}
 	return category.Error()
 }

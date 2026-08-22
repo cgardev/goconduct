@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"os"
 	"runtime"
+
+	"github.com/cgardev/goconduct/failure"
 )
 
 type graphCacheIdentity struct {
@@ -31,7 +33,7 @@ func (analyzer *analyzer) graphCacheKey() (string, error) {
 		GoFlags:           os.Getenv("GOFLAGS"),
 	})
 	if err != nil {
-		return "", newInternalError("encode graph cache identity", err)
+		return "", failure.Internal("encode graph cache identity", err)
 	}
 	digest := sha256.Sum256(payload)
 	return hex.EncodeToString(digest[:]), nil

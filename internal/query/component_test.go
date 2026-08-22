@@ -4,8 +4,8 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/cgardev/goconduct/failure"
 	"github.com/cgardev/goconduct/internal/architecture"
-	"github.com/cgardev/goconduct/internal/library/foundationdomain"
 )
 
 func TestFindingsQuery_FilterWithoutExternalTools(t *testing.T) {
@@ -291,15 +291,15 @@ func TestComponentQuery_ReturnDependenciesAndImporters(t *testing.T) {
 		})
 
 		t.Run("Then the function returns a typed not-found error", func(t *testing.T) {
-			if !errors.Is(queryError, foundationdomain.ErrNotFound) {
+			if !errors.Is(queryError, failure.ErrNotFound) {
 				t.Fatalf("component query error is %v, want ErrNotFound", queryError)
 			}
-			var domainError *foundationdomain.Error
-			if !errors.As(queryError, &domainError) {
-				t.Fatalf("component query error type is %T, want *foundationdomain.Error", queryError)
+			var classifiedError *failure.Error
+			if !errors.As(queryError, &classifiedError) {
+				t.Fatalf("component query error type is %T, want *failure.Error", queryError)
 			}
-			if domainError.Entity != "dependency graph component" || domainError.ID != "packages/missing" {
-				t.Errorf("component query error context is entity=%q id=%v", domainError.Entity, domainError.ID)
+			if classifiedError.Entity != "dependency graph component" || classifiedError.ID != "packages/missing" {
+				t.Errorf("component query error context is entity=%q id=%v", classifiedError.Entity, classifiedError.ID)
 			}
 		})
 	})
@@ -346,7 +346,7 @@ func TestQueryOptions_ParseClosedVocabulary(t *testing.T) {
 			})
 
 			t.Run("Then the query returns the validation error category", func(t *testing.T) {
-				if !errors.Is(parseError, foundationdomain.ErrValidation) {
+				if !errors.Is(parseError, failure.ErrValidation) {
 					t.Fatalf("parse error is %v, want ErrValidation", parseError)
 				}
 			})

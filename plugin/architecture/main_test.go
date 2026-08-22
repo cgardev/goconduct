@@ -11,7 +11,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/cgardev/goconduct/internal/library/foundationdomain"
+	"github.com/cgardev/goconduct/failure"
 )
 
 func newTestCommandRuntime(logger *slog.Logger) commandRuntime {
@@ -334,7 +334,7 @@ func TestRootCommand_RejectInvalidArguments(t *testing.T) {
 				return []string{"--refresh-interval", "99ms"}
 			},
 			want:         "at least 100ms",
-			wantCategory: foundationdomain.ErrValidation,
+			wantCategory: failure.ErrValidation,
 		},
 		{
 			name: "the repository has no module file",
@@ -342,7 +342,7 @@ func TestRootCommand_RejectInvalidArguments(t *testing.T) {
 				return []string{"--root", t.TempDir()}
 			},
 			want:         "module file",
-			wantCategory: foundationdomain.ErrValidation,
+			wantCategory: failure.ErrValidation,
 		},
 		{
 			name: "the dashboard address is invalid",
@@ -353,7 +353,7 @@ func TestRootCommand_RejectInvalidArguments(t *testing.T) {
 				}
 			},
 			want:         "listen on invalid address",
-			wantCategory: foundationdomain.ErrUnavailable,
+			wantCategory: failure.ErrUnavailable,
 		},
 		{
 			name: "a positional argument is present",
@@ -368,7 +368,7 @@ func TestRootCommand_RejectInvalidArguments(t *testing.T) {
 				return []string{"analyze", "--view", "unknown"}
 			},
 			want:         "must be report or graph",
-			wantCategory: foundationdomain.ErrValidation,
+			wantCategory: failure.ErrValidation,
 		},
 		{
 			name: "the finding threshold is unknown",
@@ -376,7 +376,7 @@ func TestRootCommand_RejectInvalidArguments(t *testing.T) {
 				return []string{"analyze", "--fail-on", "unknown"}
 			},
 			want:         "must be none, warning, or error",
-			wantCategory: foundationdomain.ErrValidation,
+			wantCategory: failure.ErrValidation,
 		},
 		{
 			name: "the filtered finding severity is unknown",
@@ -384,7 +384,7 @@ func TestRootCommand_RejectInvalidArguments(t *testing.T) {
 				return []string{"findings", "--severity", "critical"}
 			},
 			want:         "must be all, warning, or error",
-			wantCategory: foundationdomain.ErrValidation,
+			wantCategory: failure.ErrValidation,
 		},
 		{
 			name: "the filtered component role is unknown",
@@ -392,7 +392,7 @@ func TestRootCommand_RejectInvalidArguments(t *testing.T) {
 				return []string{"components", "--role", "service"}
 			},
 			want:         "component role",
-			wantCategory: foundationdomain.ErrValidation,
+			wantCategory: failure.ErrValidation,
 		},
 		{
 			name: "the filtered component sort is unknown",
@@ -400,7 +400,7 @@ func TestRootCommand_RejectInvalidArguments(t *testing.T) {
 				return []string{"components", "--sort", "weight"}
 			},
 			want:         "component sort",
-			wantCategory: foundationdomain.ErrValidation,
+			wantCategory: failure.ErrValidation,
 		},
 		{
 			name: "the filtered function sort is unknown",
@@ -408,7 +408,7 @@ func TestRootCommand_RejectInvalidArguments(t *testing.T) {
 				return []string{"functions", "--sort", "weight"}
 			},
 			want:         "function sort",
-			wantCategory: foundationdomain.ErrValidation,
+			wantCategory: failure.ErrValidation,
 		},
 		{
 			name: "a filtered query limit is negative",
@@ -416,7 +416,7 @@ func TestRootCommand_RejectInvalidArguments(t *testing.T) {
 				return []string{"findings", "--limit", "-1"}
 			},
 			want:         "must not be negative",
-			wantCategory: foundationdomain.ErrValidation,
+			wantCategory: failure.ErrValidation,
 		},
 	}
 	for _, testCase := range testCases {

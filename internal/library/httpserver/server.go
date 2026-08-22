@@ -12,6 +12,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/cgardev/goconduct/failure"
 )
 
 const shutdownTimeout = 15 * time.Second
@@ -46,18 +48,18 @@ func New(configuration Configuration) *Server {
 // Handle registers one handler before the server starts.
 func (server *Server) Handle(pattern string, handler http.Handler) error {
 	if strings.TrimSpace(pattern) == "" {
-		return fmt.Errorf("HTTP handler pattern is empty")
+		return failure.Validation("HTTP handler pattern is empty", nil)
 	}
 	if handler == nil {
-		return fmt.Errorf("HTTP handler for %q is nil", pattern)
+		return failure.Validation(fmt.Sprintf("HTTP handler for %q is nil", pattern), nil)
 	}
 	server.mutex.Lock()
 	defer server.mutex.Unlock()
 	if server.started {
-		return fmt.Errorf("HTTP server has already started")
+		return failure.BusinessRule("HTTP server has already started", nil)
 	}
 	if _, duplicate := server.patterns[pattern]; duplicate {
-		return fmt.Errorf("HTTP handler pattern %q is duplicated", pattern)
+		return failure.Duplicate("HTTP handler pattern", pattern, nil)
 	}
 	server.router.Handle(pattern, handler)
 	server.patterns[pattern] = struct{}{}
@@ -67,12 +69,12 @@ func (server *Server) Handle(pattern string, handler http.Handler) error {
 // OnShutdown registers a hook before the server starts.
 func (server *Server) OnShutdown(hook func()) error {
 	if hook == nil {
-		return fmt.Errorf("HTTP shutdown hook is nil")
+		return failure.Validation("HTTP shutdown hook is nil", nil)
 	}
 	server.mutex.Lock()
 	defer server.mutex.Unlock()
 	if server.started {
-		return fmt.Errorf("HTTP server has already started")
+		return failure.BusinessRule("HTTP server has already started", nil)
 	}
 	server.shutdowns = append(server.shutdowns, hook)
 	return nil
@@ -87,7 +89,7 @@ func (server *Server) Handler() http.Handler {
 func (server *Server) Run(ctx context.Context) error {
 	listener, err := net.Listen("tcp", server.address)
 	if err != nil {
-		return fmt.Errorf("listen on %q: %w", server.address, err)
+		return failure.Unavailable(fmt.Sprintf("listen on %q", server.address), err)
 	}
 	return server.Serve(ctx, listener)
 }
@@ -95,12 +97,12 @@ func (server *Server) Run(ctx context.Context) error {
 // Serve owns an existing listener and serves until cancellation.
 func (server *Server) Serve(ctx context.Context, listener net.Listener) error {
 	if listener == nil {
-		return fmt.Errorf("HTTP listener is nil")
+		return failure.Validation("HTTP listener is nil", nil)
 	}
 	server.mutex.Lock()
 	if server.started {
 		server.mutex.Unlock()
-		return fmt.Errorf("HTTP server has already started")
+		return failure.BusinessRule("HTTP server has already started", nil)
 	}
 	server.started = true
 	shutdowns := append([]func(){}, server.shutdowns...)
@@ -132,17 +134,17 @@ func (server *Server) Serve(ctx context.Context, listener net.Listener) error {
 		if errors.Is(err, http.ErrServerClosed) {
 			return nil
 		}
-		return fmt.Errorf("serve HTTP: %w", err)
+		return failure.Unavailable("serve HTTP", err)
 	case <-ctx.Done():
 		shutdownContext, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 		defer cancel()
 		if err := httpServer.Shutdown(shutdownContext); err != nil {
 			closeError := httpServer.Close()
-			return fmt.Errorf("shut down HTTP server: %w", errors.Join(err, closeError))
+			return failure.Unavailable("shut down HTTP server", errors.Join(err, closeError))
 		}
 		serveError := <-serveErrors
 		if !errors.Is(serveError, http.ErrServerClosed) {
-			return fmt.Errorf("serve HTTP: %w", serveError)
+			return failure.Unavailable("serve HTTP", serveError)
 		}
 		return nil
 	}

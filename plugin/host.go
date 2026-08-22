@@ -1,7 +1,9 @@
 package plugin
 
 import (
+	"cmp"
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -9,6 +11,8 @@ import (
 	"connectrpc.com/connect"
 	"github.com/samber/do/v2"
 	"github.com/spf13/cobra"
+
+	"github.com/cgardev/goconduct/failure"
 )
 
 // Host owns one validated plugin registry and its shared injector.
@@ -21,29 +25,32 @@ type Host struct {
 // NewHost validates plugins and builds their shared dependency graph.
 func NewHost(baseServices func(do.Injector), plugins ...Plugin) (*Host, error) {
 	if baseServices == nil {
-		return nil, fmt.Errorf("base services are nil")
+		return nil, failure.Validation("base services are nil", nil)
 	}
 	registrations := make([]func(do.Injector), 0, len(plugins)+1)
 	registrations = append(registrations, baseServices)
 	names := make(map[string]struct{}, len(plugins))
 	for _, candidate := range plugins {
 		if candidate == nil {
-			return nil, fmt.Errorf("plugin is nil")
+			return nil, failure.Validation("plugin is nil", nil)
 		}
 		name := candidate.Name()
 		if name == "" {
-			return nil, fmt.Errorf("plugin name is empty")
+			return nil, failure.Validation("plugin name is empty", nil)
 		}
 		if strings.TrimSpace(name) != name {
-			return nil, fmt.Errorf("plugin name %q contains surrounding whitespace", name)
+			return nil, failure.Validation(
+				fmt.Sprintf("plugin name %q contains surrounding whitespace", name),
+				nil,
+			)
 		}
 		if _, duplicate := names[name]; duplicate {
-			return nil, fmt.Errorf("plugin name %q is duplicated", name)
+			return nil, failure.Duplicate("plugin", name, nil)
 		}
 		names[name] = struct{}{}
 		services := candidate.Services()
 		if services == nil {
-			return nil, fmt.Errorf("plugin %q returned nil services", name)
+			return nil, failure.Validation(fmt.Sprintf("plugin %q returned nil services", name), nil)
 		}
 		registrations = append(registrations, services)
 	}
@@ -71,7 +78,7 @@ func (host *Host) Activate(ctx context.Context) error {
 // RegisterCommands lets plugins extend one Cobra command.
 func (host *Host) RegisterCommands(root *cobra.Command) error {
 	if root == nil {
-		return fmt.Errorf("root command is nil")
+		return failure.Validation("root command is nil", nil)
 	}
 	for _, candidate := range host.plugins {
 		if err := candidate.RegisterCommands(host.injector, root); err != nil {
@@ -87,7 +94,7 @@ func (host *Host) RegisterEndpoints(
 	options ...connect.HandlerOption,
 ) error {
 	if registrar == nil {
-		return fmt.Errorf("endpoint registrar is nil")
+		return failure.Validation("endpoint registrar is nil", nil)
 	}
 	for _, candidate := range host.plugins {
 		if err := candidate.RegisterEndpoints(host.injector, registrar, options...); err != nil {
@@ -111,5 +118,31 @@ func shutdownReport(report *do.ShutdownReport) error {
 	if report == nil || report.Succeed {
 		return nil
 	}
-	return fmt.Errorf("shut down services: %s", report.Error())
+	return failure.Internal("shut down services", errors.Join(shutdownCauses(report)...))
+}
+
+// shutdownCauses orders the per-service errors so one report stays deterministic.
+func shutdownCauses(report *do.ShutdownReport) []error {
+	descriptions := make([]do.ServiceDescription, 0, len(report.Errors))
+	for description := range report.Errors {
+		descriptions = append(descriptions, description)
+	}
+	slices.SortFunc(descriptions, compareServiceDescription)
+	causes := make([]error, 0, len(descriptions))
+	for _, description := range descriptions {
+		causes = append(causes, fmt.Errorf(
+			"%s > %s: %w",
+			description.ScopeName,
+			description.Service,
+			report.Errors[description],
+		))
+	}
+	return causes
+}
+
+func compareServiceDescription(left, right do.ServiceDescription) int {
+	if comparison := cmp.Compare(left.ScopeName, right.ScopeName); comparison != 0 {
+		return comparison
+	}
+	return cmp.Compare(left.Service, right.Service)
 }

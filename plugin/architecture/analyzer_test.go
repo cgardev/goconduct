@@ -13,7 +13,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/cgardev/goconduct/internal/library/foundationdomain"
+	"github.com/cgardev/goconduct/failure"
 )
 
 func fixtureAnalysisConfiguration(repositoryRoot string) AnalysisConfiguration {
@@ -671,7 +671,7 @@ func TestModulePath_ReadAbsentDeclaration(t *testing.T) {
 		})
 
 		t.Run("Then the reader returns the data integrity error category", func(t *testing.T) {
-			if !errors.Is(err, foundationdomain.ErrDataIntegrity) {
+			if !errors.Is(err, failure.ErrDataIntegrity) {
 				t.Fatalf("error is %v, want ErrDataIntegrity", err)
 			}
 		})

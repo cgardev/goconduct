@@ -23,6 +23,12 @@ plugin/*
   -> plugin
   -> policy
 
+plugin, policy, plugin/*
+  -> failure
+
+failure
+  -> the Go standard library only
+
 web
   -> generated TypeScript Protocol Buffer clients
   -> Connect RPC
@@ -103,6 +109,20 @@ The kernel does not include a database, transactor, event bus, or transactional 
 The current product has no durable state or domain events.
 When a persistent module appears, the kernel must own one production database and its shared transaction infrastructure.
 
+## Failure boundary
+
+The public `failure` package owns the closed set of error categories.
+It depends on the Go standard library only, so every layer can import it.
+
+Each package classifies its own failures where it creates them.
+A caller adds context with `fmt.Errorf` and `%w`, which keeps the category.
+`internal/library/connecterror` maps one category to one Connect code at the API boundary.
+It logs an unclassified error and returns `Internal`, so no internal detail reaches a client.
+
+The Connect translator is the only package outside `failure` that calls `errors.New`.
+It builds the sanitized message that the client receives.
+An architecture test rejects any other unclassified error in production code.
+
 ## Quality module
 
 The `quality` module belongs to the `goconduct` application.
@@ -124,7 +144,7 @@ Buf generates Go handlers and TypeScript clients from those files.
 
 The Connect HTTP server mounts every service on one `http.ServeMux`.
 The root applies validation and structured request logging to every generated handler.
-API handlers use one shared domain-error translator.
+API handlers translate classified failures with one shared translator.
 The architecture plugin also mounts the embedded Angular application at `/`.
 Specific Connect paths take precedence over that fallback path.
 The root-owned `/healthz` endpoint also takes precedence over the fallback.

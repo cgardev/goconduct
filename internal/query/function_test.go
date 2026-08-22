@@ -5,7 +5,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/cgardev/goconduct/internal/library/foundationdomain"
+	"github.com/cgardev/goconduct/failure"
 )
 
 func TestFunctionQueries_ReturnDirectFunctionResources(t *testing.T) {
@@ -95,15 +95,15 @@ func TestFunctionQuery_RejectUnknownFunction(t *testing.T) {
 		})
 
 		t.Run("Then the query returns the typed not-found error", func(t *testing.T) {
-			if !errors.Is(queryError, foundationdomain.ErrNotFound) {
+			if !errors.Is(queryError, failure.ErrNotFound) {
 				t.Fatalf("error is %v, want ErrNotFound", queryError)
 			}
-			var domainError *foundationdomain.Error
-			if !errors.As(queryError, &domainError) {
-				t.Fatalf("function query error type is %T, want *foundationdomain.Error", queryError)
+			var classifiedError *failure.Error
+			if !errors.As(queryError, &classifiedError) {
+				t.Fatalf("function query error type is %T, want *failure.Error", queryError)
 			}
-			if domainError.Entity != "dependency graph function" || domainError.ID != "absent.Function" {
-				t.Errorf("function query error context is entity=%q id=%v", domainError.Entity, domainError.ID)
+			if classifiedError.Entity != "dependency graph function" || classifiedError.ID != "absent.Function" {
+				t.Errorf("function query error context is entity=%q id=%v", classifiedError.Entity, classifiedError.ID)
 			}
 		})
 	})
@@ -138,7 +138,7 @@ func TestFunctionSort_ParseClosedVocabulary(t *testing.T) {
 				if (parseError == nil) != testCase.valid {
 					t.Fatalf("parse error is %v, valid is %t", parseError, testCase.valid)
 				}
-				if !testCase.valid && !errors.Is(parseError, foundationdomain.ErrValidation) {
+				if !testCase.valid && !errors.Is(parseError, failure.ErrValidation) {
 					t.Fatalf("parse error is %v, want ErrValidation", parseError)
 				}
 			})

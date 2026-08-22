@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/cgardev/goconduct/failure"
 	application "github.com/cgardev/goconduct/internal/application"
 )
 
@@ -77,11 +78,11 @@ func loadGraphFromCacheKeyWithClient(
 	}
 	response, err := client.Do(request)
 	if err != nil {
-		return Graph{}, newUnavailableError("request active graph", err)
+		return Graph{}, failure.Unavailable("request active graph", err)
 	}
 	defer func() {
 		if closeError := response.Body.Close(); closeError != nil && returnError == nil {
-			returnError = newUnavailableError("close graph cache response", closeError)
+			returnError = failure.Unavailable("close graph cache response", closeError)
 		}
 	}()
 	if err := validateGraphCacheResponse(response, cacheKey); err != nil {
@@ -89,13 +90,13 @@ func loadGraphFromCacheKeyWithClient(
 	}
 	decoder := json.NewDecoder(io.LimitReader(response.Body, maximumGraphCacheBytes))
 	if err := decoder.Decode(&graph); err != nil {
-		return Graph{}, newDataIntegrityError("decode active graph", err)
+		return Graph{}, failure.DataIntegrity("decode active graph", err)
 	}
 	if err := requireJSONEnd(decoder); err != nil {
 		return Graph{}, err
 	}
 	if graph.SchemaVersion != graphSchemaVersion {
-		return Graph{}, newDataIntegrityError(
+		return Graph{}, failure.DataIntegrity(
 			fmt.Sprintf(
 				"graph schema is %d, want %d",
 				graph.SchemaVersion,
@@ -105,7 +106,7 @@ func loadGraphFromCacheKeyWithClient(
 		)
 	}
 	if graph.Revision == "" {
-		return Graph{}, newDataIntegrityError("graph revision is empty", nil)
+		return Graph{}, failure.DataIntegrity("graph revision is empty", nil)
 	}
 	return graph, nil
 }
@@ -117,7 +118,7 @@ func newGraphCacheRequest(ctx context.Context, address, cacheKey string) (*http.
 	}
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
-		return nil, newInternalError("create graph cache request", err)
+		return nil, failure.Internal("create graph cache request", err)
 	}
 	request.Header.Set(graphCacheKeyHeader, cacheKey)
 	request.Header.Set(graphCacheProtocolHeader, strconv.Itoa(graphCacheProtocolVersion))
@@ -127,7 +128,7 @@ func newGraphCacheRequest(ctx context.Context, address, cacheKey string) (*http.
 func graphCacheURL(address string) (string, error) {
 	host, port, err := net.SplitHostPort(address)
 	if err != nil {
-		return "", newValidationError(fmt.Sprintf("parse graph cache address %q", address), err)
+		return "", failure.Validation(fmt.Sprintf("parse graph cache address %q", address), err)
 	}
 	host = graphCacheClientHost(host)
 	endpoint := url.URL{
@@ -155,19 +156,19 @@ func graphCacheClientHost(host string) string {
 func validateGraphCacheResponse(response *http.Response, cacheKey string) error {
 	if response.StatusCode != http.StatusOK {
 		if response.StatusCode == http.StatusPreconditionFailed {
-			return newDataIntegrityError(
+			return failure.DataIntegrity(
 				fmt.Sprintf("graph cache server returns %s", response.Status),
 				nil,
 			)
 		}
-		return newUnavailableError(
+		return failure.Unavailable(
 			fmt.Sprintf("graph cache server returns %s", response.Status),
 			nil,
 		)
 	}
 	protocol := response.Header.Get(graphCacheProtocolHeader)
 	if protocol != strconv.Itoa(graphCacheProtocolVersion) {
-		return newDataIntegrityError(
+		return failure.DataIntegrity(
 			fmt.Sprintf(
 				"cache protocol is %q, want %d",
 				protocol,
@@ -177,10 +178,10 @@ func validateGraphCacheResponse(response *http.Response, cacheKey string) error 
 		)
 	}
 	if response.Header.Get(graphCacheKeyHeader) != cacheKey {
-		return newDataIntegrityError("analysis scope does not match", nil)
+		return failure.DataIntegrity("analysis scope does not match", nil)
 	}
 	if response.Header.Get(graphCacheSchemaHeader) != strconv.Itoa(graphSchemaVersion) {
-		return newDataIntegrityError("graph schema does not match", nil)
+		return failure.DataIntegrity("graph schema does not match", nil)
 	}
 	return nil
 }
@@ -189,12 +190,12 @@ func requireJSONEnd(decoder *json.Decoder) error {
 	var extra any
 	if err := decoder.Decode(&extra); !errors.Is(err, io.EOF) {
 		if err == nil {
-			return newDataIntegrityError(
+			return failure.DataIntegrity(
 				"decode active graph: response contains more than one JSON value",
 				nil,
 			)
 		}
-		return newDataIntegrityError("check active graph response for another JSON value", err)
+		return failure.DataIntegrity("check active graph response for another JSON value", err)
 	}
 	return nil
 }

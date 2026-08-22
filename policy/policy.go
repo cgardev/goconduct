@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/cgardev/goconduct/failure"
 	"github.com/cgardev/goconduct/plugin"
 )
 
@@ -54,14 +55,23 @@ func NewResolver(policies []PathPolicy) (*Resolver, error) {
 	identifiers := make(map[string]struct{}, len(policies))
 	for _, candidate := range policies {
 		if strings.TrimSpace(candidate.ID) == "" || strings.TrimSpace(candidate.ID) != candidate.ID {
-			return nil, fmt.Errorf("path policy identifier %q is invalid", candidate.ID)
+			return nil, failure.Validation(
+				fmt.Sprintf("path policy identifier %q is invalid", candidate.ID),
+				nil,
+			)
 		}
 		if _, duplicate := identifiers[candidate.ID]; duplicate {
-			return nil, fmt.Errorf("path policy identifier %q is duplicated", candidate.ID)
+			return nil, failure.Validation(
+				fmt.Sprintf("path policy identifier %q is duplicated", candidate.ID),
+				nil,
+			)
 		}
 		identifiers[candidate.ID] = struct{}{}
 		if len(candidate.Include) == 0 {
-			return nil, fmt.Errorf("path policy %q has no include patterns", candidate.ID)
+			return nil, failure.Validation(
+				fmt.Sprintf("path policy %q has no include patterns", candidate.ID),
+				nil,
+			)
 		}
 		for _, pattern := range append(slices.Clone(candidate.Include), candidate.Exclude...) {
 			if err := validatePattern(pattern); err != nil {
@@ -69,7 +79,10 @@ func NewResolver(policies []PathPolicy) (*Resolver, error) {
 			}
 		}
 		if len(candidate.Thresholds) == 0 {
-			return nil, fmt.Errorf("path policy %q has no thresholds", candidate.ID)
+			return nil, failure.Validation(
+				fmt.Sprintf("path policy %q has no thresholds", candidate.ID),
+				nil,
+			)
 		}
 		metrics := make(map[string]struct{}, len(candidate.Thresholds))
 		for _, threshold := range candidate.Thresholds {
@@ -77,11 +90,11 @@ func NewResolver(policies []PathPolicy) (*Resolver, error) {
 				return nil, fmt.Errorf("path policy %q: %w", candidate.ID, err)
 			}
 			if _, duplicate := metrics[threshold.Metric]; duplicate {
-				return nil, fmt.Errorf(
+				return nil, failure.Validation(fmt.Sprintf(
 					"path policy %q metric %q is duplicated",
 					candidate.ID,
 					threshold.Metric,
-				)
+				), nil)
 			}
 			metrics[threshold.Metric] = struct{}{}
 		}
@@ -129,12 +142,12 @@ func (resolver *Resolver) Resolve(
 		for _, match := range matches {
 			identifiers = append(identifiers, match.PolicyID)
 		}
-		return ResolvedThreshold{}, false, fmt.Errorf(
+		return ResolvedThreshold{}, false, failure.Validation(fmt.Sprintf(
 			"path %q metric %q matches ambiguous policies %v",
 			normalizedPath,
 			metric,
 			identifiers,
-		)
+		), nil)
 	}
 	return matches[0], true, nil
 }
@@ -153,38 +166,53 @@ func (threshold Threshold) Passes(actual float64) bool {
 
 func validateThreshold(threshold Threshold) error {
 	if strings.TrimSpace(threshold.Metric) == "" || strings.TrimSpace(threshold.Metric) != threshold.Metric {
-		return fmt.Errorf("threshold metric %q is invalid", threshold.Metric)
+		return failure.Validation(fmt.Sprintf("threshold metric %q is invalid", threshold.Metric), nil)
 	}
 	if threshold.Comparison != ComparisonMinimum && threshold.Comparison != ComparisonMaximum {
-		return fmt.Errorf("threshold comparison %q is invalid", threshold.Comparison)
+		return failure.Validation(
+			fmt.Sprintf("threshold comparison %q is invalid", threshold.Comparison),
+			nil,
+		)
 	}
 	if math.IsNaN(threshold.Value) || math.IsInf(threshold.Value, 0) {
-		return fmt.Errorf("threshold %q value is not finite", threshold.Metric)
+		return failure.Validation(
+			fmt.Sprintf("threshold %q value is not finite", threshold.Metric),
+			nil,
+		)
 	}
 	switch threshold.Severity {
 	case plugin.SeverityNotice, plugin.SeverityWarning, plugin.SeverityError:
 		return nil
 	default:
-		return fmt.Errorf("threshold severity %q is invalid", threshold.Severity)
+		return failure.Validation(
+			fmt.Sprintf("threshold severity %q is invalid", threshold.Severity),
+			nil,
+		)
 	}
 }
 
 func validatePattern(pattern string) error {
 	if pattern == "" || strings.TrimSpace(pattern) != pattern {
-		return fmt.Errorf("path pattern %q is invalid", pattern)
+		return failure.Validation(fmt.Sprintf("path pattern %q is invalid", pattern), nil)
 	}
 	if strings.Contains(pattern, "\\") || strings.HasPrefix(pattern, "/") {
-		return fmt.Errorf("path pattern %q is not repository-relative", pattern)
+		return failure.Validation(
+			fmt.Sprintf("path pattern %q is not repository-relative", pattern),
+			nil,
+		)
 	}
 	for _, segment := range strings.Split(pattern, "/") {
 		if segment == "" || segment == "." || segment == ".." {
-			return fmt.Errorf("path pattern %q contains an invalid segment", pattern)
+			return failure.Validation(
+				fmt.Sprintf("path pattern %q contains an invalid segment", pattern),
+				nil,
+			)
 		}
 		if segment == "**" {
 			continue
 		}
 		if _, err := path.Match(segment, "candidate"); err != nil {
-			return fmt.Errorf("path pattern %q is invalid: %w", pattern, err)
+			return failure.Validation(fmt.Sprintf("path pattern %q is invalid", pattern), err)
 		}
 	}
 	return nil
@@ -192,11 +220,17 @@ func validatePattern(pattern string) error {
 
 func normalizeRepositoryPath(repositoryPath string) (string, error) {
 	if repositoryPath == "" || strings.Contains(repositoryPath, "\\") || strings.HasPrefix(repositoryPath, "/") {
-		return "", fmt.Errorf("repository path %q is invalid", repositoryPath)
+		return "", failure.Validation(
+			fmt.Sprintf("repository path %q is invalid", repositoryPath),
+			nil,
+		)
 	}
 	normalized := path.Clean(repositoryPath)
 	if normalized == "." || normalized == ".." || strings.HasPrefix(normalized, "../") {
-		return "", fmt.Errorf("repository path %q is invalid", repositoryPath)
+		return "", failure.Validation(
+			fmt.Sprintf("repository path %q is invalid", repositoryPath),
+			nil,
+		)
 	}
 	return normalized, nil
 }
