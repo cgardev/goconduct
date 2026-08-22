@@ -171,7 +171,15 @@
                   "replace": "projects/app-goconduct/src/environments/environment.ts",
                   "with": "projects/app-goconduct/src/environments/environment.prod.ts"
                 }
-              ]
+              ],
+              "optimization": {
+                "scripts": true,
+                "fonts": true,
+                "styles": {
+                  "minify": true,
+                  "inlineCritical": false
+                }
+              }
             },
             "development": {
               "optimization": false,

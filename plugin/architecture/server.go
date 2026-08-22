@@ -82,8 +82,16 @@ func (handler *dashboardHandler) serveHealth(response http.ResponseWriter, _ *ht
 	}
 }
 
+// dashboardContentSecurityPolicy returns the policy the dashboard serves with
+// every response.
+//
+// base-uri allows the own origin rather than nothing, because the console
+// declares <base href="/">. Its router needs that element to resolve a route
+// that a browser reloaded, and a policy of 'none' blocks the element itself.
+// The 'self' value still refuses a base element that an injection points at
+// another origin, which is what the directive defends against.
 func dashboardContentSecurityPolicy() string {
-	return "default-src 'self'; base-uri 'none'; connect-src 'self'; font-src 'self'; " +
+	return "default-src 'self'; base-uri 'self'; connect-src 'self'; font-src 'self'; " +
 		"form-action 'none'; frame-ancestors 'none'; img-src 'self' data:; object-src 'none'; " +
 		"script-src 'self'; style-src 'self' 'unsafe-inline'"
 }

@@ -108,6 +108,9 @@ func TestDashboardHandler_ServesAngularApplication(t *testing.T) {
 	}
 	policy := response.Header.Get("Content-Security-Policy")
 	for _, directive := range []string{
+		// The console declares <base href="/">, which the router reads to
+		// resolve a reloaded route, so the policy has to allow the element.
+		"base-uri 'self'",
 		"connect-src 'self'",
 		"frame-ancestors 'none'",
 		"script-src 'self'",
