@@ -1,4 +1,13 @@
-import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  effect,
+  inject,
+  input,
+  signal,
+  untracked,
+} from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { TuiButton, TuiDropdown, TuiIcon, TuiLoader, TuiTextfield } from '@taiga-ui/core';
@@ -65,9 +74,27 @@ export class FindingsPage {
 
   protected readonly severityOptions = SEVERITY_OPTIONS;
 
-  // An absent parameter and an empty one mean the same thing to a reader, so
-  // both resolve to the value that keeps every severity.
-  protected readonly selectedSeverity = computed(() => this.severity() || EVERY_SEVERITY);
+  /**
+   * The severity the list actually reads.
+   *
+   * It is held here rather than read straight from the address, because a
+   * navigation resolves in a promise, and a control bound to the address would
+   * keep showing the previous value until that promise settled. The address is
+   * written from this instead, and read back only when it changes on its own,
+   * which is what the back button does.
+   */
+  protected readonly selectedSeverity = signal(EVERY_SEVERITY);
+
+  constructor() {
+    effect(() => {
+      const severity = this.severity() || EVERY_SEVERITY;
+      untracked(() => {
+        if (severity !== this.selectedSeverity()) {
+          this.selectedSeverity.set(severity);
+        }
+      });
+    });
+  }
 
   /** Whether the reader has narrowed the list. */
   protected readonly filtered = computed(() => this.selectedSeverity() !== EVERY_SEVERITY);
@@ -96,6 +123,7 @@ export class FindingsPage {
   }
 
   protected setSeverity(value: string | null): void {
+    this.selectedSeverity.set(value ?? EVERY_SEVERITY);
     void this.router.navigate([], {
       relativeTo: this.route,
       queryParams: { severity: value === null || value === EVERY_SEVERITY ? null : value },

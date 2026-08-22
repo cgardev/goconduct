@@ -1,5 +1,14 @@
 import { DecimalPipe } from '@angular/common';
-import { ChangeDetectionStrategy, Component, computed, inject, input, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  effect,
+  inject,
+  input,
+  signal,
+  untracked,
+} from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { TuiButton, TuiDropdown, TuiIcon, TuiLoader, TuiTextfield } from '@taiga-ui/core';
@@ -95,12 +104,33 @@ export class ComponentsPage {
   protected readonly columns = COLUMNS;
   protected readonly sort = signal<ComponentSort>(DEFAULT_COMPONENT_SORT);
 
-  /** The text query, with an absent parameter read as an empty one. */
-  protected readonly query = computed(() => this.q() ?? '');
+  /**
+   * The filters the table actually reads.
+   *
+   * They are held here rather than read straight from the address, because a
+   * navigation resolves in a promise. A control bound to the address would keep
+   * showing the previous value until that promise settled, which drops
+   * characters out of a search field as fast as a reader types them. The
+   * address is written from these instead, and read back only when it changes
+   * on its own, which is what the back button does.
+   */
+  protected readonly query = signal('');
+  protected readonly selectedRole = signal(EVERY_ROLE);
 
-  // An absent parameter and an empty one mean the same thing to a reader, so
-  // both resolve to the value that keeps every role.
-  protected readonly selectedRole = computed(() => this.role() || EVERY_ROLE);
+  constructor() {
+    effect(() => {
+      const query = this.q() ?? '';
+      const role = this.role() || EVERY_ROLE;
+      untracked(() => {
+        if (query !== this.query()) {
+          this.query.set(query);
+        }
+        if (role !== this.selectedRole()) {
+          this.selectedRole.set(role);
+        }
+      });
+    });
+  }
 
   /** Roles offered by the filter, with the catch-all value first. */
   protected readonly roleOptions = computed(() => [EVERY_ROLE, ...this.graph.roles()]);
@@ -129,14 +159,19 @@ export class ComponentsPage {
     value === EVERY_ROLE ? 'All roles' : value;
 
   protected setQuery(value: string): void {
+    this.query.set(value);
     void this.writeFilters({ q: value.trim() === '' ? null : value });
   }
 
   protected setRole(value: string | null): void {
-    void this.writeFilters({ role: value === null || value === EVERY_ROLE ? null : value });
+    const next = value ?? EVERY_ROLE;
+    this.selectedRole.set(next);
+    void this.writeFilters({ role: next === EVERY_ROLE ? null : next });
   }
 
   protected clearFilters(): void {
+    this.query.set('');
+    this.selectedRole.set(EVERY_ROLE);
     void this.writeFilters({ q: null, role: null });
   }
 

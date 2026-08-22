@@ -1,1 +1,0 @@
-import{t as n}from"./main-ZJZ3LSWY.js";var r={overview(){return[`/`,n.overview]},components(){return[`/`,n.components]},findings(){return[`/`,n.findings]}};export{r as t};

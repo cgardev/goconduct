@@ -1,22 +1,40 @@
-import { provideZonelessChangeDetection } from '@angular/core';
+import { ChangeDetectionStrategy, Component, provideZonelessChangeDetection } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { fakeGraph, provideFakeClients } from '../testing/fake-clients';
 import { ShellPage } from './shell.page';
 
-async function renderShell(): Promise<HTMLElement> {
+/** Stands in for a routed page, so the shell has something to render into. */
+@Component({
+  selector: 'app-stub-page',
+  template: '<p>page</p>',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+})
+class StubPage {}
+
+async function renderShell(url = '/overview'): Promise<HTMLElement> {
   localStorage.clear();
   TestBed.configureTestingModule({
     providers: [
       provideZonelessChangeDetection(),
-      provideRouter([{ path: '', component: ShellPage }]),
+      provideRouter([
+        {
+          path: '',
+          component: ShellPage,
+          children: [
+            { path: 'overview', component: StubPage },
+            { path: 'components', component: StubPage },
+            { path: 'findings', component: StubPage },
+          ],
+        },
+      ]),
       ...(provideFakeClients(fakeGraph()) as never[]),
     ],
   });
 
   const harness = await RouterTestingHarness.create();
-  await harness.navigateByUrl('/', ShellPage);
+  await harness.navigateByUrl(url, ShellPage);
   await new Promise((resolve) => setTimeout(resolve, 0));
   harness.detectChanges();
   return harness.routeNativeElement as HTMLElement;
@@ -27,9 +45,11 @@ describe('ShellPage', () => {
 
   it('offers one sidebar entry per page, in reading order', async () => {
     const element = await renderShell();
-    const links = [...element.querySelectorAll('.shell__item')].map((item) => item.textContent);
+    const links = [...element.querySelectorAll('.shell__item')].map((item) =>
+      item.textContent?.trim(),
+    );
 
-    expect(links.map((text) => text?.trim())).toEqual(['Overview', 'Components', 'Findings']);
+    expect(links).toEqual(['Overview', 'Components', 'Findings']);
   });
 
   /**
@@ -43,7 +63,6 @@ describe('ShellPage', () => {
 
     expect(sidebar?.textContent).not.toContain('Alpha');
     expect(sidebar?.querySelector('[tuiBadge]')).toBeNull();
-    // Every interactive element of the navigation is a link.
     expect(sidebar?.querySelectorAll('nav button')).toHaveLength(0);
   });
 
@@ -56,9 +75,17 @@ describe('ShellPage', () => {
     expect(bar?.querySelector('.top-navigation__source')).not.toBeNull();
   });
 
-  it('marks the open page for assistive technology', async () => {
+  it('marks exactly the open page for assistive technology', async () => {
+    const element = await renderShell('/components');
+    const current = element.querySelectorAll('.shell__item[aria-current="page"]');
+
+    expect(current).toHaveLength(1);
+    expect(current[0]?.textContent?.trim()).toBe('Components');
+  });
+
+  it('reports how old the graph is once the first analysis arrives', async () => {
     const element = await renderShell();
 
-    expect(element.querySelectorAll('.shell__item[aria-current="page"]').length).toBeLessThan(2);
+    expect(element.querySelector('.top-navigation__updated')?.textContent).toContain('Updated Now');
   });
 });
