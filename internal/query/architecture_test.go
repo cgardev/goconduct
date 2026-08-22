@@ -69,7 +69,7 @@ func TestLayerArchitecture_KeepQueryTransportIndependent(t *testing.T) {
 				"cmp",
 				"fmt",
 				"github.com/cgardev/goconduct/internal/architecture",
-				"github.com/cgardev/goconduct/internal/failure",
+				"github.com/cgardev/goconduct/internal/library/foundationdomain",
 				"github.com/cgardev/goconduct/internal/report",
 				"slices",
 				"strings",

@@ -1,0 +1,16 @@
+version: v2
+modules:
+  - path: .
+deps:
+  - buf.build/bufbuild/protovalidate
+lint:
+  use:
+    - BASIC
+  except:
+    - PACKAGE_DIRECTORY_MATCH
+breaking:
+  use:
+    - FILE
+    - PACKAGE
+    - WIRE
+    - WIRE_JSON

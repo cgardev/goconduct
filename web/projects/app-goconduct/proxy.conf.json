@@ -1,0 +1,7 @@
+{
+  "/goconduct.v1.GraphService": {
+    "target": "http://127.0.0.1:6062",
+    "secure": false,
+    "changeOrigin": false
+  }
+}

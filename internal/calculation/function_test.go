@@ -191,6 +191,7 @@ func TestFunctionCalculation_RejectUnknownReferences(t *testing.T) {
 	t.Run("Scenario: A type result refers to a function outside the loaded graph", func(t *testing.T) {
 		var functions []Function
 		var calls []FunctionCall
+		var cycles [][]string
 
 		t.Run("Given references with a missing caller and a missing target", func(*testing.T) {
 			functions = nil
@@ -206,7 +207,7 @@ func TestFunctionCalculation_RejectUnknownReferences(t *testing.T) {
 				{source: "missing.Caller", target: "internal/library/data.Read"},
 				{source: "internal/library/data.Write", target: "missing.Target"},
 			}
-			functions, calls, _ = calculateFunctionGraph(declarations, references)
+			functions, calls, cycles = calculateFunctionGraph(declarations, references)
 		})
 
 		t.Run("Then the calculator omits both incomplete references", func(t *testing.T) {
@@ -215,6 +216,9 @@ func TestFunctionCalculation_RejectUnknownReferences(t *testing.T) {
 			}
 			if len(calls) != 0 {
 				t.Errorf("calls are %v, want no calls", calls)
+			}
+			if len(cycles) != 0 {
+				t.Errorf("cycles are %v, want no cycles", cycles)
 			}
 			for _, function := range functions {
 				if function.AfferentCoupling != 0 || function.EfferentCoupling != 0 ||

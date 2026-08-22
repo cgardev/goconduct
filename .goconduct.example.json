@@ -1,0 +1,94 @@
+{
+  "server": {
+    "address": "127.0.0.1:6062",
+    "refreshInterval": "750ms"
+  },
+  "cache": {
+    "mode": "auto",
+    "requestTimeout": "2s"
+  },
+  "analysis": {
+    "repositoryRoot": ".",
+    "paths": ["."],
+    "ignoredPaths": [".*", "_resources", "node_modules", "target", "testdata", "vendor"]
+  },
+  "architecture": {
+    "dependencies": {
+      "productionDefault": "allow",
+      "testDefault": "allow",
+      "allow": [
+        {
+          "id": "applications-use-libraries",
+          "from": {"roles": ["application"]},
+          "to": {"roles": ["library"]},
+          "reason": "Applications compose public and shared libraries."
+        }
+      ],
+      "deny": [
+        {
+          "id": "libraries-do-not-use-applications",
+          "from": {"roles": ["library"]},
+          "to": {"roles": ["application"]},
+          "reason": "Reusable libraries remain independent from executable applications."
+        }
+      ]
+    }
+  },
+  "quality": {
+    "check": {
+      "plugins": ["architecture", "coverage"],
+      "failOn": "error"
+    },
+    "coverage": {
+      "command": "go",
+      "packages": ["./..."],
+      "pathPolicies": [
+        {
+          "id": "public-plugin-coverage",
+          "include": ["plugin/**"],
+          "thresholds": [
+            {
+              "metric": "coverage.percent",
+              "comparison": "minimum",
+              "value": 80,
+              "severity": "error"
+            }
+          ]
+        }
+      ]
+    },
+    "crap": {
+      "command": "crap4go",
+      "maximumScore": 8,
+      "pathPolicies": [
+        {
+          "id": "public-plugin-crap",
+          "include": ["plugin/**"],
+          "thresholds": [
+            {
+              "metric": "crap.score",
+              "comparison": "maximum",
+              "value": 6,
+              "severity": "error"
+            }
+          ]
+        }
+      ]
+    },
+    "duplication": {
+      "command": "dry4go",
+      "similarity": 0.82,
+      "minimumLines": 4,
+      "minimumNodes": 20,
+      "maximumCandidates": 0
+    },
+    "mutation": {
+      "command": "mutate4go",
+      "paths": ["plugin"],
+      "execute": false,
+      "timeoutFactor": 10,
+      "maximumSurvivors": 0,
+      "maximumUncovered": 0
+    }
+  }
+}

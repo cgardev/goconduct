@@ -115,7 +115,7 @@ func TestAPI_CollectAndBuildComponentGraph(t *testing.T) {
 				t.Fatal("the created component accumulator is absent")
 			}
 			graph = BuildGraph(
-				"digginginsights.com/v3",
+				"example.com/repository",
 				components,
 				relationships,
 				[]Diagnostic{
@@ -123,7 +123,7 @@ func TestAPI_CollectAndBuildComponentGraph(t *testing.T) {
 					{Path: "a.go", Message: "first"},
 				},
 			)
-			if graph.ModulePath != "digginginsights.com/v3" {
+			if graph.ModulePath != "example.com/repository" {
 				t.Fatalf("module path is %q", graph.ModulePath)
 			}
 		}) {

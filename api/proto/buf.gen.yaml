@@ -1,0 +1,17 @@
+version: v2
+inputs:
+  - directory: .
+plugins:
+  - local: ../../web/node_modules/.bin/protoc-gen-es
+    out: ../../web/projects/lib-api-gen/src/gen
+    include_imports: true
+    opt:
+      - target=ts
+  - local: protoc-gen-go
+    out: ../..
+    opt:
+      - module=github.com/cgardev/goconduct
+  - local: protoc-gen-connect-go
+    out: ../..
+    opt:
+      - module=github.com/cgardev/goconduct

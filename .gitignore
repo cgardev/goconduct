@@ -2,3 +2,7 @@
 *.out
 *.test
 /target/
+/web/.angular/
+/web/coverage/
+/web/dist/
+/web/node_modules/

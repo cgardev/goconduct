@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/cgardev/goconduct/internal/failure"
+	"github.com/cgardev/goconduct/internal/library/foundationdomain"
 )
 
 // CacheMode selects the source for a dependency graph.
@@ -63,8 +63,8 @@ func (useCase *AnalyzeGraphUseCase[Configuration, Graph]) Execute(
 		return graph, nil
 	}
 	if params.CacheMode == CacheModeServer {
-		return zeroGraph, failure.NewError(
-			failure.ErrUnavailable,
+		return zeroGraph, foundationdomain.NewError(
+			foundationdomain.ErrUnavailable,
 			"load the required active graph cache",
 			cacheError,
 		)
@@ -81,8 +81,8 @@ func ValidateCacheMode(mode CacheMode) error {
 	case CacheModeAuto, CacheModeServer, CacheModeLocal:
 		return nil
 	default:
-		return failure.NewError(
-			failure.ErrValidation,
+		return foundationdomain.NewError(
+			foundationdomain.ErrValidation,
 			fmt.Sprintf("cache mode %q must be auto, server, or local", mode),
 			nil,
 		)

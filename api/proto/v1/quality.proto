@@ -1,0 +1,78 @@
+syntax = "proto3";
+
+package goconduct.v1;
+
+import "buf/validate/validate.proto";
+
+option go_package = "github.com/cgardev/goconduct/internal/protogen/v1;goconductv1";
+
+// QualityService exposes the deterministic plugin catalog and combined checks.
+service QualityService {
+  // ListPlugins returns every evaluator available in this binary.
+  rpc ListPlugins(ListPluginsRequest) returns (ListPluginsResponse);
+
+  // RunCheck executes selected evaluators and returns their normalized evidence.
+  rpc RunCheck(RunCheckRequest) returns (RunCheckResponse);
+}
+
+message ListPluginsRequest {}
+
+message ListPluginsResponse {
+  repeated PluginDescriptor plugins = 1;
+}
+
+message PluginDescriptor {
+  string name = 1;
+}
+
+message RunCheckRequest {
+  string repository_root = 1 [(buf.validate.field).string.pattern = "^$|^[^\\x00\\r\\n]+$"];
+  repeated string plugins = 2 [(buf.validate.field).repeated.items.string.pattern = "^[a-z][a-z0-9-]*$"];
+  repeated string paths = 3 [(buf.validate.field).repeated.items.string.pattern = "^[^\\\\\\x00\\r\\n]+$"];
+}
+
+message RunCheckResponse {
+  QualitySummary summary = 1;
+  repeated PluginReport reports = 2;
+}
+
+message QualitySummary {
+  uint32 plugins = 1;
+  uint32 metrics = 2;
+  uint32 findings = 3;
+  uint32 notices = 4;
+  uint32 warnings = 5;
+  uint32 errors = 6;
+}
+
+message PluginReport {
+  uint32 schema_version = 1;
+  string plugin = 2;
+  repeated QualityMetric metrics = 3;
+  repeated QualityFinding findings = 4;
+}
+
+message QualityMetric {
+  string id = 1;
+  string path = 2;
+  string name = 3;
+  double value = 4;
+  string unit = 5;
+}
+
+enum FindingSeverity {
+  FINDING_SEVERITY_UNSPECIFIED = 0;
+  FINDING_SEVERITY_NOTICE = 1;
+  FINDING_SEVERITY_WARNING = 2;
+  FINDING_SEVERITY_ERROR = 3;
+}
+
+message QualityFinding {
+  string id = 1;
+  string rule = 2;
+  string path = 3;
+  FindingSeverity severity = 4;
+  string message = 5;
+  optional double actual = 6;
+  optional double limit = 7;
+}

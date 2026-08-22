@@ -6,7 +6,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/cgardev/goconduct/internal/failure"
+	"github.com/cgardev/goconduct/internal/library/foundationdomain"
 	"github.com/cgardev/goconduct/internal/report"
 )
 
@@ -145,8 +145,8 @@ func ParseFunctionSort(value string) (FunctionSort, error) {
 	if _, found := functionSortDescriptorFor(sortOrder); found {
 		return sortOrder, nil
 	}
-	return "", failure.NewError(
-		failure.ErrValidation,
+	return "", foundationdomain.NewError(
+		foundationdomain.ErrValidation,
 		fmt.Sprintf("function sort %q must be %s", value, describeFunctionSorts()),
 		nil,
 	)
@@ -188,7 +188,7 @@ func functionComparison(
 ) func(report.Function, report.Function) int {
 	descriptor, found := functionSortDescriptorFor(sortOrder)
 	if !found {
-		descriptor, _ = functionSortDescriptorFor(FunctionSortIdentifier)
+		descriptor = functionSortRegistry[0]
 	}
 	return func(first, second report.Function) int {
 		result := descriptor.compare(first, second, includeTests)
@@ -245,7 +245,7 @@ func functionEfferentCoupling(function report.Function, includeTests bool) int {
 func GetFunction(graph report.Graph, identifier string, includeTests bool) (FunctionResult, error) {
 	function, found := findFunction(graph.Functions, identifier)
 	if !found {
-		return FunctionResult{}, failure.NewEntityNotFoundError(
+		return FunctionResult{}, foundationdomain.NewEntityNotFoundError(
 			"dependency graph function",
 			identifier,
 			nil,

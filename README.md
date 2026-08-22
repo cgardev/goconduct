@@ -4,260 +4,358 @@ Deterministic quality and architecture guardrails for AI-assisted Go engineering
 
 > [!WARNING]
 > `goconduct` is experimental alpha software.
-> Its configuration, reports, and command surface can change without compatibility guarantees.
+> Its configuration, reports, and public API can change before the first stable release.
 
 `goconduct` is a Go-only verification engine.
-It turns engineering rules into repeatable checks for humans and coding agents.
+It turns versioned engineering rules into repeatable evidence for developers and coding agents.
 
-The name combines Go with *conduct*: to direct an activity and to define expected behavior.
+The name combines Go with *conduct*: directing work and defining the behavior expected from that work.
 
-## Why goconduct exists
+## Why this project exists
 
 AI code generation is probabilistic.
-Software acceptance should be deterministic.
+Software acceptance can still be deterministic.
 
-The Google Developers article
-[Why Go is an ideal language for AI-assisted software engineering](https://developers.googleblog.com/why-go-is-an-ideal-language-for-ai-assisted-software-engineering/)
-describes why Go fits this workflow.
-Go provides simple syntax, strong compatibility, readable code, and integrated deterministic tools.
+Google explains why Go supports this model in
+[Why Go is an ideal language for AI-assisted software engineering](https://developers.googleblog.com/why-go-is-an-ideal-language-for-ai-assisted-software-engineering/).
+The language has a compact specification, stable tooling, explicit dependencies, and fast feedback.
 
-Robert C. Martin presents a related workflow in
+Robert C. Martin describes a related verification workflow in
 [Uncle Bob on Software Fundamentals in the age of AI](https://www.youtube.com/live/zcLPGC-tvgk).
-The workflow evaluates generated software with executable evidence:
+That workflow uses deterministic checks to verify probabilistically generated code:
 
-1. **CRAP score** combines test coverage and cyclomatic complexity.
-   Martin describes a human limit below 4 and agent limits of 6 or possibly 8.
-2. **Mutation testing** changes covered expressions and expects relevant tests to fail.
-   The target is zero surviving mutations.
-3. **Acceptance and system tests** verify Gherkin scenarios and automated end-to-end procedures.
-4. **Architecture rules** declare valid dependency directions and reject every invalid relationship.
-5. **Architecture views** expose dependencies at several levels for human review.
-6. **Short iterations** let people inspect and reshape the design before accidental structure grows.
+- CRAP scores combine test coverage and cyclomatic complexity.
+- Mutation testing verifies that tests detect behavioral changes.
+- Acceptance tests verify observable behavior.
+- Architecture rules verify allowed dependency directions.
+- Interactive views support human design review.
 
-These thresholds are policy examples.
-Each repository must calibrate its own limits and record them in version control.
+`goconduct` provides one extensible engine for those checks.
+It keeps every result explicit, ordered, and suitable for an automated repair loop.
 
-## Current alpha
+## Implemented alpha capabilities
 
-The current alpha provides the architecture foundation:
-
-- Go package and component discovery.
-- Configurable component classification through path templates.
-- Production and test import relationships with source locations.
-- Statically resolved function calls and call sites.
-- Component and function dependency cycles.
-- Afferent and efferent coupling.
-- Instability, abstractness, and distance from the main sequence.
+- A public Go plugin contract with dependency injection, commands, activation, and HTTP endpoints.
+- Independently usable evaluator packages under `plugin/<name>`.
+- Joint evaluator execution through a deterministic `plugin.Catalog`.
+- Go import and statically resolved function-call graphs.
+- Configurable component classification for applications, modules, libraries, infrastructure, and tools.
+- Configurable dependency grants and prohibitions with default allow or default deny behavior.
+- Production and test dependency separation.
+- Component and function cycle detection.
+- Afferent coupling, efferent coupling, instability, abstractness, and main-sequence distance.
 - Direct and transitive dependency metrics.
-- Deterministic architecture findings.
-- Stable JSON output for command-line consumers.
-- An embedded interactive dependency dashboard.
-- A compatible local dashboard cache for fast queries.
+- Go statement coverage with path-specific limits.
+- CRAP analysis through `crap4go` with global and path-specific limits.
+- Duplication analysis through `dry4go`.
+- Mutation-site scanning and mutation execution through `mutate4go`.
+- Normalized, versioned, and deterministically ordered reports.
+- A Protocol Buffer API implemented with Connect RPC.
+- An Angular dashboard compiled into and served from the Go binary.
 
-The current alpha does not yet provide the plugin runtime.
-It also does not yet execute `crap4go`, `mutate4go`, `dry4go`, or Gherkin tests.
+Gherkin acceptance checks and executable system-test plugins remain future work.
 
-## Target verification model
+## Install
 
-`goconduct` will use one normalized evidence model.
-Built-in checks and external plugins will contribute evidence to that model.
-
-The planned pipeline has four deterministic stages:
-
-1. Collect facts from Go source, tests, coverage profiles, and external analyzers.
-2. Normalize facts into versioned records with stable identifiers.
-3. Evaluate repository policies against those records.
-4. Emit ordered findings for people, coding agents, and continuous integration.
-
-Planned integrations include:
-
-| Integration | Evidence |
-| --- | --- |
-| `crap4go` | CRAP score, coverage, and cyclomatic complexity per function. |
-| `mutate4go` | Killed, survived, skipped, and invalid mutations. |
-| `dry4go` | Structurally similar Go functions and likely duplication. |
-| Go coverage | Coverage per package, file, function, and configured path. |
-| Acceptance checks | Gherkin scenarios and executable system procedures. |
-| Architecture checks | Allowed imports, prohibited imports, cycles, and coupling limits. |
-
-The external plugin protocol will use versioned JSON over child processes.
-This approach avoids the platform and toolchain limits of Go runtime plugins.
-Built-in plugins will implement the same logical contract through Go interfaces.
-
-## Install the alpha
-
-Install the current `main` branch:
+Install the current alpha from `main`:
 
 ```sh
-go install github.com/cgardev/goconduct@main
+go install github.com/cgardev/goconduct/cmd/goconduct@main
 ```
 
 The project does not publish stable releases yet.
 
-## Analyze a repository
+## Quick start
 
-Write a deterministic report:
-
-```sh
-goconduct analyze --root . --fail-on error
-```
-
-Write the complete graph:
+List the evaluators linked into the binary:
 
 ```sh
-goconduct analyze --root . --view graph --indent
+goconduct plugins
 ```
 
-Start the local dashboard:
+Run the configured evaluator set:
+
+```sh
+goconduct check --repository . --indent
+```
+
+Run selected evaluators:
+
+```sh
+goconduct check \
+  --plugin architecture \
+  --plugin coverage \
+  --repository . \
+  --fail-on error
+```
+
+Start the local dashboard and Connect RPC server:
 
 ```sh
 goconduct --root .
 ```
 
-Open <http://127.0.0.1:6062> while the command remains active.
+Open <http://127.0.0.1:6062> while the process runs.
+The default address accepts local connections only.
 
-Query the active graph from another terminal:
+## Built-in plugins
+
+| Plugin | Default behavior | External tool |
+| --- | --- | --- |
+| `architecture` | Analyzes imports, calls, cycles, coupling, and dependency policy. | None |
+| `coverage` | Runs Go tests and reads statement coverage. | `go` |
+| `crap` | Measures function risk and applies CRAP limits. | `crap4go` |
+| `duplication` | Reports structural duplicate candidates. | `dry4go` |
+| `mutation` | Scans mutation sites. Execution requires explicit configuration. | `mutate4go` |
+
+Each plugin also provides its own command:
+
+```sh
+goconduct coverage --repository . --minimum 80
+goconduct crap --repository . --maximum 8
+goconduct duplication --repository . --maximum 0
+goconduct mutation --repository . plugin
+```
+
+Use each command's `--help` output for its complete option set.
+
+## Architecture queries
+
+Write the architecture summary:
+
+```sh
+goconduct analyze --cache local --indent
+```
+
+Inspect components and functions:
+
+```sh
+goconduct components --cache local --sort afferent --limit 10
+goconduct functions --cache local --sort incoming-call-sites --limit 10
+goconduct component plugin/architecture --cache local
+```
+
+When the dashboard runs, another process can query its compatible cache:
 
 ```sh
 goconduct summary --cache server
-goconduct components --cache server --sort afferent --limit 10
-goconduct functions --cache server --sort incoming-call-sites --limit 10
+goconduct findings --cache server
 ```
 
-Inspect one function:
+## Configuration
+
+`goconduct` reads an optional `.goconduct.json` document.
+Pass `--configuration` to select another document.
+
+The repository includes a complete
+[example configuration](./.goconduct.example.json).
+Generate the authoritative JSON Schema with:
 
 ```sh
-goconduct function internal/library/logging.NewLogger --cache server
+goconduct configuration-schema > goconduct.schema.json
 ```
 
-List resolved calls between two components:
+### Dependency policy
 
-```sh
-goconduct calls \
-  --cache server \
-  --source-component cmd/control \
-  --target-component internal/library/logging
-```
-
-## Current configuration
-
-`goconduct` reads the optional `.goconduct.json` file from the current directory.
-Use `--configuration` to select another file.
+A dependency policy selects components by identifier, role, category, or application.
+Prohibitions override grants.
+The analyzer rejects stale selectors and duplicate rule identifiers.
 
 ```json
 {
-  "server": {
-    "address": "127.0.0.1:6062",
-    "refreshInterval": "750ms"
-  },
-  "cache": {
-    "mode": "auto",
-    "requestTimeout": "2s"
-  },
-  "analysis": {
-    "repositoryRoot": ".",
-    "paths": ["cmd", "internal"],
-    "ignoredPaths": ["vendor", "generated", "target"],
-    "components": {
-      "applications": ["cmd/{application}"],
-      "applicationModules": ["cmd/{application}/internal/module/{component}"],
-      "sharedModules": ["internal/module/{component}"],
-      "libraries": ["internal/library/{component}"],
-      "infrastructure": ["internal/{component}"],
-      "developmentTools": ["internal/devtool/{component}"]
+  "architecture": {
+    "dependencies": {
+      "productionDefault": "deny",
+      "testDefault": "allow",
+      "allow": [
+        {
+          "id": "application-modules-use-libraries",
+          "from": {"roles": ["application-module"]},
+          "to": {"roles": ["library"]},
+          "reason": "Application modules consume reusable libraries."
+        }
+      ],
+      "deny": []
     }
   }
 }
 ```
 
-Print the current JSON Schema:
+Unmatched relationships follow the separate production and test defaults.
+Use `deny` only after the policy contains every intended relationship.
 
-```sh
-goconduct configuration-schema
-```
+### Path-specific quality limits
 
-The current architecture registry evaluates these rules:
-
-- Production dependency cycles.
-- Source analysis failures.
-- Dependencies on less stable components.
-- Stable components with low abstraction.
-- Production imports from development tools.
-- Libraries importing application features.
-- Shared components importing application code.
-- Imports between modules from different applications.
-
-## Planned path policies
-
-The plugin configuration below describes the intended direction.
-The current alpha does not accept this section yet.
+Coverage and CRAP policies use repository-relative patterns.
+`**` matches across directory boundaries.
+One path and metric must match at most one policy.
 
 ```json
 {
   "quality": {
-    "pathPolicies": [
-      {
-        "include": ["internal/domain/**"],
-        "coverage": {"minimumPercent": 100},
-        "crap": {"maximumScore": 6},
-        "mutation": {"minimumKilledPercent": 100}
-      },
-      {
-        "include": ["cmd/**"],
-        "coverage": {"minimumPercent": 85},
-        "crap": {"maximumScore": 8}
-      }
-    ]
-  },
-  "plugins": [
-    {"id": "crap4go", "command": "crap4go"},
-    {"id": "mutate4go", "command": "mutate4go"},
-    {"id": "dry4go", "command": "dry4go"}
-  ]
+    "coverage": {
+      "command": "go",
+      "packages": ["./..."],
+      "pathPolicies": [
+        {
+          "id": "domain-coverage",
+          "include": ["internal/module/**"],
+          "thresholds": [
+            {
+              "metric": "coverage.percent",
+              "comparison": "minimum",
+              "value": 100,
+              "severity": "error"
+            }
+          ]
+        }
+      ]
+    }
+  }
 }
 ```
 
-Every policy will identify its selected paths, metric, limit, severity, and optional expiry.
-The engine will reject ambiguous path policies and unknown plugin outputs.
+## Use plugins as Go packages
 
-## Architecture
+Every built-in plugin is a regular Go package.
+No plugin requires dynamic loading or a Go shared object.
 
-The source separates deterministic logic from adapters:
+Use the architecture evaluator independently:
 
-- `internal/report` owns the transport-neutral evidence model.
-- `internal/calculation` owns pure graph calculations and formulas.
-- `internal/query` owns deterministic report projections.
-- `internal/architecture` owns independent architecture rules.
-- `internal/application` selects local analysis or a compatible graph cache.
-- Root files provide Go analysis, Cobra commands, HTTP adapters, and composition.
-- `_resources/web` contains the embedded dashboard.
+```go
+evaluator := architecture.NewEvaluator(slog.Default())
+report, err := evaluator.Evaluate(ctx, plugin.Request{
+    RepositoryRoot: ".",
+    Paths:          []string{"cmd", "internal", "plugin"},
+})
+```
 
-The pure packages do not import Cobra, HTTP, or presentation code.
+Quality plugins accept the public command runner:
+
+```go
+evaluator, err := coverage.NewEvaluator(
+    plugin.NewCommandRunner(),
+    coverage.DefaultConfiguration(),
+)
+```
+
+Compose several evaluators through one catalog:
+
+```go
+catalog := plugin.NewCatalog()
+
+if err := catalog.Register(architecture.NewEvaluator(slog.Default())); err != nil {
+    return err
+}
+if err := catalog.Register(coverageEvaluator); err != nil {
+    return err
+}
+
+reports, err := catalog.Evaluate(ctx, nil, plugin.Request{RepositoryRoot: "."})
+```
+
+Passing no evaluator names runs every registered evaluator in stable name order.
+The constructors validate configuration and defensively copy mutable inputs.
+
+Use each package's `Plugin()` adapter when building a complete application host.
+The adapter contributes lazy services, lifecycle activation, Cobra commands, and Connect endpoints.
+
+See [Plugin authoring](./docs/plugins.md) for the complete contract.
+
+## API and web application
+
+Protocol Buffer definitions are the sole transport source under `api/proto/v1`.
+Generated Go and TypeScript code is never edited by hand.
+
+The binary exposes these Connect services:
+
+- `GraphService` provides architecture summaries, components, relationships, functions, calls, and live updates.
+- `QualityService` lists evaluators and runs normalized combined checks.
+
+The Angular application consumes generated TypeScript clients.
+Its production build is copied into `plugin/architecture/_resources/web` and embedded with `go:embed`.
+The user interface uses neutral colors, system typography, LESS, BEM, and Taiga UI components.
+
+## Repository structure
+
+```text
+api/proto/v1/                         Protocol Buffer contracts
+cmd/goconduct/                        Cobra composition root
+cmd/goconduct/internal/configuration  Unified application configuration
+cmd/goconduct/internal/module/quality Application-owned Connect module
+internal/appmodule/                   Plugin host and request scope
+internal/kernel/                      Shared dependency registrations
+internal/library/                     Shared application infrastructure
+internal/protogen/                    Generated Go transport code
+plugin/                               Public plugin SDK and evidence model
+plugin/architecture/                  Architecture evaluator and embedded dashboard
+plugin/coverage/                      Coverage evaluator
+plugin/crap/                          CRAP evaluator
+plugin/duplication/                   Duplication evaluator
+plugin/mutation/                      Mutation evaluator
+policy/                               Public path-policy resolver
+web/projects/app-goconduct/           Angular application
+web/projects/lib-api-gen/             Generated TypeScript transport code
+```
+
+The composition root lists plugins only.
+Each plugin owns its registrations, activation, commands, and endpoints.
+See [Architecture](./docs/architecture.md) for dependency directions and startup behavior.
+
+## Deterministic behavior
+
+`goconduct` applies these constraints to machine-facing output:
+
+- Every report declares a schema version.
+- Metrics and findings use stable identifiers.
+- Collections use explicit deterministic ordering.
+- Reports preserve paths, actual values, limits, and severities.
+- Configuration rejects unknown fields and ambiguous path policies.
+- Child tools receive explicit arguments without an intermediate command shell.
+- Architecture policy changes affect the graph revision and cache identity.
+
+External tool versions can affect their measurements.
+Pin those tools when comparing reports across environments.
 
 ## Development
 
-Run the verification suite:
+Verify Go code:
 
 ```sh
-go test ./...
+go fmt ./...
 go vet ./...
+go test ./...
 ```
 
-Run `gofmt` before every contribution that changes Go code.
+Verify and regenerate Protocol Buffer code:
+
+```sh
+cd api/proto
+buf lint
+buf generate
+```
+
+Verify and embed the Angular application:
+
+```sh
+cd web
+pnpm install --frozen-lockfile
+pnpm test:app-goconduct
+pnpm build:app-goconduct
+```
+
+Do not edit generated transport code or embedded web assets manually.
 
 ## Roadmap
 
-- Declare allowed dependency graphs with default-deny rules.
-- Report unclassified and ambiguously classified packages.
-- Add expiring architecture waivers with reasons and owners.
-- Add versioned executable plugins and capability manifests.
-- Add path-specific coverage, CRAP, mutation, and duplication limits.
-- Add changed-code policies for incremental adoption.
-- Add Gherkin and end-to-end acceptance evidence.
-- Export machine-readable results for coding-agent repair loops.
-- Compare current evidence with a committed baseline.
-- Preserve deterministic output across machines and repeated runs.
+- Add Gherkin acceptance and deterministic system-test plugins.
+- Report managed packages that remain unclassified.
+- Add expiring architecture waivers with owners and reasons.
+- Add changed-code and committed-baseline comparisons.
+- Classify external dependencies through named policy groups.
+- Add release compatibility guarantees after the alpha period.
 
 ## License
 
 `goconduct` is available under the MIT License.
+The embedded dashboard publishes dependency notices at `/3rdpartylicenses.txt`.

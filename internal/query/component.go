@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/cgardev/goconduct/internal/architecture"
-	"github.com/cgardev/goconduct/internal/failure"
+	"github.com/cgardev/goconduct/internal/library/foundationdomain"
 	"github.com/cgardev/goconduct/internal/report"
 )
 
@@ -211,8 +211,8 @@ func ParseFindingSeverity(value string) (FindingSeverity, error) {
 	case FindingSeverityAll, FindingSeverityError, FindingSeverityWarning:
 		return filter, nil
 	default:
-		return "", failure.NewError(
-			failure.ErrValidation,
+		return "", foundationdomain.NewError(
+			foundationdomain.ErrValidation,
 			fmt.Sprintf("finding severity %q must be all, warning, or error", value),
 			nil,
 		)
@@ -256,8 +256,8 @@ func ParseComponentRole(value string) (string, error) {
 	if value == "all" || architecture.ValidRole(report.ComponentRole(value)) {
 		return value, nil
 	}
-	return "", failure.NewError(
-		failure.ErrValidation,
+	return "", foundationdomain.NewError(
+		foundationdomain.ErrValidation,
 		fmt.Sprintf(
 			"component role %q must be all, application, application-module, shared-module, "+
 				"library, infrastructure, or development",
@@ -273,8 +273,8 @@ func ParseComponentSort(value string) (ComponentSort, error) {
 	if _, found := componentSortDescriptorFor(sortOrder); found {
 		return sortOrder, nil
 	}
-	return "", failure.NewError(
-		failure.ErrValidation,
+	return "", foundationdomain.NewError(
+		foundationdomain.ErrValidation,
 		fmt.Sprintf("component sort %q must be %s", value, describeComponentSorts()),
 		nil,
 	)
@@ -331,7 +331,7 @@ func newComponentOverview(component report.Component) ComponentOverview {
 func componentComparison(sortOrder ComponentSort) func(report.Component, report.Component) int {
 	descriptor, found := componentSortDescriptorFor(sortOrder)
 	if !found {
-		descriptor, _ = componentSortDescriptorFor(ComponentSortIdentifier)
+		descriptor = componentSortRegistry[0]
 	}
 	return func(first, second report.Component) int {
 		result := descriptor.compare(first, second)
@@ -368,7 +368,7 @@ func GetComponent(graph report.Graph, identifier string) (ComponentResult, error
 		}
 	}
 	if !found {
-		return ComponentResult{}, failure.NewEntityNotFoundError(
+		return ComponentResult{}, foundationdomain.NewEntityNotFoundError(
 			"dependency graph component",
 			identifier,
 			nil,

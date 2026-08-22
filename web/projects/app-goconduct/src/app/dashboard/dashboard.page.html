@@ -1,0 +1,284 @@
+<main class="dashboard">
+  <header class="dashboard__topbar">
+    <a class="dashboard__brand" href="/" aria-label="goconduct home">
+      <span class="dashboard__mark" aria-hidden="true">g</span>
+      <span>goconduct</span>
+    </a>
+
+    <div class="dashboard__status">
+      <span
+        class="dashboard__live"
+        [class.dashboard__live--connected]="store.live()"
+      >
+        <span class="dashboard__live-dot" aria-hidden="true"></span>
+        {{ store.live() ? 'Live' : 'Connecting' }}
+      </span>
+      <span appearance="neutral" size="s" tuiBadge>Alpha</span>
+      <button
+        appearance="secondary-grayscale"
+        iconStart="@tui.refresh-cw"
+        size="s"
+        tuiButton
+        type="button"
+        [disabled]="store.loading()"
+        (click)="store.refresh()"
+      >
+        Refresh
+      </button>
+    </div>
+  </header>
+
+  <section class="dashboard__hero" aria-labelledby="dashboard-title">
+    <p class="dashboard__eyebrow">Deterministic architecture for Go</p>
+    <h1 id="dashboard-title">See every dependency. Enforce every boundary.</h1>
+    <p class="dashboard__lede">
+      goconduct turns Go source code into an explainable component map with measurable architecture rules.
+    </p>
+  </section>
+
+  @if (store.error()) {
+    <section class="dashboard__notice dashboard__notice--error" role="alert">
+      <tui-icon icon="@tui.circle-alert" />
+      <div>
+        <strong>Analysis unavailable</strong>
+        <p>{{ store.error() }}</p>
+      </div>
+    </section>
+  }
+
+  @if (store.loading() && !store.graph()) {
+    <section class="dashboard__loading" aria-live="polite">
+      <tui-loader size="l" />
+      <p>Reading the repository graph…</p>
+    </section>
+  }
+
+  @if (store.graph(); as graph) {
+    @if (store.summary(); as summary) {
+      <section class="dashboard__metrics" aria-label="Architecture summary">
+        <article class="metric-card">
+          <span class="metric-card__label">Quality plugins</span>
+          <strong>{{ store.qualityPlugins().length | number }}</strong>
+          <span>{{ store.qualityPlugins().join(' · ') }}</span>
+        </article>
+        <article class="metric-card">
+          <span class="metric-card__label">Components</span>
+          <strong>{{ summary.components | number }}</strong>
+          <span>{{ summary.applications }} applications</span>
+        </article>
+        <article class="metric-card">
+          <span class="metric-card__label">Dependencies</span>
+          <strong>{{ summary.productionRelationships | number }}</strong>
+          <span>{{ summary.testOnlyRelationships }} test-only</span>
+        </article>
+        <article class="metric-card">
+          <span class="metric-card__label">Functions</span>
+          <strong>{{ summary.productionFunctions | number }}</strong>
+          <span>{{ summary.functionCallSites }} call sites</span>
+        </article>
+        <article class="metric-card" [attr.data-state]="summary.errors > 0 ? 'error' : 'clear'">
+          <span class="metric-card__label">Findings</span>
+          <strong>{{ summary.findings | number }}</strong>
+          <span>{{ summary.errors }} errors · {{ summary.warnings }} warnings</span>
+        </article>
+      </section>
+    }
+
+    <section class="dashboard__workspace">
+      <article class="panel panel--map">
+        <header class="panel__header">
+          <div>
+            <p class="panel__eyebrow">Repository map</p>
+            <h2>{{ graph.modulePath }}</h2>
+          </div>
+          <span class="panel__revision">Revision {{ graph.revision.slice(0, 8) }}</span>
+        </header>
+
+        <div class="graph-map" aria-label="Component dependency map">
+          <svg class="graph-map__edges" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+            @for (edge of store.layout().edges; track edge.relationship.source + edge.relationship.target) {
+              <line
+                [attr.x1]="edge.x1"
+                [attr.y1]="edge.y1"
+                [attr.x2]="edge.x2"
+                [attr.y2]="edge.y2"
+                [class.graph-map__edge--test]="edge.relationship.testOnly"
+              />
+            }
+          </svg>
+
+          @for (node of store.layout().nodes; track node.component.id) {
+            <button
+              class="graph-map__node"
+              type="button"
+              [attr.data-role]="node.component.role"
+              [class.graph-map__node--selected]="store.selectedComponentId() === node.component.id"
+              [style.left.%]="node.x"
+              [style.top.%]="node.y"
+              [attr.aria-label]="'Inspect ' + node.component.name"
+              (click)="store.selectComponent(node.component.id)"
+            >
+              <span>{{ node.component.name.slice(0, 2).toUpperCase() }}</span>
+              <small>{{ node.component.name }}</small>
+            </button>
+          }
+
+          @if (store.layout().nodes.length === 0) {
+            <div class="graph-map__empty">
+              <tui-icon icon="@tui.network" />
+              <p>No components match the current analysis.</p>
+            </div>
+          }
+        </div>
+
+        <footer class="graph-map__legend">
+          <span><i class="graph-map__sample"></i>Production dependency</span>
+          <span><i class="graph-map__sample graph-map__sample--test"></i>Test-only dependency</span>
+          <span>Showing the 18 most connected components</span>
+        </footer>
+      </article>
+
+      <aside class="panel panel--findings">
+        <header class="panel__header">
+          <div>
+            <p class="panel__eyebrow">Deterministic checks</p>
+            <h2>Findings</h2>
+          </div>
+          <span appearance="neutral" size="s" tuiBadge>{{ store.findings().length }}</span>
+        </header>
+
+        <div class="finding-list">
+          @for (finding of store.findings().slice(0, 7); track finding.rule + finding.subject) {
+            <article class="finding" [attr.data-severity]="finding.severity">
+              <span class="finding__icon">
+                <tui-icon [icon]="finding.severity === 'error' ? '@tui.circle-x' : '@tui.triangle-alert'" />
+              </span>
+              <div>
+                <strong>{{ finding.rule }}</strong>
+                <p>{{ finding.message }}</p>
+                <span>{{ finding.subject }}</span>
+              </div>
+            </article>
+          } @empty {
+            <div class="finding-list__empty">
+              <tui-icon icon="@tui.circle-check" />
+              <strong>No architecture findings</strong>
+              <p>The current graph satisfies every configured rule.</p>
+            </div>
+          }
+        </div>
+      </aside>
+    </section>
+
+    <section class="panel panel--components">
+      <header class="panel__header panel__header--controls">
+        <div>
+          <p class="panel__eyebrow">Coupling metrics</p>
+          <h2>Components</h2>
+        </div>
+
+        <div class="component-filters">
+          <label class="component-filters__search">
+            <tui-icon icon="@tui.search" aria-hidden="true" />
+            <span class="visually-hidden">Search components</span>
+            <input
+              type="search"
+              placeholder="Search components"
+              [value]="store.query()"
+              (input)="updateQuery($event)"
+            />
+          </label>
+          <label class="component-filters__role">
+            <span class="visually-hidden">Filter by role</span>
+            <select [value]="store.role()" (change)="updateRole($event)">
+              <option value="all">All roles</option>
+              @for (role of store.roles(); track role) {
+                <option [value]="role">{{ role }}</option>
+              }
+            </select>
+          </label>
+        </div>
+      </header>
+
+      <div class="component-table" role="table" aria-label="Component coupling metrics">
+        <div class="component-table__header" role="row">
+          <span role="columnheader">Component</span>
+          <span role="columnheader">Role</span>
+          <span role="columnheader">Ca</span>
+          <span role="columnheader">Ce</span>
+          <span role="columnheader">Instability</span>
+          <span role="columnheader">Distance</span>
+        </div>
+
+        @for (component of store.components(); track component.id) {
+          <button
+            class="component-table__row"
+            role="row"
+            type="button"
+            [class.component-table__row--selected]="store.selectedComponentId() === component.id"
+            (click)="store.selectComponent(component.id)"
+          >
+            <span class="component-table__identity" role="cell">
+              <strong>{{ component.name }}</strong>
+              <small>{{ component.id }}</small>
+            </span>
+            <span role="cell"><i [attr.data-role]="component.role"></i>{{ component.role }}</span>
+            <span role="cell">{{ component.afferentCoupling }}</span>
+            <span role="cell">{{ component.efferentCoupling }}</span>
+            <span class="component-table__bar" role="cell">
+              <i><b [style.width.%]="percentage(component.instability)"></b></i>
+              {{ component.instability | number: '1.2-2' }}
+            </span>
+            <span role="cell">{{ component.mainSequenceDistance | number: '1.2-2' }}</span>
+          </button>
+        } @empty {
+          <div class="component-table__empty">No components match this filter.</div>
+        }
+      </div>
+    </section>
+
+    @if (store.selectedComponent(); as component) {
+      <aside class="component-detail" aria-labelledby="component-detail-title">
+        <button
+          appearance="flat-grayscale"
+          iconStart="@tui.x"
+          size="s"
+          tuiIconButton
+          type="button"
+          aria-label="Close component details"
+          (click)="store.closeComponent()"
+        ></button>
+        <p class="panel__eyebrow">Selected component</p>
+        <h2 id="component-detail-title">{{ component.name }}</h2>
+        <p class="component-detail__path">{{ component.id }}</p>
+
+        <dl class="component-detail__metrics">
+          <div><dt>Role</dt><dd>{{ component.role }}</dd></div>
+          <div><dt>Packages</dt><dd>{{ component.packages }}</dd></div>
+          <div><dt>Afferent coupling</dt><dd>{{ component.afferentCoupling }}</dd></div>
+          <div><dt>Efferent coupling</dt><dd>{{ component.efferentCoupling }}</dd></div>
+          <div><dt>Instability</dt><dd>{{ component.instability | number: '1.2-2' }}</dd></div>
+          <div><dt>Abstractness</dt><dd>{{ component.abstractness | number: '1.2-2' }}</dd></div>
+        </dl>
+
+        <h3>Direct relationships</h3>
+        <ul class="component-detail__relationships">
+          @for (relationship of store.selectedRelationships(); track relationship.source + relationship.target) {
+            <li>
+              <span>{{ relationship.source }}</span>
+              <tui-icon icon="@tui.arrow-right" />
+              <span>{{ relationship.target }}</span>
+            </li>
+          } @empty {
+            <li>No direct relationships.</li>
+          }
+        </ul>
+      </aside>
+    }
+  }
+
+  <footer class="dashboard__footer">
+    <span>goconduct is alpha software.</span>
+    <a href="https://github.com/cgardev/goconduct" rel="noreferrer">View the source on GitHub</a>
+  </footer>
+</main>

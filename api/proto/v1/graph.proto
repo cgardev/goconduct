@@ -1,0 +1,275 @@
+syntax = "proto3";
+
+package goconduct.v1;
+
+import "buf/validate/validate.proto";
+
+option go_package = "github.com/cgardev/goconduct/internal/protogen/v1;goconductv1";
+
+// GraphService exposes one deterministic architecture snapshot and its changes.
+service GraphService {
+  // GetGraph returns the complete active dependency graph.
+  rpc GetGraph(GetGraphRequest) returns (GetGraphResponse);
+
+  // WatchGraph reports graph revisions while the dashboard remains open.
+  rpc WatchGraph(WatchGraphRequest) returns (stream WatchGraphResponse);
+}
+
+// GetGraphRequest controls cache validation and an optional immediate refresh.
+message GetGraphRequest {
+  bool refresh = 1;
+  string cache_key = 2 [(buf.validate.field).string.pattern = "^$|^[a-f0-9]{64}$"];
+  uint32 cache_protocol = 3 [(buf.validate.field).uint32.lte = 1];
+}
+
+// GetGraphResponse carries the graph and its cache identity.
+message GetGraphResponse {
+  Graph graph = 1;
+  string cache_key = 2;
+  uint32 cache_protocol = 3;
+}
+
+// WatchGraphRequest identifies the latest revision known by the client.
+message WatchGraphRequest {
+  string from_revision = 1 [(buf.validate.field).string.pattern = "^$|^[a-f0-9]{64}$"];
+}
+
+// GraphEventType identifies one event in the graph stream.
+enum GraphEventType {
+  GRAPH_EVENT_TYPE_UNSPECIFIED = 0;
+  GRAPH_EVENT_TYPE_READY = 1;
+  GRAPH_EVENT_TYPE_CHANGED = 2;
+  GRAPH_EVENT_TYPE_HEARTBEAT = 3;
+}
+
+// WatchGraphResponse reports one graph stream event.
+message WatchGraphResponse {
+  GraphEventType type = 1;
+  string revision = 2;
+}
+
+// Graph contains one complete repository analysis.
+message Graph {
+  uint32 schema_version = 1;
+  string revision = 2;
+  string module_path = 3;
+  AnalysisScope scope = 4;
+  AnalysisPolicy policy = 5;
+  GraphSummary summary = 6;
+  repeated Component components = 7;
+  repeated Relationship relationships = 8;
+  repeated Function functions = 9;
+  repeated FunctionCall function_calls = 10;
+  repeated Cycle function_cycles = 11;
+  repeated Cycle cycles = 12;
+  repeated Diagnostic diagnostics = 13;
+  repeated Finding findings = 14;
+}
+
+message AnalysisScope {
+  repeated string paths = 1;
+  repeated string ignored_paths = 2;
+  ComponentRules components = 3;
+}
+
+message ComponentRules {
+  repeated string applications = 1;
+  repeated string application_modules = 2;
+  repeated string shared_modules = 3;
+  repeated string libraries = 4;
+  repeated string infrastructure = 5;
+  repeated string development_tools = 6;
+  repeated ComponentCategoryRule taxonomy = 7;
+}
+
+message ComponentCategoryRule {
+  string id = 1;
+  string role = 2;
+  repeated string paths = 3;
+}
+
+message AnalysisPolicy {
+  string instability_formula = 1;
+  string function_instability_formula = 2;
+  string function_coupling_definition = 3;
+  string function_call_resolution = 4;
+  double isolated_instability = 5;
+  string abstractness_formula = 6;
+  double untyped_abstractness = 7;
+  string main_sequence_distance_formula = 8;
+  StableLowAbstractionPolicy stable_low_abstraction = 9;
+  StableDependencyPrinciplePolicy stable_dependency_principle = 10;
+}
+
+message StableLowAbstractionPolicy {
+  uint32 minimum_afferent_coupling = 1;
+  double maximum_instability = 2;
+  double maximum_abstractness = 3;
+}
+
+message StableDependencyPrinciplePolicy {
+  string required_relation = 1;
+  bool production_only = 2;
+}
+
+message GraphSummary {
+  uint32 components = 1;
+  uint32 relationships = 2;
+  uint32 functions = 3;
+  uint32 production_functions = 4;
+  uint32 test_functions = 5;
+  uint32 function_calls = 6;
+  uint32 function_call_sites = 7;
+  uint32 cross_component_function_call_sites = 8;
+  uint32 function_cycles = 9;
+  uint32 production_relationships = 10;
+  uint32 test_only_relationships = 11;
+  uint32 applications = 12;
+  uint32 application_modules = 13;
+  uint32 shared_modules = 14;
+  uint32 libraries = 15;
+  uint32 infrastructure = 16;
+  uint32 development_tools = 17;
+  map<string, uint32> categories = 18;
+  uint32 cycles = 19;
+  uint32 relationship_rule_violations = 20;
+  uint32 stable_dependency_principle_violations = 21;
+  uint32 stable_low_abstraction_components = 22;
+  uint32 findings = 23;
+  uint32 errors = 24;
+  uint32 warnings = 25;
+}
+
+message Component {
+  string id = 1;
+  string name = 2;
+  string role = 3;
+  string category = 4;
+  string application = 5;
+  uint32 packages = 6;
+  uint32 source_files = 7;
+  uint32 production_files = 8;
+  uint32 test_files = 9;
+  uint32 direct_dependencies = 10;
+  uint32 production_dependencies = 11;
+  uint32 test_only_dependencies = 12;
+  uint32 direct_importing_components = 13;
+  uint32 production_importing_components = 14;
+  uint32 test_only_importing_components = 15;
+  uint32 transitive_dependencies = 16;
+  uint32 transitive_importing_components = 17;
+  uint32 importer_packages = 18;
+  uint32 production_importer_packages = 19;
+  uint32 test_importer_packages = 20;
+  uint32 using_application_count = 21;
+  repeated string using_applications = 22;
+  uint32 afferent_coupling = 23;
+  uint32 efferent_coupling = 24;
+  double instability = 25;
+  uint32 abstract_types = 26;
+  uint32 concrete_types = 27;
+  double abstractness = 28;
+  double main_sequence_distance = 29;
+  bool is_stable_with_low_abstraction = 30;
+  bool in_cycle = 31;
+  uint32 production_functions = 32;
+  uint32 test_functions = 33;
+  uint32 production_incoming_call_sites = 34;
+  uint32 production_outgoing_call_sites = 35;
+  uint32 test_incoming_call_sites = 36;
+  uint32 test_outgoing_call_sites = 37;
+}
+
+message Relationship {
+  string source = 1;
+  string target = 2;
+  uint32 production_referencing_files = 3;
+  uint32 test_referencing_files = 4;
+  repeated string source_packages = 5;
+  repeated string target_packages = 6;
+  repeated ImportSite import_sites = 7;
+  uint32 production_function_call_sites = 8;
+  uint32 test_function_call_sites = 9;
+  uint32 caller_functions = 10;
+  uint32 callee_functions = 11;
+  bool test_only = 12;
+  bool violates_stable_dependency_principle = 13;
+  repeated string rule_violations = 14;
+}
+
+message ImportSite {
+  string source_package = 1;
+  string target_package = 2;
+  string path = 3;
+  uint32 line = 4;
+  string alias = 5;
+  bool test = 6;
+}
+
+message Function {
+  string id = 1;
+  string name = 2;
+  string package = 3;
+  string component = 4;
+  string path = 5;
+  uint32 line = 6;
+  string receiver = 7;
+  bool method = 8;
+  bool exported = 9;
+  bool test = 10;
+  bool synthetic = 11;
+  bool in_analysis_scope = 12;
+  uint32 afferent_coupling = 13;
+  uint32 efferent_coupling = 14;
+  uint32 test_afferent_coupling = 15;
+  uint32 test_efferent_coupling = 16;
+  uint32 incoming_call_sites = 17;
+  uint32 outgoing_call_sites = 18;
+  uint32 test_incoming_call_sites = 19;
+  uint32 test_outgoing_call_sites = 20;
+  uint32 cross_component_caller_functions = 21;
+  uint32 cross_component_callee_functions = 22;
+  uint32 transitive_caller_functions = 23;
+  uint32 transitive_callee_functions = 24;
+  uint32 using_application_count = 25;
+  repeated string using_applications = 26;
+  bool in_cycle = 27;
+  double instability = 28;
+}
+
+message FunctionCall {
+  string source = 1;
+  string target = 2;
+  string source_component = 3;
+  string target_component = 4;
+  repeated CallSite call_sites = 5;
+  uint32 calls = 6;
+  bool test_only = 7;
+  bool cross_component = 8;
+}
+
+message CallSite {
+  string path = 1;
+  uint32 line = 2;
+  uint32 column = 3;
+}
+
+message Cycle {
+  repeated string members = 1;
+}
+
+message Diagnostic {
+  string path = 1;
+  string message = 2;
+}
+
+message Finding {
+  string rule = 1;
+  string severity = 2;
+  string subject = 3;
+  string message = 4;
+  string source = 5;
+  string target = 6;
+  repeated string components = 7;
+  map<string, double> metrics = 8;
+}
