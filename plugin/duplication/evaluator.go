@@ -1,52 +1,29 @@
 package duplication
 
 import (
-	"bytes"
+	"cmp"
 	"context"
-	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
 
 	"github.com/cgardev/goconduct/failure"
+	"github.com/cgardev/goconduct/internal/library/gosimilarity"
 	"github.com/cgardev/goconduct/plugin"
 )
 
-type sourceRange struct {
-	File      string `json:"file"`
-	StartLine int    `json:"start_line"`
-	EndLine   int    `json:"end_line"`
-}
-
-type candidate struct {
-	Score      float64     `json:"score"`
-	Left       sourceRange `json:"left"`
-	Right      sourceRange `json:"right"`
-	LeftNodes  int         `json:"left_nodes"`
-	RightNodes int         `json:"right_nodes"`
-}
-
-type dryReport struct {
-	Candidates []candidate `json:"candidates"`
-}
-
-// Evaluator executes dry4go and normalizes duplicate candidates.
+// Evaluator reports structurally duplicate Go functions and methods.
 type Evaluator struct {
-	runner        plugin.CommandRunner
 	configuration Configuration
 }
 
 var _ plugin.Evaluator = (*Evaluator)(nil)
 
 // NewEvaluator validates configuration and creates a duplication evaluator.
-func NewEvaluator(runner plugin.CommandRunner, configuration Configuration) (*Evaluator, error) {
-	if runner == nil {
-		return nil, failure.Validation("duplication command runner is nil", nil)
-	}
-	if strings.TrimSpace(configuration.Command) == "" {
-		return nil, failure.Validation("duplication command is empty", nil)
-	}
+func NewEvaluator(configuration Configuration) (*Evaluator, error) {
 	if configuration.Similarity < 0 || configuration.Similarity > 1 {
 		return nil, failure.Validation(fmt.Sprintf(
 			"duplication similarity %.3f is outside 0 through 1",
@@ -59,96 +36,133 @@ func NewEvaluator(runner plugin.CommandRunner, configuration Configuration) (*Ev
 	if configuration.MaximumCandidates < 0 {
 		return nil, failure.Validation("maximum duplication candidates is negative", nil)
 	}
-	return &Evaluator{runner: runner, configuration: configuration}, nil
+	return &Evaluator{configuration: configuration}, nil
 }
 
 // Name returns the stable evaluator identifier.
 func (*Evaluator) Name() string { return "duplication" }
 
-// Evaluate runs dry4go for the selected repository paths.
+// Evaluate compares every selected Go function and reports duplicate candidates.
 func (evaluator *Evaluator) Evaluate(
 	ctx context.Context,
 	request plugin.Request,
 ) (plugin.Report, error) {
-	root := request.RepositoryRoot
-	if root == "" {
-		root = "."
+	if err := ctx.Err(); err != nil {
+		return plugin.Report{}, err
 	}
-	arguments := []string{
-		"--json",
-		"--threshold", strconv.FormatFloat(evaluator.configuration.Similarity, 'f', -1, 64),
-		"--min-lines", strconv.Itoa(evaluator.configuration.MinimumLines),
-		"--min-nodes", strconv.Itoa(evaluator.configuration.MinimumNodes),
-	}
-	arguments = append(arguments, slices.Clone(request.Paths)...)
-	result, err := evaluator.runner.Run(ctx, plugin.Command{
-		Path: evaluator.configuration.Command, Arguments: arguments, Directory: root,
-	})
+	root, err := filepath.Abs(cmp.Or(request.RepositoryRoot, "."))
 	if err != nil {
-		return plugin.Report{}, fmt.Errorf(
-			"run dry4go: %w; stderr: %s",
-			err,
-			strings.TrimSpace(string(result.StandardError)),
-		)
+		return plugin.Report{}, failure.Internal("resolve duplication repository root", err)
 	}
-	report, err := parseDryReport(result.StandardOutput)
+	paths, err := analysisPaths(root, request.Paths)
 	if err != nil {
 		return plugin.Report{}, err
 	}
-	return evaluator.report(report.Candidates)
+	candidates, err := gosimilarity.Candidates(
+		ctx,
+		paths,
+		evaluator.configuration.Similarity,
+		evaluator.configuration.MinimumLines,
+		evaluator.configuration.MinimumNodes,
+	)
+	if err != nil {
+		return plugin.Report{}, err
+	}
+	return evaluator.report(root, candidates)
 }
 
-func parseDryReport(payload []byte) (dryReport, error) {
-	decoder := json.NewDecoder(bytes.NewReader(payload))
-	decoder.DisallowUnknownFields()
-	var report dryReport
-	if err := decoder.Decode(&report); err != nil {
-		return dryReport{}, failure.DataIntegrity("decode dry4go report", err)
+// analysisPaths resolves each selected path inside the repository.
+// dry4go skips a path it cannot read, so the evaluator rejects it instead.
+func analysisPaths(root string, selected []string) ([]string, error) {
+	if len(selected) == 0 {
+		return []string{root}, nil
 	}
-	slices.SortFunc(report.Candidates, compareCandidate)
-	return report, nil
+	paths := make([]string, 0, len(selected))
+	for _, candidate := range selected {
+		full, err := repositoryEntry(root, candidate)
+		if err != nil {
+			return nil, err
+		}
+		paths = append(paths, full)
+	}
+	slices.Sort(paths)
+	return slices.Compact(paths), nil
 }
 
-func compareCandidate(left, right candidate) int {
-	if comparison := strings.Compare(left.Left.File, right.Left.File); comparison != 0 {
-		return comparison
+func repositoryEntry(root, candidate string) (string, error) {
+	if strings.TrimSpace(candidate) == "" {
+		return "", failure.Validation("duplication path is empty", nil)
 	}
-	if comparison := left.Left.StartLine - right.Left.StartLine; comparison != 0 {
-		return comparison
+	full := filepath.Join(root, filepath.Clean(candidate))
+	relative, err := filepath.Rel(root, full)
+	escapes := err != nil || relative == ".." ||
+		strings.HasPrefix(relative, ".."+string(filepath.Separator))
+	if escapes {
+		return "", failure.Validation(fmt.Sprintf(
+			"duplication path %q is outside the repository",
+			candidate,
+		), nil)
 	}
-	if comparison := strings.Compare(left.Right.File, right.Right.File); comparison != 0 {
-		return comparison
+	if _, err := os.Stat(full); err != nil {
+		return "", failure.Validation(fmt.Sprintf("inspect duplication path %q", candidate), err)
 	}
-	return left.Right.StartLine - right.Right.StartLine
+	return full, nil
 }
 
-func (evaluator *Evaluator) report(candidates []candidate) (plugin.Report, error) {
-	metrics := make([]plugin.Metric, 0, len(candidates)+1)
-	findings := make([]plugin.Finding, 0)
-	metrics = append(metrics, plugin.Metric{
+// compareCandidate ranks the most similar candidate first, as dry4go does.
+// The candidate budget forgives the least similar candidates, so this order
+// decides which duplicates the report keeps.
+func compareCandidate(left, right gosimilarity.Candidate) int {
+	return cmp.Or(
+		cmp.Compare(right.Score, left.Score),
+		compareLocation(left.Left, right.Left),
+		compareLocation(left.Right, right.Right),
+	)
+}
+
+// compareLocation orders two source coordinates by file and then by line.
+// Two candidates with one score then keep one order in every run.
+func compareLocation(left, right gosimilarity.Location) int {
+	return cmp.Or(
+		strings.Compare(left.File, right.File),
+		cmp.Compare(left.StartLine, right.StartLine),
+	)
+}
+
+func (evaluator *Evaluator) report(
+	root string,
+	candidates []gosimilarity.Candidate,
+) (plugin.Report, error) {
+	candidates = slices.Clone(candidates)
+	slices.SortFunc(candidates, compareCandidate)
+	metrics := []plugin.Metric{{
 		ID: "duplication:candidates", Name: "duplication.candidates",
 		Value: float64(len(candidates)), Unit: "count",
-	})
+	}}
+	findings := make([]plugin.Finding, 0)
+	reported := max(len(candidates)-evaluator.configuration.MaximumCandidates, 0)
 	for index, candidate := range candidates {
-		ordinal := strconv.Itoa(index)
+		left := repositoryPath(root, candidate.Left.File)
+		right := repositoryPath(root, candidate.Right.File)
+		identity := candidateIdentity(left, candidate.Left.StartLine, right, candidate.Right.StartLine)
 		metrics = append(metrics, plugin.Metric{
-			ID: "duplication:similarity:" + ordinal, Path: candidate.Left.File,
+			ID: "duplication:similarity:" + identity, Path: left,
 			Name: "duplication.similarity", Value: candidate.Score,
 		})
-		if index < evaluator.configuration.MaximumCandidates {
+		if index >= reported {
 			continue
 		}
 		actual := candidate.Score
 		limit := evaluator.configuration.Similarity
 		findings = append(findings, plugin.Finding{
-			ID: "duplication:" + ordinal, Rule: "structural-duplication",
-			Path: candidate.Left.File, Severity: plugin.SeverityError,
+			ID: "duplication:" + identity, Rule: "structural-duplication",
+			Path: left, Severity: plugin.SeverityError,
 			Message: fmt.Sprintf(
 				"%s:%d-%d resembles %s:%d-%d with %.3f similarity",
-				candidate.Left.File,
+				left,
 				candidate.Left.StartLine,
 				candidate.Left.EndLine,
-				candidate.Right.File,
+				right,
 				candidate.Right.StartLine,
 				candidate.Right.EndLine,
 				candidate.Score,
@@ -157,4 +171,20 @@ func (evaluator *Evaluator) report(candidates []candidate) (plugin.Report, error
 		})
 	}
 	return plugin.NewReport("duplication", metrics, findings)
+}
+
+// repositoryPath reports one analyzed file relative to the repository root.
+func repositoryPath(root, file string) string {
+	relative, err := filepath.Rel(root, filepath.FromSlash(file))
+	if err != nil {
+		return filepath.ToSlash(file)
+	}
+	return filepath.ToSlash(relative)
+}
+
+// candidateIdentity names one duplicate pair by its source coordinates.
+// The identifier stays stable when another duplicate appears or disappears.
+func candidateIdentity(leftFile string, leftLine int, rightFile string, rightLine int) string {
+	return leftFile + ":" + strconv.Itoa(leftLine) +
+		":" + rightFile + ":" + strconv.Itoa(rightLine)
 }

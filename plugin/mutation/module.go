@@ -1,4 +1,4 @@
-// Package mutation integrates mutate4go as a composable quality plugin.
+// Package mutation reports mutation coverage as a composable quality plugin.
 package mutation
 
 import (
@@ -74,24 +74,22 @@ func newEvaluatorInjector() func(do.Injector) {
 func newMutationCommand(runner plugin.CommandRunner) *cobra.Command {
 	var repositoryRoot string
 	var execute bool
-	var mutateAll bool
-	var reuseCoverage bool
+	var packages []string
 	var maximumSurvivors int
 	var maximumUncovered int
-	var maxWorkers int
 	var indent bool
 	command := &cobra.Command{
-		Use:   "mutation [file-or-directory ...]",
-		Short: "Scan or execute mutate4go for selected source paths.",
-		Args:  cobra.MinimumNArgs(1),
+		Use:   "mutation [path ...]",
+		Short: "Report mutation sites and optionally run every covered mutation.",
+		Args:  cobra.ArbitraryArgs,
 		RunE: func(command *cobra.Command, paths []string) error {
 			configuration := DefaultConfiguration()
 			configuration.Execute = execute
-			configuration.MutateAll = mutateAll
-			configuration.ReuseCoverage = reuseCoverage
+			if len(packages) != 0 {
+				configuration.Packages = packages
+			}
 			configuration.MaximumSurvivors = maximumSurvivors
 			configuration.MaximumUncovered = maximumUncovered
-			configuration.MaxWorkers = maxWorkers
 			evaluator, err := NewEvaluator(runner, configuration)
 			if err != nil {
 				return err
@@ -110,22 +108,40 @@ func newMutationCommand(runner plugin.CommandRunner) *cobra.Command {
 			if err := encoder.Encode(report); err != nil {
 				return failure.Unavailable("write mutation report", err)
 			}
-			if len(report.Findings) != 0 {
+			if failing := plugin.FailingFindings(report.Findings); failing != 0 {
 				return failure.BusinessRule(fmt.Sprintf(
 					"mutation analysis has %d policy findings",
-					len(report.Findings),
+					failing,
 				), nil)
 			}
 			return nil
 		},
 	}
 	command.Flags().StringVar(&repositoryRoot, "repository", ".", "Select the Go repository root.")
-	command.Flags().BoolVar(&execute, "execute", false, "Execute mutations instead of scanning sites.")
-	command.Flags().BoolVar(&mutateAll, "mutate-all", false, "Ignore the mutate4go manifest selection.")
-	command.Flags().BoolVar(&reuseCoverage, "reuse-coverage", false, "Reuse existing mutate4go coverage data.")
-	command.Flags().IntVar(&maximumSurvivors, "maximum-survivors", 0, "Allow this number of surviving mutations.")
-	command.Flags().IntVar(&maximumUncovered, "maximum-uncovered", 0, "Allow this number of uncovered mutation sites.")
-	command.Flags().IntVar(&maxWorkers, "max-workers", 0, "Set the mutate4go worker count.")
+	command.Flags().StringArrayVar(
+		&packages,
+		"package",
+		nil,
+		"Run this Go package pattern instead of the whole module. Repeat this option as needed.",
+	)
+	command.Flags().BoolVar(
+		&execute,
+		"execute",
+		false,
+		"Run every covered mutation instead of only reporting the sites.",
+	)
+	command.Flags().IntVar(
+		&maximumSurvivors,
+		"maximum-survivors",
+		0,
+		"Allow this number of surviving mutations.",
+	)
+	command.Flags().IntVar(
+		&maximumUncovered,
+		"maximum-uncovered",
+		0,
+		"Allow this number of uncovered mutation sites.",
+	)
 	command.Flags().BoolVar(&indent, "indent", false, "Indent the JSON report.")
 	return command
 }

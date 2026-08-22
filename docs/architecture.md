@@ -109,6 +109,21 @@ The kernel does not include a database, transactor, event bus, or transactional 
 The current product has no durable state or domain events.
 When a persistent module appears, the kernel must own one production database and its shared transaction infrastructure.
 
+## Analysis libraries
+
+`internal/library` holds the measurement code the plugins share. Each package
+answers one question and depends on the Go standard library only.
+
+- `gosource` lists the production Go files of one repository scope.
+- `gocoverage` answers coverage questions over a Go coverage profile.
+- `gocomplexity` reads functions, counts decision points, and scores change risk.
+- `gomutation` discovers the expressions one mutation can change.
+- `gosimilarity` compares normalized syntax trees.
+
+`plugin/crap`, `plugin/duplication`, and `plugin/mutation` compose these
+packages. No plugin starts another analysis tool, so one binary carries every
+measurement and no report depends on the output format of a separate program.
+
 ## Failure boundary
 
 The public `failure` package owns the closed set of error categories.

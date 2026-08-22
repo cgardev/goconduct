@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"slices"
-	"strings"
 
 	"connectrpc.com/connect"
 	"github.com/samber/do/v2"
@@ -87,9 +86,13 @@ func newCoverageCommand(runner plugin.CommandRunner) *cobra.Command {
 		Short: "Measure Go statement coverage and apply path limits.",
 		Args:  cobra.NoArgs,
 		RunE: func(command *cobra.Command, _ []string) error {
+			patterns, err := coveragePatterns(paths)
+			if err != nil {
+				return err
+			}
 			configuration := DefaultConfiguration()
 			configuration.Policies = []policy.PathPolicy{{
-				ID: "command-line", Include: coveragePatterns(paths),
+				ID: "command-line", Include: patterns,
 				Thresholds: []policy.Threshold{{
 					Metric: metricCoveragePercent, Comparison: policy.ComparisonMinimum,
 					Value: minimum, Severity: plugin.SeverityError,
@@ -108,9 +111,9 @@ func newCoverageCommand(runner plugin.CommandRunner) *cobra.Command {
 			if err := writeReport(command.OutOrStdout(), report, indent); err != nil {
 				return err
 			}
-			if len(report.Findings) != 0 {
+			if failing := plugin.FailingFindings(report.Findings); failing != 0 {
 				return failure.BusinessRule(
-					fmt.Sprintf("coverage has %d policy findings", len(report.Findings)),
+					fmt.Sprintf("coverage has %d policy findings", failing),
 					nil,
 				)
 			}
@@ -124,16 +127,27 @@ func newCoverageCommand(runner plugin.CommandRunner) *cobra.Command {
 	return command
 }
 
-func coveragePatterns(paths []string) []string {
+// coveragePatterns converts the selected paths to policy include patterns.
+// It normalizes every path exactly as the Go package selection does, so one
+// path never reaches the package list and fails the policy validation.
+func coveragePatterns(paths []string) ([]string, error) {
 	if len(paths) == 0 {
-		return []string{"**"}
+		return []string{"**"}, nil
 	}
 	patterns := make([]string, 0, len(paths))
 	for _, selectedPath := range paths {
-		cleaned := strings.Trim(strings.TrimSpace(selectedPath), "/")
-		patterns = append(patterns, cleaned+"/**")
+		selected, err := normalizeSelectedPath(selectedPath)
+		if err != nil {
+			return nil, err
+		}
+		pattern := "**"
+		if selected != "" {
+			pattern = selected + "/**"
+		}
+		patterns = append(patterns, pattern)
 	}
-	return patterns
+	slices.Sort(patterns)
+	return slices.Compact(patterns), nil
 }
 
 func writeReport(destination io.Writer, report plugin.Report, indent bool) error {

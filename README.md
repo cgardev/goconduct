@@ -20,10 +20,6 @@ Google explains why Go supports this model in
 [Why Go is an ideal language for AI-assisted software engineering](https://developers.googleblog.com/why-go-is-an-ideal-language-for-ai-assisted-software-engineering/).
 The language has a compact specification, stable tooling, explicit dependencies, and fast feedback.
 
-Robert C. Martin describes a related verification workflow in
-[Uncle Bob on Software Fundamentals in the age of AI](https://www.youtube.com/live/zcLPGC-tvgk).
-That workflow uses deterministic checks to verify probabilistically generated code:
-
 - CRAP scores combine test coverage and cyclomatic complexity.
 - Mutation testing verifies that tests detect behavioral changes.
 - Acceptance tests verify observable behavior.
@@ -47,9 +43,9 @@ It keeps every result explicit, ordered, and suitable for an automated repair lo
 - Afferent coupling, efferent coupling, instability, abstractness, and main-sequence distance.
 - Direct and transitive dependency metrics.
 - Go statement coverage with path-specific limits.
-- CRAP analysis through `crap4go` with global and path-specific limits.
-- Duplication analysis through `dry4go`.
-- Mutation-site scanning and mutation execution through `mutate4go`.
+- CRAP analysis with global and path-specific limits.
+- Structural duplication analysis over normalized syntax trees.
+- Mutation-site discovery and mutation execution over covered sites.
 - Normalized, versioned, and deterministically ordered reports.
 - A Protocol Buffer API implemented with Connect RPC.
 - An Angular dashboard compiled into and served from the Go binary.
@@ -101,13 +97,15 @@ The default address accepts local connections only.
 
 ## Built-in plugins
 
+Every plugin runs inside the `goconduct` binary. No plugin starts another tool.
+
 | Plugin | Default behavior | External tool |
 | --- | --- | --- |
 | `architecture` | Analyzes imports, calls, cycles, coupling, and dependency policy. | None |
 | `coverage` | Runs Go tests and reads statement coverage. | `go` |
-| `crap` | Measures function risk and applies CRAP limits. | `crap4go` |
-| `duplication` | Reports structural duplicate candidates. | `dry4go` |
-| `mutation` | Scans mutation sites. Execution requires explicit configuration. | `mutate4go` |
+| `crap` | Measures function risk and applies CRAP limits. | `go` |
+| `duplication` | Reports structural duplicate candidates. | None |
+| `mutation` | Reports mutation sites. Execution runs every covered mutation. | `go` |
 
 Each plugin also provides its own command:
 
@@ -115,7 +113,7 @@ Each plugin also provides its own command:
 goconduct coverage --repository . --minimum 80
 goconduct crap --repository . --maximum 8
 goconduct duplication --repository . --maximum 0
-goconduct mutation --repository . plugin
+goconduct mutation --repository . --path plugin
 ```
 
 Use each command's `--help` output for its complete option set.
@@ -297,7 +295,7 @@ cmd/goconduct/internal/module/quality Application-owned Connect module
 failure/                              Public error categories for every package
 internal/appmodule/                   Application host adapter and request scope
 internal/kernel/                      Logger, evaluator catalog, and command runner
-internal/library/                     Shared application infrastructure
+internal/library/                     Shared infrastructure and analysis libraries
 internal/protogen/                    Generated Go transport code
 plugin/                               Public plugin SDK and evidence model
 plugin/architecture/                  Architecture evaluator and embedded dashboard

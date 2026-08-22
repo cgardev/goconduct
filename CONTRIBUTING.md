@@ -8,7 +8,6 @@ Small changes with deterministic tests are easier to review than broad rewrites.
 - Go at the version declared in `go.mod`.
 - Buf and the Go Protocol Buffer generators for transport changes.
 - Node.js and `pnpm` for web changes.
-- `crap4go`, `dry4go`, and `mutate4go` for their integration paths.
 
 ## Change rules
 

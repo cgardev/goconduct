@@ -58,7 +58,7 @@
       ]
     },
     "crap": {
-      "command": "crap4go",
+      "command": "go",
       "maximumScore": 8,
       "pathPolicies": [
         {
@@ -76,14 +76,12 @@
       ]
     },
     "duplication": {
-      "command": "dry4go",
       "similarity": 0.82,
       "minimumLines": 4,
       "minimumNodes": 20,
       "maximumCandidates": 0
     },
     "mutation": {
-      "command": "mutate4go",
       "paths": ["plugin"],
       "execute": false,
       "timeoutFactor": 10,

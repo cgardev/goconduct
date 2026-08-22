@@ -1,4 +1,4 @@
-// Package duplication integrates dry4go as a composable quality plugin.
+// Package duplication reports structural duplicates as a composable quality plugin.
 package duplication
 
 import (
@@ -40,12 +40,8 @@ func (duplicationPlugin) Activate(_ context.Context, injector do.Injector) error
 	return catalog.Register(evaluator)
 }
 
-func (duplicationPlugin) RegisterCommands(injector do.Injector, root *cobra.Command) error {
-	runner, err := do.Invoke[plugin.CommandRunner](injector)
-	if err != nil {
-		return err
-	}
-	root.AddCommand(newDuplicationCommand(runner))
+func (duplicationPlugin) RegisterCommands(_ do.Injector, root *cobra.Command) error {
+	root.AddCommand(newDuplicationCommand())
 	return nil
 }
 
@@ -59,19 +55,15 @@ func (duplicationPlugin) RegisterEndpoints(
 
 func newEvaluatorInjector() func(do.Injector) {
 	return do.Lazy[*Evaluator](func(injector do.Injector) (*Evaluator, error) {
-		runner, err := do.Invoke[plugin.CommandRunner](injector)
-		if err != nil {
-			return nil, err
-		}
 		configuration, err := do.Invoke[Configuration](injector)
 		if err != nil {
 			configuration = DefaultConfiguration()
 		}
-		return NewEvaluator(runner, configuration)
+		return NewEvaluator(configuration)
 	})
 }
 
-func newDuplicationCommand(runner plugin.CommandRunner) *cobra.Command {
+func newDuplicationCommand() *cobra.Command {
 	var repositoryRoot string
 	var paths []string
 	var maximum int
@@ -79,13 +71,13 @@ func newDuplicationCommand(runner plugin.CommandRunner) *cobra.Command {
 	var indent bool
 	command := &cobra.Command{
 		Use:   "duplication",
-		Short: "Run dry4go and enforce a duplicate candidate limit.",
+		Short: "Report structural duplicates and enforce a candidate limit.",
 		Args:  cobra.NoArgs,
 		RunE: func(command *cobra.Command, _ []string) error {
 			configuration := DefaultConfiguration()
 			configuration.MaximumCandidates = maximum
 			configuration.Similarity = similarity
-			evaluator, err := NewEvaluator(runner, configuration)
+			evaluator, err := NewEvaluator(configuration)
 			if err != nil {
 				return err
 			}
@@ -103,19 +95,19 @@ func newDuplicationCommand(runner plugin.CommandRunner) *cobra.Command {
 			if err := encoder.Encode(report); err != nil {
 				return failure.Unavailable("write duplication report", err)
 			}
-			if len(report.Findings) != 0 {
+			if failing := plugin.FailingFindings(report.Findings); failing != 0 {
 				return failure.BusinessRule(fmt.Sprintf(
 					"duplication analysis has %d policy findings",
-					len(report.Findings),
+					failing,
 				), nil)
 			}
 			return nil
 		},
 	}
 	command.Flags().StringVar(&repositoryRoot, "repository", ".", "Select the Go repository root.")
-	command.Flags().StringArrayVar(&paths, "path", nil, "Select source paths for dry4go.")
+	command.Flags().StringArrayVar(&paths, "path", nil, "Select analyzed source paths.")
 	command.Flags().IntVar(&maximum, "maximum", 0, "Allow this number of duplicate candidates.")
-	command.Flags().Float64Var(&similarity, "similarity", 0.82, "Set the dry4go similarity threshold.")
+	command.Flags().Float64Var(&similarity, "similarity", 0.82, "Set the structural similarity threshold.")
 	command.Flags().BoolVar(&indent, "indent", false, "Indent the JSON report.")
 	return command
 }

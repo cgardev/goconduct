@@ -1,4 +1,4 @@
-// Package crap integrates crap4go as a composable quality plugin.
+// Package crap measures the CRAP score as a composable quality plugin.
 package crap
 
 import (
@@ -78,7 +78,7 @@ func newCRAPCommand(runner plugin.CommandRunner) *cobra.Command {
 	var indent bool
 	command := &cobra.Command{
 		Use:   "crap",
-		Short: "Run crap4go and enforce a maximum function score.",
+		Short: "Measure the change risk of every Go function and enforce a limit.",
 		Args:  cobra.NoArgs,
 		RunE: func(command *cobra.Command, _ []string) error {
 			configuration := DefaultConfiguration()
@@ -101,9 +101,9 @@ func newCRAPCommand(runner plugin.CommandRunner) *cobra.Command {
 			if err := encoder.Encode(report); err != nil {
 				return failure.Unavailable("write CRAP report", err)
 			}
-			if len(report.Findings) != 0 {
+			if failing := plugin.FailingFindings(report.Findings); failing != 0 {
 				return failure.BusinessRule(
-					fmt.Sprintf("CRAP analysis has %d policy findings", len(report.Findings)),
+					fmt.Sprintf("CRAP analysis has %d policy findings", failing),
 					nil,
 				)
 			}
@@ -111,7 +111,7 @@ func newCRAPCommand(runner plugin.CommandRunner) *cobra.Command {
 		},
 	}
 	command.Flags().StringVar(&repositoryRoot, "repository", ".", "Select the Go repository root.")
-	command.Flags().StringArrayVar(&paths, "path", nil, "Filter analyzed source paths.")
+	command.Flags().StringArrayVar(&paths, "path", nil, "Select analyzed source paths.")
 	command.Flags().Float64Var(&maximum, "maximum", 8, "Set the maximum accepted CRAP score.")
 	command.Flags().BoolVar(&indent, "indent", false, "Indent the JSON report.")
 	return command

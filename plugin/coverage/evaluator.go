@@ -1,6 +1,7 @@
 package coverage
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -9,11 +10,19 @@ import (
 	"slices"
 	"strings"
 
+	"golang.org/x/mod/modfile"
 	"golang.org/x/tools/cover"
 
 	"github.com/cgardev/goconduct/failure"
 	"github.com/cgardev/goconduct/plugin"
 	"github.com/cgardev/goconduct/policy"
+)
+
+const (
+	ruleMinimumPathCoverage = "minimum-path-coverage"
+	ruleTestRun             = "go-test-run"
+	findingTestRun          = "coverage:test-run"
+	messageTestRun          = "the Go test run failed, so this report omits every package that did not run"
 )
 
 type fileCoverage struct {
@@ -72,71 +81,128 @@ func (evaluator *Evaluator) Evaluate(
 	ctx context.Context,
 	request plugin.Request,
 ) (report plugin.Report, resultErr error) {
-	repositoryRoot := request.RepositoryRoot
-	if repositoryRoot == "" {
-		repositoryRoot = "."
-	}
-	profile, err := os.CreateTemp("", "goconduct-coverage-*.out")
+	repositoryRoot, err := filepath.Abs(cmp.Or(request.RepositoryRoot, "."))
 	if err != nil {
-		return plugin.Report{}, failure.Unavailable("create coverage profile", err)
+		return plugin.Report{}, failure.Internal("resolve coverage repository root", err)
 	}
-	profilePath := profile.Name()
-	if err := profile.Close(); err != nil {
-		return plugin.Report{}, failure.Unavailable("close coverage profile", err)
+	modulePath, err := repositoryModulePath(repositoryRoot)
+	if err != nil {
+		return plugin.Report{}, err
+	}
+	packages, err := evaluator.packages(request.Paths)
+	if err != nil {
+		return plugin.Report{}, err
+	}
+	profilePath, err := createProfileFile()
+	if err != nil {
+		return plugin.Report{}, err
 	}
 	defer func() {
 		if err := os.Remove(profilePath); err != nil && !errors.Is(err, os.ErrNotExist) {
 			resultErr = errors.Join(resultErr, failure.Unavailable("remove coverage profile", err))
 		}
 	}()
-	packages := evaluator.packages(request.Paths)
 	arguments := []string{"test", "-covermode=atomic", "-coverprofile=" + profilePath}
 	arguments = append(arguments, packages...)
-	result, err := evaluator.runner.Run(ctx, plugin.Command{
+	result, runErr := evaluator.runner.Run(ctx, plugin.Command{
 		Path: evaluator.configuration.Command, Arguments: arguments, Directory: repositoryRoot,
 	})
-	if err != nil {
-		return plugin.Report{}, fmt.Errorf(
-			"run Go coverage: %w; stderr: %s",
-			err,
-			strings.TrimSpace(string(result.StandardError)),
-		)
+	profiles, parseErr := cover.ParseProfiles(profilePath)
+	if parseErr != nil {
+		if runErr != nil {
+			return plugin.Report{}, runFailure(runErr, result)
+		}
+		return plugin.Report{}, failure.DataIntegrity("parse coverage profile", parseErr)
 	}
-	profiles, err := cover.ParseProfiles(profilePath)
-	if err != nil {
-		return plugin.Report{}, failure.DataIntegrity("parse coverage profile", err)
+	// The Go tool writes a complete profile for every package that compiled and
+	// ran, so a failed run still measures them. The evaluator keeps that
+	// measurement and reports the failed run as one finding. It returns the run
+	// failure only when the profile measures nothing.
+	if len(profiles) == 0 && runErr != nil {
+		return plugin.Report{}, runFailure(runErr, result)
 	}
-	files, err := summarizeProfiles(repositoryRoot, profiles)
-	if err != nil {
-		return plugin.Report{}, err
-	}
-	return evaluator.report(files)
+	files := summarizeProfiles(repositoryRoot, modulePath, profiles)
+	return evaluator.report(files, runErr != nil)
 }
 
-func (evaluator *Evaluator) packages(requestPaths []string) []string {
+// createProfileFile reserves one profile path outside the analyzed repository.
+func createProfileFile() (string, error) {
+	profile, err := os.CreateTemp("", "goconduct-coverage-*.out")
+	if err != nil {
+		return "", failure.Unavailable("create coverage profile", err)
+	}
+	if err := profile.Close(); err != nil {
+		return "", failure.Unavailable("close coverage profile", err)
+	}
+	return profile.Name(), nil
+}
+
+// runFailure keeps both output streams of the failed Go command.
+func runFailure(cause error, result plugin.CommandResult) error {
+	return fmt.Errorf(
+		"run Go coverage: %w; output: %s%s",
+		cause,
+		strings.TrimSpace(string(result.StandardOutput)),
+		strings.TrimSpace(string(result.StandardError)),
+	)
+}
+
+// packages selects the Go package patterns of one request.
+func (evaluator *Evaluator) packages(requestPaths []string) ([]string, error) {
 	if len(requestPaths) == 0 {
-		return slices.Clone(evaluator.configuration.Packages)
+		return slices.Clone(evaluator.configuration.Packages), nil
 	}
 	packages := make([]string, 0, len(requestPaths))
 	for _, requestedPath := range requestPaths {
-		cleaned := filepath.ToSlash(filepath.Clean(requestedPath))
-		cleaned = strings.TrimPrefix(cleaned, "./")
-		if cleaned == "." || cleaned == "" {
+		selected, err := normalizeSelectedPath(requestedPath)
+		if err != nil {
+			return nil, err
+		}
+		if selected == "" {
 			packages = append(packages, "./...")
 			continue
 		}
-		packages = append(packages, "./"+cleaned+"/...")
+		packages = append(packages, "./"+selected+"/...")
 	}
 	slices.Sort(packages)
-	return slices.Compact(packages)
+	return slices.Compact(packages), nil
 }
 
-func summarizeProfiles(repositoryRoot string, profiles []*cover.Profile) ([]fileCoverage, error) {
+// normalizeSelectedPath converts one selected path to a repository-relative path
+// with forward slashes. The empty result names the repository root. An absolute
+// path or a path that leaves the repository is rejected, because the policy
+// patterns and the Go package patterns both need a repository-relative path.
+func normalizeSelectedPath(selectedPath string) (string, error) {
+	trimmed := strings.TrimSpace(selectedPath)
+	if trimmed == "" {
+		return "", failure.Validation("coverage path is empty", nil)
+	}
+	cleaned := filepath.ToSlash(filepath.Clean(trimmed))
+	if cleaned == "." {
+		return "", nil
+	}
+	if !filepath.IsLocal(filepath.FromSlash(cleaned)) {
+		return "", failure.Validation(fmt.Sprintf(
+			"coverage path %q is not repository-relative",
+			selectedPath,
+		), nil)
+	}
+	return cleaned, nil
+}
+
+// summarizeProfiles weights every block by its statement count.
+// It drops one entry that names a file outside the repository, so a foreign
+// entry never discards the files the run measured correctly.
+func summarizeProfiles(
+	repositoryRoot string,
+	modulePath string,
+	profiles []*cover.Profile,
+) []fileCoverage {
 	files := make([]fileCoverage, 0, len(profiles))
 	for _, profile := range profiles {
-		relativePath, err := resolveProfilePath(repositoryRoot, profile.FileName)
-		if err != nil {
-			return nil, err
+		relativePath, inRepository := resolveProfilePath(repositoryRoot, modulePath, profile.FileName)
+		if !inRepository {
+			continue
 		}
 		entry := fileCoverage{path: relativePath}
 		for _, block := range profile.Blocks {
@@ -150,39 +216,61 @@ func summarizeProfiles(repositoryRoot string, profiles []*cover.Profile) ([]file
 	slices.SortFunc(files, func(left, right fileCoverage) int {
 		return strings.Compare(left.path, right.path)
 	})
-	return files, nil
+	return files
 }
 
-func resolveProfilePath(repositoryRoot, profilePath string) (string, error) {
-	if filepath.IsAbs(profilePath) {
+// repositoryModulePath reads the module declaration of the repository root.
+// A coverage profile names each file with the module path, so the evaluator
+// needs that prefix to recover the repository-relative path.
+func repositoryModulePath(repositoryRoot string) (string, error) {
+	payload, err := os.ReadFile(filepath.Join(repositoryRoot, "go.mod"))
+	if errors.Is(err, os.ErrNotExist) {
+		return "", failure.Validation(fmt.Sprintf(
+			"repository %q holds no go.mod file",
+			repositoryRoot,
+		), err)
+	}
+	if err != nil {
+		return "", failure.Unavailable("read repository module file", err)
+	}
+	modulePath := modfile.ModulePath(payload)
+	if modulePath == "" {
+		return "", failure.DataIntegrity("module declaration not found in go.mod", nil)
+	}
+	return modulePath, nil
+}
+
+// resolveProfilePath recovers the repository-relative path of one profile entry.
+// The Go tool names every file with the module path, so the evaluator strips
+// that prefix instead of searching the file system for a matching suffix. It
+// reports false for an entry that names no file of this repository.
+func resolveProfilePath(repositoryRoot, modulePath, profilePath string) (string, bool) {
+	candidate, trimmed := strings.CutPrefix(filepath.ToSlash(profilePath), modulePath+"/")
+	if !trimmed {
 		relative, err := filepath.Rel(repositoryRoot, profilePath)
 		if err != nil {
-			return "", failure.Internal(fmt.Sprintf("resolve coverage path %q", profilePath), err)
+			return "", false
 		}
-		return filepath.ToSlash(relative), nil
+		candidate = filepath.ToSlash(relative)
 	}
-	slashPath := filepath.ToSlash(profilePath)
-	segments := strings.Split(slashPath, "/")
-	for index := range segments {
-		candidate := filepath.Join(append([]string{repositoryRoot}, segments[index:]...)...)
-		information, err := os.Stat(candidate)
-		if err == nil && !information.IsDir() {
-			return strings.Join(segments[index:], "/"), nil
-		}
-		if err != nil && !errors.Is(err, os.ErrNotExist) {
-			return "", failure.Unavailable(fmt.Sprintf("inspect coverage path %q", candidate), err)
-		}
+	if !filepath.IsLocal(filepath.FromSlash(candidate)) || candidate == "." {
+		return "", false
 	}
-	return "", failure.DataIntegrity(fmt.Sprintf(
-		"coverage path %q is outside repository %q",
-		profilePath,
-		repositoryRoot,
-	), nil)
+	return candidate, true
 }
 
-func (evaluator *Evaluator) report(files []fileCoverage) (plugin.Report, error) {
-	metrics := make([]plugin.Metric, 0, len(files)+1)
+// report converts the measured files to metrics and policy findings.
+// A failed test run adds one finding, so an incomplete profile never reports a
+// silent success.
+func (evaluator *Evaluator) report(files []fileCoverage, testRunFailed bool) (plugin.Report, error) {
+	metrics := make([]plugin.Metric, 0, len(files))
 	findings := make([]plugin.Finding, 0)
+	if testRunFailed {
+		findings = append(findings, plugin.Finding{
+			ID: findingTestRun, Rule: ruleTestRun,
+			Severity: plugin.SeverityError, Message: messageTestRun,
+		})
+	}
 	var totalStatements int64
 	var totalCovered int64
 	for _, file := range files {
@@ -204,7 +292,7 @@ func (evaluator *Evaluator) report(files []fileCoverage) (plugin.Report, error) 
 		limit := threshold.Value
 		findings = append(findings, plugin.Finding{
 			ID:   "coverage:" + threshold.PolicyID + ":" + file.path,
-			Rule: "minimum-path-coverage", Path: file.path, Severity: threshold.Severity,
+			Rule: ruleMinimumPathCoverage, Path: file.path, Severity: threshold.Severity,
 			Message: fmt.Sprintf(
 				"statement coverage %.2f%% is below the %.2f%% limit from policy %q",
 				actual,
@@ -221,9 +309,11 @@ func (evaluator *Evaluator) report(files []fileCoverage) (plugin.Report, error) 
 	return plugin.NewReport("coverage", metrics, findings)
 }
 
+// coveragePercent reports zero for an empty statement count, as crap4go does.
+// An unmeasurable denominator must not satisfy a minimum coverage limit.
 func coveragePercent(covered, statements int64) float64 {
 	if statements == 0 {
-		return 100
+		return 0
 	}
 	return float64(covered) * 100 / float64(statements)
 }

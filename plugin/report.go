@@ -158,3 +158,16 @@ func compareFinding(left, right Finding) int {
 	}
 	return cmp.Compare(left.ID, right.ID)
 }
+
+// FailingFindings counts the findings that stop a check.
+// A notice records evidence and a warning reports a risk, so neither closes a
+// gate. Only an error does.
+func FailingFindings(findings []Finding) int {
+	failing := 0
+	for _, finding := range findings {
+		if finding.Severity == SeverityError {
+			failing++
+		}
+	}
+	return failing
+}

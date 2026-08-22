@@ -95,7 +95,7 @@ func inspectErrorFactories(t *testing.T, path string, relative string) {
 		if name == "errors.New" && !exempt {
 			t.Errorf("%s:%d creates an unclassified error with errors.New", relative, line)
 		}
-		if name == "fmt.Errorf" && !wrapsCause(call) {
+		if name == "fmt.Errorf" && !exempt && !wrapsCause(call) {
 			t.Errorf("%s:%d creates an unclassified error with fmt.Errorf", relative, line)
 		}
 		return true
@@ -104,7 +104,8 @@ func inspectErrorFactories(t *testing.T, path string, relative string) {
 
 func exemptDirectory(directory string) bool {
 	for _, exempt := range exemptDirectories {
-		if directory == exempt {
+		if directory == exempt ||
+			strings.HasPrefix(directory, exempt+string(filepath.Separator)) {
 			return true
 		}
 	}

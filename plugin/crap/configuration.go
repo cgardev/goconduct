@@ -8,18 +8,17 @@ import (
 
 const metricCRAPScore = "crap.score"
 
-// Configuration defines crap4go execution and score limits.
+// Configuration defines the coverage run and the CRAP score limits.
 type Configuration struct {
 	Command      string              `json:"command"`
-	TestCommand  string              `json:"testCommand,omitempty"`
+	Packages     []string            `json:"packages"`
 	MaximumScore float64             `json:"maximumScore"`
-	MaxWorkers   int                 `json:"maxWorkers,omitempty"`
 	Policies     []policy.PathPolicy `json:"pathPolicies,omitempty"`
 }
 
 // DefaultConfiguration returns the experimental agent-oriented score limit.
 func DefaultConfiguration() Configuration {
-	return Configuration{Command: "crap4go", MaximumScore: 8}
+	return Configuration{Command: "go", Packages: []string{"./..."}, MaximumScore: 8}
 }
 
 func cloneConfiguration(configuration Configuration) Configuration {
@@ -33,5 +32,6 @@ func cloneConfiguration(configuration Configuration) Configuration {
 		})
 	}
 	configuration.Policies = policies
+	configuration.Packages = slices.Clone(configuration.Packages)
 	return configuration
 }

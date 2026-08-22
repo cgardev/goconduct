@@ -1,20 +1,40 @@
 package mutation
 
 import (
+	"cmp"
 	"context"
+	"errors"
 	"fmt"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/cgardev/goconduct/failure"
+	"github.com/cgardev/goconduct/internal/library/gocoverage"
+	"github.com/cgardev/goconduct/internal/library/gomutation"
+	"github.com/cgardev/goconduct/internal/library/gosource"
 	"github.com/cgardev/goconduct/plugin"
 )
 
-// Evaluator inventories or executes mutations through mutate4go.
+// minimumMutationTimeout bounds a test suite that finishes almost instantly, so
+// one mutation still gets a usable deadline.
+const minimumMutationTimeout = 5 * time.Second
+
+// fileResult holds the mutation measurements of one source file.
+type fileResult struct {
+	path      string
+	total     int
+	covered   int
+	uncovered int
+	killed    int
+	survivors []gomutation.Site
+	executed  bool
+}
+
+// Evaluator discovers mutation sites and, on request, runs the mutations.
 type Evaluator struct {
 	runner        plugin.CommandRunner
 	configuration Configuration
@@ -30,9 +50,6 @@ func NewEvaluator(runner plugin.CommandRunner, configuration Configuration) (*Ev
 	if strings.TrimSpace(configuration.Command) == "" {
 		return nil, failure.Validation("mutation command is empty", nil)
 	}
-	if configuration.MaxWorkers < 0 {
-		return nil, failure.Validation("mutation worker count is negative", nil)
-	}
 	if configuration.TimeoutFactor <= 0 {
 		return nil, failure.Validation("mutation timeout factor must be positive", nil)
 	}
@@ -45,208 +62,332 @@ func NewEvaluator(runner plugin.CommandRunner, configuration Configuration) (*Ev
 // Name returns the stable evaluator identifier.
 func (*Evaluator) Name() string { return "mutation" }
 
-// Evaluate scans or mutates every selected production Go file.
+// Evaluate reports the mutation sites of every selected file.
+// It runs each covered mutation only when the configuration asks for it.
 func (evaluator *Evaluator) Evaluate(
 	ctx context.Context,
 	request plugin.Request,
-) (plugin.Report, error) {
-	root := request.RepositoryRoot
-	if root == "" {
-		root = "."
+) (report plugin.Report, resultErr error) {
+	root, err := filepath.Abs(cmp.Or(request.RepositoryRoot, "."))
+	if err != nil {
+		return plugin.Report{}, failure.Internal("resolve mutation repository root", err)
 	}
-	paths := request.Paths
-	if len(paths) == 0 {
-		paths = evaluator.configuration.Paths
+	selected := request.Paths
+	if len(selected) == 0 {
+		selected = evaluator.configuration.Paths
 	}
-	files, err := mutationFiles(root, paths)
+	files, err := gosource.Files(root, selected)
 	if err != nil {
 		return plugin.Report{}, err
 	}
-	results := make([]mutationResult, 0, len(files))
-	for _, file := range files {
-		if err := ctx.Err(); err != nil {
-			return plugin.Report{}, err
-		}
-		result, err := evaluator.evaluateFile(ctx, root, file)
-		if err != nil {
-			return plugin.Report{}, err
-		}
-		results = append(results, result)
+	if len(files) == 0 {
+		return plugin.Report{}, failure.Validation(
+			"the selected mutation paths hold no production Go file",
+			nil,
+		)
+	}
+	profilePath, remove, err := newCoverageProfile()
+	if err != nil {
+		return plugin.Report{}, err
+	}
+	defer func() {
+		resultErr = errors.Join(resultErr, remove())
+	}()
+	baseline, err := evaluator.runCoverage(ctx, root, profilePath)
+	if err != nil {
+		return plugin.Report{}, err
+	}
+	modulePath, err := gosource.ModulePath(root)
+	if err != nil {
+		return plugin.Report{}, err
+	}
+	profile, err := gocoverage.Load(profilePath, modulePath)
+	if err != nil {
+		return plugin.Report{}, err
+	}
+	results, err := evaluator.analyze(ctx, root, files, profile, baseline)
+	if err != nil {
+		return plugin.Report{}, err
 	}
 	return evaluator.report(results)
 }
 
-func (evaluator *Evaluator) evaluateFile(
+// newCoverageProfile creates the profile outside the analyzed repository.
+func newCoverageProfile() (string, func() error, error) {
+	profile, err := os.CreateTemp("", "goconduct-mutation-*.out")
+	if err != nil {
+		return "", nil, failure.Unavailable("create mutation coverage profile", err)
+	}
+	path := profile.Name()
+	if err := profile.Close(); err != nil {
+		return "", nil, failure.Unavailable("close mutation coverage profile", err)
+	}
+	return path, func() error {
+		if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return failure.Unavailable("remove mutation coverage profile", err)
+		}
+		return nil
+	}, nil
+}
+
+// runCoverage measures the coverage and the duration of the unchanged suite.
+// The duration bounds every mutation run.
+func (evaluator *Evaluator) runCoverage(
 	ctx context.Context,
 	root string,
-	file string,
-) (mutationResult, error) {
-	arguments := []string{file}
-	if !evaluator.configuration.Execute {
-		arguments = append(arguments, "--scan")
-	} else {
-		if evaluator.configuration.ReuseCoverage {
-			arguments = append(arguments, "--reuse-coverage")
-		}
-		if evaluator.configuration.SinceLastRun {
-			arguments = append(arguments, "--since-last-run")
-		}
-		if evaluator.configuration.MutateAll {
-			arguments = append(arguments, "--mutate-all")
-		}
-		if evaluator.configuration.TestCommand != "" {
-			arguments = append(arguments, "--test-command", evaluator.configuration.TestCommand)
-		}
-		if evaluator.configuration.MaxWorkers > 0 {
-			arguments = append(arguments, "--max-workers", strconv.Itoa(evaluator.configuration.MaxWorkers))
-		}
-		arguments = append(arguments, "--timeout-factor", strconv.Itoa(evaluator.configuration.TimeoutFactor))
-	}
+	profilePath string,
+) (time.Duration, error) {
+	arguments := []string{"test", "-covermode=atomic", "-coverprofile=" + profilePath}
+	arguments = append(arguments, slices.Clone(evaluator.configuration.Packages)...)
+	started := time.Now()
 	result, err := evaluator.runner.Run(ctx, plugin.Command{
 		Path: evaluator.configuration.Command, Arguments: arguments, Directory: root,
 	})
 	if err != nil {
-		return mutationResult{}, fmt.Errorf(
-			"run mutate4go for %q: %w; stderr: %s",
-			file,
+		return 0, fmt.Errorf(
+			"run the unchanged test suite: %w; output: %s%s",
 			err,
+			strings.TrimSpace(string(result.StandardOutput)),
 			strings.TrimSpace(string(result.StandardError)),
 		)
 	}
-	report, err := parseMutationReport(result.StandardOutput)
-	if err != nil {
-		return mutationResult{}, fmt.Errorf("parse mutate4go report for %q: %w", file, err)
-	}
-	report.path = file
-	return report, nil
+	return time.Since(started), nil
 }
 
-func mutationFiles(root string, selectedPaths []string) ([]string, error) {
-	if len(selectedPaths) == 0 {
-		return nil, failure.Validation("mutation evaluation requires at least one path", nil)
-	}
-	rootPath, err := filepath.Abs(root)
-	if err != nil {
-		return nil, failure.Internal("resolve mutation repository root", err)
-	}
-	files := make([]string, 0)
-	for _, selectedPath := range selectedPaths {
-		if filepath.IsAbs(selectedPath) {
-			return nil, failure.Validation(
-				fmt.Sprintf("mutation path %q is not repository-relative", selectedPath),
-				nil,
-			)
+func (evaluator *Evaluator) analyze(
+	ctx context.Context,
+	root string,
+	files []string,
+	profile *gocoverage.Profile,
+	baseline time.Duration,
+) ([]fileResult, error) {
+	results := make([]fileResult, 0, len(files))
+	for _, file := range files {
+		if err := ctx.Err(); err != nil {
+			return nil, err
 		}
-		fullPath := filepath.Join(rootPath, filepath.Clean(selectedPath))
-		relative, err := filepath.Rel(rootPath, fullPath)
-		if err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
-			return nil, failure.Validation(
-				fmt.Sprintf("mutation path %q is outside the repository", selectedPath),
-				nil,
-			)
-		}
-		information, err := os.Stat(fullPath)
+		result, err := evaluator.analyzeFile(ctx, root, file, profile, baseline)
 		if err != nil {
-			return nil, failure.Unavailable(fmt.Sprintf("inspect mutation path %q", selectedPath), err)
+			return nil, err
 		}
-		if !information.IsDir() {
-			if validMutationFile(fullPath) {
-				files = append(files, filepath.ToSlash(relative))
-			}
+		results = append(results, result)
+	}
+	return results, nil
+}
+
+func (evaluator *Evaluator) analyzeFile(
+	ctx context.Context,
+	root string,
+	file string,
+	profile *gocoverage.Profile,
+	baseline time.Duration,
+) (fileResult, error) {
+	source := filepath.Join(root, filepath.FromSlash(file))
+	sites, err := gomutation.Sites(source)
+	if err != nil {
+		return fileResult{}, err
+	}
+	covered := make([]gomutation.Site, 0, len(sites))
+	for _, site := range sites {
+		if measurable(profile, file, site) {
+			covered = append(covered, site)
+		}
+	}
+	result := fileResult{
+		path: file, total: len(sites), covered: len(covered),
+		uncovered: len(sites) - len(covered),
+	}
+	if !evaluator.configuration.Execute {
+		return result, nil
+	}
+	result.executed = true
+	result.killed, result.survivors, err = evaluator.runMutations(ctx, root, source, covered, baseline)
+	return result, err
+}
+
+// measurable reports whether the analysis can run one mutation site.
+// A Go coverage profile describes function bodies only, so it never reaches a
+// package level expression. The Go runtime evaluates such an expression when it
+// loads the package, so every test run reaches it.
+func measurable(profile *gocoverage.Profile, file string, site gomutation.Site) bool {
+	if site.Function == "" {
+		return true
+	}
+	return profile.CoversLine(file, site.Line)
+}
+
+// runMutations applies each covered mutation, runs the suite, and restores the
+// source. A test failure means the suite detects the changed behavior.
+func (evaluator *Evaluator) runMutations(
+	ctx context.Context,
+	root string,
+	source string,
+	sites []gomutation.Site,
+	baseline time.Duration,
+) (killed int, survivors []gomutation.Site, resultErr error) {
+	if len(sites) == 0 {
+		return 0, nil, nil
+	}
+	original, err := os.ReadFile(source)
+	if err != nil {
+		return 0, nil, failure.Unavailable(fmt.Sprintf("read Go source %q", source), err)
+	}
+	defer func() {
+		if err := os.WriteFile(source, original, 0o600); err != nil {
+			resultErr = errors.Join(resultErr, failure.Unavailable(
+				fmt.Sprintf("restore Go source %q", source), err,
+			))
+		}
+	}()
+	survivors = make([]gomutation.Site, 0)
+	timeout := max(baseline*time.Duration(evaluator.configuration.TimeoutFactor), minimumMutationTimeout)
+	for _, site := range sites {
+		detected, err := evaluator.runMutation(ctx, root, source, string(original), site, timeout)
+		if err != nil {
+			return killed, survivors, err
+		}
+		if detected {
+			killed++
 			continue
 		}
-		err = filepath.WalkDir(fullPath, func(path string, entry fs.DirEntry, walkErr error) error {
-			if walkErr != nil {
-				return walkErr
-			}
-			if entry.IsDir() {
-				if path != fullPath && ignoredMutationDirectory(entry.Name()) {
-					return filepath.SkipDir
-				}
-				return nil
-			}
-			if !validMutationFile(path) {
-				return nil
-			}
-			relative, err := filepath.Rel(rootPath, path)
-			if err != nil {
-				return err
-			}
-			files = append(files, filepath.ToSlash(relative))
-			return nil
-		})
-		if err != nil {
-			return nil, failure.Unavailable(
-				fmt.Sprintf("discover mutation files in %q", selectedPath),
-				err,
-			)
-		}
+		survivors = append(survivors, site)
 	}
-	slices.Sort(files)
-	files = slices.Compact(files)
-	if len(files) == 0 {
-		return nil, failure.Validation("selected mutation paths contain no production Go files", nil)
+	return killed, survivors, nil
+}
+
+// runMutation reports whether the test suite detects one changed expression.
+func (evaluator *Evaluator) runMutation(
+	ctx context.Context,
+	root string,
+	source string,
+	original string,
+	site gomutation.Site,
+	timeout time.Duration,
+) (bool, error) {
+	if err := ctx.Err(); err != nil {
+		return false, err
 	}
-	return files, nil
+	if err := os.WriteFile(source, []byte(site.Apply(original)), 0o600); err != nil {
+		return false, failure.Unavailable(fmt.Sprintf("write mutation into %q", source), err)
+	}
+	bounded, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	arguments := append([]string{"test"}, slices.Clone(evaluator.configuration.Packages)...)
+	_, err := evaluator.runner.Run(bounded, plugin.Command{
+		Path: evaluator.configuration.Command, Arguments: arguments, Directory: root,
+	})
+	if err != nil && ctx.Err() != nil {
+		return false, ctx.Err()
+	}
+	return err != nil, nil
 }
 
-func validMutationFile(path string) bool {
-	return filepath.Ext(path) == ".go" && !strings.HasSuffix(path, "_test.go")
-}
-
-func ignoredMutationDirectory(name string) bool {
-	return strings.HasPrefix(name, ".") || name == "target" || name == "vendor"
-}
-
-func (evaluator *Evaluator) report(results []mutationResult) (plugin.Report, error) {
-	metrics := make([]plugin.Metric, 0, len(results)*5)
+func (evaluator *Evaluator) report(results []fileResult) (plugin.Report, error) {
+	metrics := make([]plugin.Metric, 0, len(results)*6)
 	findings := make([]plugin.Finding, 0)
 	for _, result := range results {
-		metrics = append(metrics,
-			mutationMetric(result.path, "total", result.total),
-			mutationMetric(result.path, "covered", result.covered),
-			mutationMetric(result.path, "uncovered", result.uncovered),
-		)
-		if result.executed {
-			metrics = append(metrics,
-				mutationMetric(result.path, "killed", result.killed),
-				mutationMetric(result.path, "survived", result.survived),
-				plugin.Metric{
-					ID: "mutation:killed-percent:" + result.path, Path: result.path,
-					Name: "mutation.killed.percent", Value: killedPercent(result), Unit: "percent",
-				},
-			)
-		}
-		if result.survived > evaluator.configuration.MaximumSurvivors {
-			actual := float64(result.survived)
-			limit := float64(evaluator.configuration.MaximumSurvivors)
-			findings = append(findings, plugin.Finding{
-				ID: "mutation:survived:" + result.path, Rule: "maximum-surviving-mutations",
-				Path: result.path, Severity: plugin.SeverityError,
-				Message: fmt.Sprintf(
-					"%d mutations survived; the configured limit is %d",
-					result.survived,
-					evaluator.configuration.MaximumSurvivors,
-				),
-				Actual: &actual, Limit: &limit,
-			})
-		}
-		if result.uncovered > evaluator.configuration.MaximumUncovered {
-			actual := float64(result.uncovered)
-			limit := float64(evaluator.configuration.MaximumUncovered)
-			findings = append(findings, plugin.Finding{
-				ID: "mutation:uncovered:" + result.path, Rule: "maximum-uncovered-mutations",
-				Path: result.path, Severity: plugin.SeverityError,
-				Message: fmt.Sprintf(
-					"%d mutation sites are uncovered; the configured limit is %d",
-					result.uncovered,
-					evaluator.configuration.MaximumUncovered,
-				),
-				Actual: &actual, Limit: &limit,
-			})
-		}
+		metrics = append(metrics, mutationMetrics(result)...)
+		findings = append(findings, survivorFindings(result)...)
+		findings = append(findings, evaluator.thresholdFindings(result)...)
 	}
 	return plugin.NewReport("mutation", metrics, findings)
+}
+
+// mutationMetrics reports only the counts the evaluation measured.
+func mutationMetrics(result fileResult) []plugin.Metric {
+	metrics := []plugin.Metric{
+		mutationMetric(result.path, "total", result.total),
+		mutationMetric(result.path, "covered", result.covered),
+		mutationMetric(result.path, "uncovered", result.uncovered),
+	}
+	if !result.executed {
+		return metrics
+	}
+	metrics = append(metrics,
+		mutationMetric(result.path, "killed", result.killed),
+		mutationMetric(result.path, "survived", len(result.survivors)),
+	)
+	tested := result.killed + len(result.survivors)
+	if tested == 0 {
+		return metrics
+	}
+	return append(metrics, plugin.Metric{
+		ID: "mutation:killed-percent:" + result.path, Path: result.path,
+		Name: "mutation.killed.percent", Value: float64(result.killed) * 100 / float64(tested),
+		Unit: "percent",
+	})
+}
+
+// survivorFindings names every mutation the test suite did not detect.
+// They carry no limit, because the configured limit compares their count.
+func survivorFindings(result fileResult) []plugin.Finding {
+	findings := make([]plugin.Finding, 0, len(result.survivors))
+	for _, site := range result.survivors {
+		findings = append(findings, plugin.Finding{
+			ID: "mutation:survivor:" + result.path + ":" + strconv.Itoa(site.Line) +
+				":" + strconv.Itoa(site.Index),
+			Rule: "surviving-mutation", Path: result.path, Severity: plugin.SeverityNotice,
+			Message: fmt.Sprintf(
+				"%s line %d changes %s and the tests still pass",
+				site.Function,
+				site.Line,
+				site.Describe(),
+			),
+		})
+	}
+	return findings
+}
+
+// thresholdFindings applies the configured mutation limits.
+// Only an execution measures survivors, so a scan reports none.
+func (evaluator *Evaluator) thresholdFindings(result fileResult) []plugin.Finding {
+	findings := make([]plugin.Finding, 0, 2)
+	if result.uncovered > evaluator.configuration.MaximumUncovered {
+		findings = append(findings, mutationThresholdFinding(
+			"uncovered",
+			"maximum-uncovered-mutations",
+			result.path,
+			fmt.Sprintf(
+				"%d mutation sites are uncovered; the configured limit is %d",
+				result.uncovered,
+				evaluator.configuration.MaximumUncovered,
+			),
+			result.uncovered,
+			evaluator.configuration.MaximumUncovered,
+		))
+	}
+	if result.executed && len(result.survivors) > evaluator.configuration.MaximumSurvivors {
+		findings = append(findings, mutationThresholdFinding(
+			"survived",
+			"maximum-surviving-mutations",
+			result.path,
+			fmt.Sprintf(
+				"%d mutations survived; the configured limit is %d",
+				len(result.survivors),
+				evaluator.configuration.MaximumSurvivors,
+			),
+			len(result.survivors),
+			evaluator.configuration.MaximumSurvivors,
+		))
+	}
+	return findings
+}
+
+func mutationThresholdFinding(
+	kind string,
+	rule string,
+	path string,
+	message string,
+	actualCount int,
+	limitCount int,
+) plugin.Finding {
+	actual := float64(actualCount)
+	limit := float64(limitCount)
+	return plugin.Finding{
+		ID: "mutation:" + kind + ":" + path, Rule: rule,
+		Path: path, Severity: plugin.SeverityError, Message: message,
+		Actual: &actual, Limit: &limit,
+	}
 }
 
 func mutationMetric(path, name string, value int) plugin.Metric {
@@ -254,12 +395,4 @@ func mutationMetric(path, name string, value int) plugin.Metric {
 		ID: "mutation:" + name + ":" + path, Path: path,
 		Name: "mutation." + name, Value: float64(value), Unit: "count",
 	}
-}
-
-func killedPercent(result mutationResult) float64 {
-	tested := result.killed + result.survived
-	if tested == 0 {
-		return 100
-	}
-	return float64(result.killed) * 100 / float64(tested)
 }
