@@ -5,9 +5,8 @@
     <nav class="shell__navigation" aria-label="Sections">
       @for (group of navigationGroups; track group.id) {
         <section class="shell__group">
-          @if (!shell.dense()) {
+          @if (!shell.dense() && navigationGroups.length > 1) {
             <p class="shell__group-title">{{ group.title }}</p>
-            <p class="shell__group-subtitle">{{ group.subtitle }}</p>
           }
 
           @for (item of group.children; track item.id) {

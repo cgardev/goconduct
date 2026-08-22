@@ -1,8 +1,8 @@
 <div class="components">
   <app-page-header
     heading="Components"
-    description="Coupling metrics of every component the analysis found. Select a row to see
-      its dependencies."
+    description="Coupling metrics of every component the analysis found. Select a component to
+      see its dependencies."
     [counter]="counter()"
   />
 
@@ -141,15 +141,17 @@
                     selection.selectedComponentId() === component.id
                   "
                 >
-                  <th scope="row" class="component-table__identity">
-                    <button
-                      class="component-table__link"
-                      type="button"
-                      (click)="selection.select(component.id)"
-                    >
-                      {{ component.name }}
-                    </button>
-                    <small>{{ component.id }}</small>
+                  <th scope="row">
+                    <span class="component-table__identity">
+                      <button
+                        class="component-table__link"
+                        type="button"
+                        (click)="selection.select(component.id)"
+                      >
+                        {{ component.name }}
+                      </button>
+                      <small>{{ component.id }}</small>
+                    </span>
                   </th>
                   <td>
                     <span class="component-table__role">

@@ -16,10 +16,8 @@ export interface NavigationLink {
 export interface NavigationGroup {
   /** Stable identifier, used as the track key of the rendered list. */
   readonly id: string;
-  /** Heading of the group. */
+  /** Heading of the group, rendered only when more than one group exists. */
   readonly title: string;
-  /** One line that states what the group answers. */
-  readonly subtitle: string;
   /** Destinations of the group, in reading order. */
   readonly children: readonly NavigationLink[];
 }
@@ -37,14 +35,14 @@ function toLink(commands: NavCommands): string {
  * reaches this file without an edit.
  *
  * Pages add their entries here as they land, so this file stays the one place
- * the menu grows.
+ * the menu grows. A group heading labels one set of destinations against
+ * another, so the shell renders it only once a second group exists.
  */
 export function buildShellNavigation(): NavigationGroup[] {
   return [
     {
       id: 'architecture',
-      title: 'ARCHITECTURE',
-      subtitle: 'Readings of the analyzed repository',
+      title: 'Architecture',
       children: [
         {
           id: 'overview',

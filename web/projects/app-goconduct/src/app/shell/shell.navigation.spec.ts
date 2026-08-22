@@ -11,7 +11,7 @@ describe('buildShellNavigation', () => {
   it('groups every reading of the repository under architecture', () => {
     const navigation = buildShellNavigation();
 
-    expect(navigation.map((group) => group.title)).toEqual(['ARCHITECTURE']);
+    expect(navigation.map((group) => group.title)).toEqual(['Architecture']);
     expect(navigation[0]?.children.map((child) => child.title)).toEqual([
       'Overview',
       'Components',

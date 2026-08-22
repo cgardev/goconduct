@@ -1,0 +1,1 @@
+import{t as n$1}from"./main-JTOJUPML.js";var n=[{path:n$1.overview,loadComponent:()=>import(`./chunk-CipT2EaJ.js`).then(o=>o.OverviewPage)},{path:n$1.components,loadComponent:()=>import(`./chunk-Dh_9SaDA.js`).then(o=>o.ComponentsPage)},{path:n$1.findings,loadComponent:()=>import(`./chunk-BNcm0vP4.js`).then(o=>o.FindingsPage)}];export{n as ARCHITECTURE_ROUTES};

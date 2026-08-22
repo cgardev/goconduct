@@ -125,4 +125,27 @@ describe('ComponentsPage', () => {
 
     expect(element.querySelectorAll('tbody tr')).toHaveLength(3);
   });
+
+  /**
+   * The identity cell used to be a `<th>` laid out as a flex box, which takes
+   * the cell out of the table layout and loses its alignment with the column
+   * header. Counting the cells of a row against the header catches that.
+   */
+  it('gives every row exactly one cell per column', async () => {
+    const { element } = await renderPage();
+    const columns = element.querySelectorAll('thead th').length;
+
+    expect(columns).toBe(6);
+    for (const row of element.querySelectorAll('tbody tr')) {
+      expect(row.querySelectorAll(':scope > th, :scope > td')).toHaveLength(columns);
+    }
+  });
+
+  it('names the row through its component, so a screen reader can place a value', async () => {
+    const { element } = await renderPage();
+    const header = element.querySelector('tbody tr th[scope="row"]');
+
+    // The default sort puts the most depended-upon component first.
+    expect(header?.textContent).toContain('eventbus');
+  });
 });

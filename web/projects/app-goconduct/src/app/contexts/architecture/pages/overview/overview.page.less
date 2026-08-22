@@ -63,7 +63,10 @@
     inline-size: 1rem;
     block-size: 1rem;
     color: @ink-tertiary;
-    opacity: 0;
+    // A pointer that never hovers, such as a touch screen, still has to see
+    // that the card leads somewhere, so the affordance is dimmed and not
+    // hidden.
+    opacity: 0.45;
     transition: opacity @transition-fast;
   }
 

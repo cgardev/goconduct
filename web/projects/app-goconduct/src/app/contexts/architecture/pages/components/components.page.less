@@ -129,11 +129,15 @@
     opacity: 1;
   }
 
+  // The identity is a two-line block, so it lays out inside the cell rather
+  // than turning the cell itself into a flex box, which would take it out of
+  // the table layout and lose its alignment with the column header.
   &__identity {
     display: flex;
     flex-direction: column;
     gap: 0.15rem;
     min-inline-size: 0;
+    align-items: flex-start;
 
     small {
       overflow: hidden;
