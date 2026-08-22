@@ -1,0 +1,1 @@
+import{t as n$1}from"./main-RXZNZJXE.js";var n=[{path:n$1.overview,loadComponent:()=>import(`./chunk-D79NqA7I.js`).then(o=>o.OverviewPage)},{path:n$1.components,loadComponent:()=>import(`./chunk-Bg8V6afz.js`).then(o=>o.ComponentsPage)},{path:n$1.findings,loadComponent:()=>import(`./chunk-BYoiJcxk.js`).then(o=>o.FindingsPage)}];export{n as ARCHITECTURE_ROUTES};
