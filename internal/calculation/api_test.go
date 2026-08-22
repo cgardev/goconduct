@@ -5,7 +5,7 @@ import (
 	"slices"
 	"testing"
 
-	"digginginsights.com/v3/internal/devtool/dependencygraph/internal/architecture"
+	"github.com/cgardev/goconduct/internal/architecture"
 )
 
 func TestAPI_CollectAndBuildComponentGraph(t *testing.T) {

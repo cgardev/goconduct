@@ -66,7 +66,7 @@ func TestReportModel_KeepPackagePure(t *testing.T) {
 
 		t.Run("And the report model imports only the pure architecture model", func(t *testing.T) {
 			permitted := []string{
-				"digginginsights.com/v3/internal/devtool/dependencygraph/internal/architecture",
+				"github.com/cgardev/goconduct/internal/architecture",
 			}
 			if !slices.Equal(imports, permitted) {
 				t.Errorf("model.go imports %v, want only %v", imports, permitted)

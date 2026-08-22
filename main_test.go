@@ -11,7 +11,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"digginginsights.com/v3/internal/devtool/dependencygraph/internal/failure"
+	"github.com/cgardev/goconduct/internal/failure"
 )
 
 func newTestCommandRuntime(logger *slog.Logger) commandRuntime {
@@ -298,7 +298,7 @@ func TestRootCommand_DefineSafeDefaults(t *testing.T) {
 				"address":          "127.0.0.1:6062",
 				"cache":            "auto",
 				"cache-timeout":    "2s",
-				"configuration":    "configuration.json",
+				"configuration":    ".goconduct.json",
 				"root":             ".",
 				"refresh-interval": "750ms",
 				"analysis-path":    "[]",

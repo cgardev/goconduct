@@ -14,9 +14,9 @@ import (
 	"testing"
 	"time"
 
-	application "digginginsights.com/v3/internal/devtool/dependencygraph/internal/application"
-	"digginginsights.com/v3/internal/devtool/dependencygraph/internal/failure"
-	querymodel "digginginsights.com/v3/internal/devtool/dependencygraph/internal/query"
+	application "github.com/cgardev/goconduct/internal/application"
+	"github.com/cgardev/goconduct/internal/failure"
+	querymodel "github.com/cgardev/goconduct/internal/query"
 )
 
 var errGraphCacheClose = errors.New("graph cache close failure")

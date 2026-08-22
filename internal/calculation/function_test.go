@@ -156,8 +156,8 @@ func TestFunctionCalculation_MergeDeclarationsDeterministically(t *testing.T) {
 
 		t.Run("Given two declarations at different lines in the same source file", func(*testing.T) {
 			earlier = functionDeclaration{
-				identifier:      "internal/devtool/dependencygraph.interface{ExecuteContext() error}.ExecuteContext",
-				relativePath:    "internal/devtool/dependencygraph/main_test.go",
+				identifier:      "internal/devtool/goconduct.interface{ExecuteContext() error}.ExecuteContext",
+				relativePath:    "internal/devtool/goconduct/main_test.go",
 				line:            183,
 				test:            true,
 				inAnalysisScope: true,

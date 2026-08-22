@@ -38,5 +38,5 @@ func (analyzer *analyzer) graphCacheKey() (string, error) {
 }
 
 // mutate4go-manifest-begin
-// {"version":1,"tested_at":"2026-08-21T18:27:40Z","module_hash":"5dc700b9e54a1cd8183ded794919d9e6c4e6f6e6eebb9649d2608256e5ed5daa","functions":[{"id":"func/analyzer.graphCacheKey","name":"analyzer.graphCacheKey","line":22,"end_line":38,"hash":"3697683e282ae2b94b87690a8093d45d0973a3765cd824fa5bd84725b28bd9a6"}]}
+// {"version":1,"tested_at":"2026-08-22T07:15:59Z","module_hash":"5dc700b9e54a1cd8183ded794919d9e6c4e6f6e6eebb9649d2608256e5ed5daa","functions":[{"id":"func/analyzer.graphCacheKey","name":"analyzer.graphCacheKey","line":22,"end_line":38,"hash":"3697683e282ae2b94b87690a8093d45d0973a3765cd824fa5bd84725b28bd9a6"}]}
 // mutate4go-manifest-end

@@ -14,7 +14,7 @@ import (
 
 	"golang.org/x/tools/go/packages"
 
-	"digginginsights.com/v3/internal/devtool/dependencygraph/internal/failure"
+	"github.com/cgardev/goconduct/internal/failure"
 )
 
 func TestFunctionAnalysis_StopCanceledPackageLoad(t *testing.T) {

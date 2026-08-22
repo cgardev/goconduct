@@ -18,8 +18,8 @@ func TestLayerArchitecture_KeepApplicationTransportIndependent(t *testing.T) {
 			file: "usecase.go",
 			allowedImports: []string{
 				"context",
-				"digginginsights.com/v3/internal/devtool/dependencygraph/internal/failure",
 				"fmt",
+				"github.com/cgardev/goconduct/internal/failure",
 			},
 		},
 	}

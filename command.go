@@ -10,7 +10,7 @@ import (
 	"github.com/cgardev/gokeel/conf"
 	"github.com/spf13/cobra"
 
-	"digginginsights.com/v3/internal/devtool/dependencygraph/internal/query"
+	"github.com/cgardev/goconduct/internal/query"
 )
 
 type graphAnalyzer interface {
@@ -66,7 +66,7 @@ func newRootCommand(runtime commandRuntime) *cobra.Command {
 	configurationFlags := &commandConfigurationFlags{}
 	var refreshIntervalOverride time.Duration
 	command := &cobra.Command{
-		Use:           "dependencygraph",
+		Use:           "goconduct",
 		Short:         "Analyze Go component imports and resolved function calls.",
 		SilenceErrors: true,
 		SilenceUsage:  true,
@@ -183,10 +183,10 @@ func newAnalyzeCommand(configurationFlags *commandConfigurationFlags, analyzer g
 	command := &cobra.Command{
 		Use:   "analyze",
 		Short: "Write a deterministic architecture analysis in JavaScript Object Notation (JSON).",
-		Example: "  dependencygraph analyze --configuration configuration.json\n" +
-			"  dependencygraph analyze --root . --analysis-path cmd --analysis-path internal\n" +
-			"  dependencygraph analyze --root . --view graph --indent\n" +
-			"  dependencygraph analyze --root . --fail-on error",
+		Example: "  goconduct analyze --configuration .goconduct.json\n" +
+			"  goconduct analyze --root . --analysis-path cmd --analysis-path internal\n" +
+			"  goconduct analyze --root . --view graph --indent\n" +
+			"  goconduct analyze --root . --fail-on error",
 		Args: cobra.NoArgs,
 		RunE: func(command *cobra.Command, _ []string) error {
 			selectedView, err := parseAnalysisView(requestedView)
@@ -258,9 +258,9 @@ func newFindingsCommand(configurationFlags *commandConfigurationFlags, analyzer 
 	command := &cobra.Command{
 		Use:   "findings",
 		Short: "Write filtered architecture findings in JavaScript Object Notation (JSON).",
-		Example: "  dependencygraph findings --severity error\n" +
-			"  dependencygraph findings --rule stable-dependency-principle\n" +
-			"  dependencygraph findings --component internal/library/logging",
+		Example: "  goconduct findings --severity error\n" +
+			"  goconduct findings --rule stable-dependency-principle\n" +
+			"  goconduct findings --component internal/library/logging",
 		Args: cobra.NoArgs,
 		RunE: func(command *cobra.Command, _ []string) error {
 			severityFilter, err := query.ParseFindingSeverity(severity)
@@ -308,9 +308,9 @@ func newComponentsCommand(configurationFlags *commandConfigurationFlags, analyze
 	command := &cobra.Command{
 		Use:   "components",
 		Short: "Write filtered and sorted components in JavaScript Object Notation (JSON).",
-		Example: "  dependencygraph components --sort afferent --limit 10\n" +
-			"  dependencygraph components --role library --sort importers --limit 20\n" +
-			"  dependencygraph components --category plugin --sort afferent",
+		Example: "  goconduct components --sort afferent --limit 10\n" +
+			"  goconduct components --role library --sort importers --limit 20\n" +
+			"  goconduct components --category plugin --sort afferent",
 		Args: cobra.NoArgs,
 		RunE: func(command *cobra.Command, _ []string) error {
 			roleFilter, err := query.ParseComponentRole(role)
@@ -370,7 +370,7 @@ func newComponentCommand(configurationFlags *commandConfigurationFlags, analyzer
 		Use: "component <identifier>",
 		Short: "Write one component, its imports, its importing components, and its findings " +
 			"in JavaScript Object Notation (JSON).",
-		Example: "  dependencygraph component internal/library/logging",
+		Example: "  goconduct component internal/library/logging",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(command *cobra.Command, arguments []string) error {
 			graph, err := loadGraphForCommand(command, configurationFlags, analyzer)
@@ -499,5 +499,5 @@ func enforceFindingThreshold(findings []Finding, threshold findingThreshold) err
 }
 
 // mutate4go-manifest-begin
-// {"version":1,"tested_at":"2026-08-21T19:47:25Z","module_hash":"c540eefefcae6c00f9788b09097e1f2c983302493d26f0865fe73bb2e61fb4c5","functions":[{"id":"func/newRootCommand","name":"newRootCommand","line":64,"end_line":145,"hash":"580bf74dab4b8041b7580af6d7c20b06a82adbe66cb00cbbfdffbab0e8660639"},{"id":"func/commandConfigurationFlags.loadConfiguration","name":"commandConfigurationFlags.loadConfiguration","line":147,"end_line":177,"hash":"75165e9e3937b400e52cf5834a724cc8ee2db82a0ff3005ec9aaf52db540f23a"},{"id":"func/newAnalyzeCommand","name":"newAnalyzeCommand","line":179,"end_line":224,"hash":"b4de892c331a2988566fd2a63d7bcb30999403373c02c8d5a1728611091d0398"},{"id":"func/loadGraphForCommand","name":"loadGraphForCommand","line":226,"end_line":236,"hash":"0d62199532c79ca7d56efae3ec09ccfcc9e14c4025d64c7f8863f99623cb44e2"},{"id":"func/newSummaryCommand","name":"newSummaryCommand","line":238,"end_line":251,"hash":"83c1235292dc0c0f38aa64d7d0c286ca40f2b5aa9b5b3856fd0e195af249f49b"},{"id":"func/newFindingsCommand","name":"newFindingsCommand","line":253,"end_line":301,"hash":"7c6b2769600b3757afe60939b9875e913160cae28d78a8131cf2df9769c82ed5"},{"id":"func/newComponentsCommand","name":"newComponentsCommand","line":303,"end_line":366,"hash":"6acc1e42b3b99b2e992612b0c46c895825f690384bc43d6296eb90c73d07d779"},{"id":"func/newComponentCommand","name":"newComponentCommand","line":368,"end_line":387,"hash":"84b321bb745884ed66a7114204027f4af7a6c5e2123eda3ab628083ac44677d8"},{"id":"func/validateQueryLimit","name":"validateQueryLimit","line":389,"end_line":394,"hash":"137d5d4d8d0710499af12a630b0990318d216aeebdf8b59aef9d7934df5e2ca6"},{"id":"func/writeQueryJSON","name":"writeQueryJSON","line":396,"end_line":404,"hash":"de1792654e01679c030b556a26b7287c525dbe2a439201b2a6e95597b305b10b"},{"id":"func/newConfigurationSchemaCommand","name":"newConfigurationSchemaCommand","line":406,"end_line":425,"hash":"31b549dd67a25898f82e845dff6aa287470d2e2cab2d33f4ec0421807e521228"},{"id":"func/parseAnalysisView","name":"parseAnalysisView","line":427,"end_line":438,"hash":"2f0bbbd831be7a7e6bc5813d6bd9df6a7d6e07db5c56ebeaa42957ae493a67cc"},{"id":"func/parseFindingThreshold","name":"parseFindingThreshold","line":440,"end_line":451,"hash":"815da9041742486570baf886be5ea5d4f7f63efe39bd519df5e5402d90242018"},{"id":"func/writeAnalysisJSON","name":"writeAnalysisJSON","line":453,"end_line":480,"hash":"573670eab51b89384b49d2eecb7ab5e17b73fc72a2182bbcbbe027e0be1d7653"},{"id":"func/enforceFindingThreshold","name":"enforceFindingThreshold","line":482,"end_line":499,"hash":"c2d30c81317ebc6885a3e010128235cdf069cd8a71e3733ae209931c90060d88"}]}
+// {"version":1,"tested_at":"2026-08-22T07:15:59Z","module_hash":"85eb55092673dead7904603169d28562dd9ed6b90eed22f5221fa816a28d9d6f","functions":[{"id":"func/newRootCommand","name":"newRootCommand","line":64,"end_line":145,"hash":"61167e4eae33a321ef9a46dd9a3b4b78cf6df090c05b667dd1c477f8e99faf51"},{"id":"func/commandConfigurationFlags.loadConfiguration","name":"commandConfigurationFlags.loadConfiguration","line":147,"end_line":177,"hash":"75165e9e3937b400e52cf5834a724cc8ee2db82a0ff3005ec9aaf52db540f23a"},{"id":"func/newAnalyzeCommand","name":"newAnalyzeCommand","line":179,"end_line":224,"hash":"64b628c90eb6a3a3cacb945628d24a17040d35e59a8a6a843ef0f5b97f64cec4"},{"id":"func/loadGraphForCommand","name":"loadGraphForCommand","line":226,"end_line":236,"hash":"0d62199532c79ca7d56efae3ec09ccfcc9e14c4025d64c7f8863f99623cb44e2"},{"id":"func/newSummaryCommand","name":"newSummaryCommand","line":238,"end_line":251,"hash":"83c1235292dc0c0f38aa64d7d0c286ca40f2b5aa9b5b3856fd0e195af249f49b"},{"id":"func/newFindingsCommand","name":"newFindingsCommand","line":253,"end_line":301,"hash":"6e7631509eb57c61351f04e83f895a07e2a33c705a8733293ff64402ccad57c3"},{"id":"func/newComponentsCommand","name":"newComponentsCommand","line":303,"end_line":366,"hash":"f3270f4a65065996cc13e8ca33bc3650707be9119b94ca2d19e64a2c9a745140"},{"id":"func/newComponentCommand","name":"newComponentCommand","line":368,"end_line":387,"hash":"cc0ef56a5793fa16992c1eb25bf7ddecdd680e2860bd2aa98fa49426ba17ed85"},{"id":"func/validateQueryLimit","name":"validateQueryLimit","line":389,"end_line":394,"hash":"137d5d4d8d0710499af12a630b0990318d216aeebdf8b59aef9d7934df5e2ca6"},{"id":"func/writeQueryJSON","name":"writeQueryJSON","line":396,"end_line":404,"hash":"de1792654e01679c030b556a26b7287c525dbe2a439201b2a6e95597b305b10b"},{"id":"func/newConfigurationSchemaCommand","name":"newConfigurationSchemaCommand","line":406,"end_line":425,"hash":"31b549dd67a25898f82e845dff6aa287470d2e2cab2d33f4ec0421807e521228"},{"id":"func/parseAnalysisView","name":"parseAnalysisView","line":427,"end_line":438,"hash":"2f0bbbd831be7a7e6bc5813d6bd9df6a7d6e07db5c56ebeaa42957ae493a67cc"},{"id":"func/parseFindingThreshold","name":"parseFindingThreshold","line":440,"end_line":451,"hash":"815da9041742486570baf886be5ea5d4f7f63efe39bd519df5e5402d90242018"},{"id":"func/writeAnalysisJSON","name":"writeAnalysisJSON","line":453,"end_line":480,"hash":"573670eab51b89384b49d2eecb7ab5e17b73fc72a2182bbcbbe027e0be1d7653"},{"id":"func/enforceFindingThreshold","name":"enforceFindingThreshold","line":482,"end_line":499,"hash":"c2d30c81317ebc6885a3e010128235cdf069cd8a71e3733ae209931c90060d88"}]}
 // mutate4go-manifest-end

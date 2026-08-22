@@ -4,8 +4,8 @@ import (
 	"errors"
 	"testing"
 
-	"digginginsights.com/v3/internal/devtool/dependencygraph/internal/architecture"
-	"digginginsights.com/v3/internal/devtool/dependencygraph/internal/failure"
+	"github.com/cgardev/goconduct/internal/architecture"
+	"github.com/cgardev/goconduct/internal/failure"
 )
 
 func TestFindingsQuery_FilterWithoutExternalTools(t *testing.T) {

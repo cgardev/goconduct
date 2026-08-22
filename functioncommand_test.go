@@ -9,7 +9,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	querymodel "digginginsights.com/v3/internal/devtool/dependencygraph/internal/query"
+	querymodel "github.com/cgardev/goconduct/internal/query"
 )
 
 func TestFunctionCommands_EmitFocusedJSONWithoutPipes(t *testing.T) {

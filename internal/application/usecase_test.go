@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"digginginsights.com/v3/internal/devtool/dependencygraph/internal/failure"
+	"github.com/cgardev/goconduct/internal/failure"
 )
 
 var (

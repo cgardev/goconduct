@@ -1,6 +1,6 @@
 package main
 
-import "digginginsights.com/v3/internal/devtool/dependencygraph/internal/failure"
+import "github.com/cgardev/goconduct/internal/failure"
 
 func newValidationError(message string, cause error) error {
 	return failure.NewError(failure.ErrValidation, message, cause)

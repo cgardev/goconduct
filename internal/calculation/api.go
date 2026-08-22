@@ -1,6 +1,6 @@
 package calculation
 
-import "digginginsights.com/v3/internal/devtool/dependencygraph/internal/architecture"
+import "github.com/cgardev/goconduct/internal/architecture"
 
 // ComponentDescriptor identifies one classified source component.
 type ComponentDescriptor struct {

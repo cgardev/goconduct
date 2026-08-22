@@ -12,18 +12,17 @@ import (
 	"testing"
 )
 
-func TestLayerArchitecture_KeepProjectImportsInsideTool(t *testing.T) {
-	t.Run("Scenario: The dependency graph source remains isolated from shared project code", func(t *testing.T) {
+func TestLayerArchitecture_RejectFormerProjectImports(t *testing.T) {
+	t.Run("Scenario: goconduct remains independent from its former project", func(t *testing.T) {
 		var forbiddenImports []string
 		var inspectError error
 
-		t.Run("Given the dependency graph source tree", func(*testing.T) {
+		t.Run("Given the goconduct source tree", func(*testing.T) {
 			forbiddenImports = make([]string, 0)
 		})
 
 		t.Run("When the test inspects each Go import", func(*testing.T) {
-			const projectImportPrefix = "digginginsights.com/v3/"
-			const toolImportPrefix = "digginginsights.com/v3/internal/devtool/dependencygraph/"
+			const forbiddenImportPrefix = "digginginsights.com/v3/"
 			inspectError = filepath.WalkDir(".", func(path string, entry fs.DirEntry, walkError error) error {
 				if walkError != nil {
 					return walkError
@@ -40,8 +39,7 @@ func TestLayerArchitecture_KeepProjectImportsInsideTool(t *testing.T) {
 					if err != nil {
 						return err
 					}
-					if strings.HasPrefix(importPath, projectImportPrefix) &&
-						!strings.HasPrefix(importPath, toolImportPrefix) {
+					if strings.HasPrefix(importPath, forbiddenImportPrefix) {
 						forbiddenImports = append(
 							forbiddenImports,
 							filepath.ToSlash(path)+": "+importPath,
@@ -55,15 +53,15 @@ func TestLayerArchitecture_KeepProjectImportsInsideTool(t *testing.T) {
 
 		if !t.Run("Then the test can inspect the complete source tree", func(t *testing.T) {
 			if inspectError != nil {
-				t.Fatalf("inspect dependency graph imports: %v", inspectError)
+				t.Fatalf("inspect goconduct imports: %v", inspectError)
 			}
 		}) {
 			return
 		}
 
-		t.Run("And no source file imports another project module", func(t *testing.T) {
+		t.Run("And no source file imports the former project", func(t *testing.T) {
 			if len(forbiddenImports) != 0 {
-				t.Fatalf("imports outside dependency graph: %v", forbiddenImports)
+				t.Fatalf("imports from the former project: %v", forbiddenImports)
 			}
 		})
 	})
@@ -77,15 +75,15 @@ func TestLayerArchitecture_KeepCoreFilesWithinImportBoundaries(t *testing.T) {
 		{
 			file: "domain.go",
 			allowedImports: []string{
-				"digginginsights.com/v3/internal/devtool/dependencygraph/internal/architecture",
-				"digginginsights.com/v3/internal/devtool/dependencygraph/internal/report",
+				"github.com/cgardev/goconduct/internal/architecture",
+				"github.com/cgardev/goconduct/internal/report",
 			},
 		},
 		{
 			file: "calculation.go",
 			allowedImports: []string{
-				"digginginsights.com/v3/internal/devtool/dependencygraph/internal/architecture",
-				"digginginsights.com/v3/internal/devtool/dependencygraph/internal/calculation",
+				"github.com/cgardev/goconduct/internal/architecture",
+				"github.com/cgardev/goconduct/internal/calculation",
 				"sort",
 			},
 		},
@@ -93,7 +91,7 @@ func TestLayerArchitecture_KeepCoreFilesWithinImportBoundaries(t *testing.T) {
 			file: "application.go",
 			allowedImports: []string{
 				"context",
-				"digginginsights.com/v3/internal/devtool/dependencygraph/internal/application",
+				"github.com/cgardev/goconduct/internal/application",
 			},
 		},
 		{
@@ -103,7 +101,7 @@ func TestLayerArchitecture_KeepCoreFilesWithinImportBoundaries(t *testing.T) {
 		{
 			file: "functioncalculation.go",
 			allowedImports: []string{
-				"digginginsights.com/v3/internal/devtool/dependencygraph/internal/calculation",
+				"github.com/cgardev/goconduct/internal/calculation",
 			},
 		},
 		{file: "internal/architecture/domain.go", allowedImports: []string{}},
@@ -120,8 +118,8 @@ func TestLayerArchitecture_KeepCoreFilesWithinImportBoundaries(t *testing.T) {
 			file: "internal/application/usecase.go",
 			allowedImports: []string{
 				"context",
-				"digginginsights.com/v3/internal/devtool/dependencygraph/internal/failure",
 				"fmt",
+				"github.com/cgardev/goconduct/internal/failure",
 			},
 		},
 	}

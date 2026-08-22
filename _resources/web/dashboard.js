@@ -2,7 +2,7 @@
 
 const svgNamespace = "http://www.w3.org/2000/svg";
 const numberFormatter = new Intl.NumberFormat("en-GB");
-const themeStorageKey = "dependencygraph-theme";
+const themeStorageKey = "goconduct-theme";
 const supportedThemes = new Set(["light", "dark"]);
 
 const knownCategoryNames = Object.freeze({

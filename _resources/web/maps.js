@@ -714,7 +714,7 @@ function renderViewState() {
     "Arrows point from an importing component to the imported internal component.";
   elements.graphViewport.setAttribute(
     "aria-label",
-    "Dependency graph. Drag the map to move it. Use the wheel to zoom.",
+    "goconduct dependency graph. Drag the map to move it. Use the wheel to zoom.",
   );
 }
 

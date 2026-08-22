@@ -1,7 +1,7 @@
 // Package report contains the dependency analysis report model.
 package report
 
-import "digginginsights.com/v3/internal/devtool/dependencygraph/internal/architecture"
+import "github.com/cgardev/goconduct/internal/architecture"
 
 // SchemaVersion identifies the current JSON report contract.
 const SchemaVersion = 8

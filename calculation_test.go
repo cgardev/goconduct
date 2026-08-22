@@ -4,7 +4,7 @@ import (
 	"slices"
 	"testing"
 
-	"digginginsights.com/v3/internal/devtool/dependencygraph/internal/architecture"
+	"github.com/cgardev/goconduct/internal/architecture"
 )
 
 func TestFindings_DetectArchitectureFindings(t *testing.T) {

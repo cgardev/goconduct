@@ -92,5 +92,5 @@ type Finding struct {
 }
 
 // mutate4go-manifest-begin
-// {"version":1,"tested_at":"2026-08-21T14:58:35Z","module_hash":"cb2971cbc40a8ce40682a50240c36bc2d0f92ec32774c6c9475931440a13e3da","functions":[{"id":"func/ValidRole","name":"ValidRole","line":24,"end_line":36,"hash":"f4fc79c953afeccb27343d77e3792e174a846f51053ddfea2f45063a75bfbeb8"}]}
+// {"version":1,"tested_at":"2026-08-22T07:16:00Z","module_hash":"221f6e8cdbe587bb12077e91f3dd11386de33bc9cf0ff8e3345c55c9ac6b3803","functions":[{"id":"func/ValidRole","name":"ValidRole","line":24,"end_line":36,"hash":"f4fc79c953afeccb27343d77e3792e174a846f51053ddfea2f45063a75bfbeb8"}]}
 // mutate4go-manifest-end

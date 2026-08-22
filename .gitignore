@@ -1,0 +1,4 @@
+/goconduct
+*.out
+*.test
+/target/

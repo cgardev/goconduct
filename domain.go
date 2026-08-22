@@ -1,8 +1,8 @@
 package main
 
 import (
-	"digginginsights.com/v3/internal/devtool/dependencygraph/internal/architecture"
-	"digginginsights.com/v3/internal/devtool/dependencygraph/internal/report"
+	"github.com/cgardev/goconduct/internal/architecture"
+	"github.com/cgardev/goconduct/internal/report"
 )
 
 const graphSchemaVersion = report.SchemaVersion

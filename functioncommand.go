@@ -3,7 +3,7 @@ package main
 import (
 	"github.com/spf13/cobra"
 
-	"digginginsights.com/v3/internal/devtool/dependencygraph/internal/query"
+	"github.com/cgardev/goconduct/internal/query"
 )
 
 func newFunctionsCommand(configurationFlags *commandConfigurationFlags, analyzer graphAnalyzer) *cobra.Command {
@@ -15,7 +15,7 @@ func newFunctionsCommand(configurationFlags *commandConfigurationFlags, analyzer
 	command := &cobra.Command{
 		Use:   "functions",
 		Short: "Write filtered and sorted Go functions in JavaScript Object Notation (JSON).",
-		Example: "  dependencygraph functions --component internal/library/logging " +
+		Example: "  goconduct functions --component internal/library/logging " +
 			"--sort incoming-call-sites --limit 20",
 		Args: cobra.NoArgs,
 		RunE: func(command *cobra.Command, _ []string) error {
@@ -75,7 +75,7 @@ func newFunctionCommand(configurationFlags *commandConfigurationFlags, analyzer 
 		Use: "function <identifier>",
 		Short: "Write one Go function with its caller functions, callee functions, " +
 			"metrics, and call sites as JSON.",
-		Example: "  dependencygraph function internal/library/logging.NewLogger --include-tests",
+		Example: "  goconduct function internal/library/logging.NewLogger --include-tests",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(command *cobra.Command, arguments []string) error {
 			graph, err := loadGraphForCommand(command, configurationFlags, analyzer)
@@ -98,7 +98,7 @@ func newFunctionCallsCommand(configurationFlags *commandConfigurationFlags, anal
 	command := &cobra.Command{
 		Use:   "calls",
 		Short: "Write exact resolved function calls and source locations as JSON.",
-		Example: "  dependencygraph calls --source-component cmd/control " +
+		Example: "  goconduct calls --source-component cmd/control " +
 			"--target-component internal/library/logging",
 		Args: cobra.NoArgs,
 		RunE: func(command *cobra.Command, _ []string) error {
@@ -147,5 +147,5 @@ func newFunctionCallsCommand(configurationFlags *commandConfigurationFlags, anal
 }
 
 // mutate4go-manifest-begin
-// {"version":1,"tested_at":"2026-08-21T19:48:15Z","module_hash":"ae258c9c6060f8b2b00096725c888642f78cb976e1bed5190613d12c495751ff","functions":[{"id":"func/newFunctionsCommand","name":"newFunctionsCommand","line":9,"end_line":70,"hash":"557e0bef1426fc0ca5f4a178db325b9aab756b969e59b14f1e70698adf78f04a"},{"id":"func/newFunctionCommand","name":"newFunctionCommand","line":72,"end_line":94,"hash":"8b216f4dd9d9611a2ee4c64888abd3cf00ab9e290619f6dc5bae672f73b6cc99"},{"id":"func/newFunctionCallsCommand","name":"newFunctionCallsCommand","line":96,"end_line":147,"hash":"251576ca7263b39568cd5f3a45091cc8e182e9eeaa29fed3f39a89210a44a6db"}]}
+// {"version":1,"tested_at":"2026-08-22T07:15:59Z","module_hash":"1d4d606fba951e1f20f012eb50b1dff24c0ac7a83006ad3c40da80b534723705","functions":[{"id":"func/newFunctionsCommand","name":"newFunctionsCommand","line":9,"end_line":70,"hash":"7d4d52abf06fe972a8ce7a64f3829d63905d99e6b4218045583461d96431604b"},{"id":"func/newFunctionCommand","name":"newFunctionCommand","line":72,"end_line":94,"hash":"c2873b1c646e83d9bde4c62d200abd74d0fc8296388d51e99ed01bd1c15fc47c"},{"id":"func/newFunctionCallsCommand","name":"newFunctionCallsCommand","line":96,"end_line":147,"hash":"d3095e4f4f6f304aff7683d83fc650e268cddcb0460d837c35829476d81a07f8"}]}
 // mutate4go-manifest-end

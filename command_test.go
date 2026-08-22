@@ -13,8 +13,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"digginginsights.com/v3/internal/devtool/dependencygraph/internal/failure"
-	querymodel "digginginsights.com/v3/internal/devtool/dependencygraph/internal/query"
+	"github.com/cgardev/goconduct/internal/failure"
+	querymodel "github.com/cgardev/goconduct/internal/query"
 )
 
 func TestAnalyzeCommand_UseConfiguredScope(t *testing.T) {
@@ -55,7 +55,7 @@ import _ "example.com/cli/packages/shared"
 			if err != nil {
 				step.Fatalf("encode configuration document: %v", err)
 			}
-			configurationPath = filepath.Join(t.TempDir(), "configuration.json")
+			configurationPath = filepath.Join(t.TempDir(), ".goconduct.json")
 			writeFixtureFile(
 				step,
 				filepath.Dir(configurationPath),
@@ -266,7 +266,7 @@ func TestCommandConfiguration_ApplyExplicitScopeOverrides(t *testing.T) {
 
 		t.Run("Given a document and explicit repository, analysis, and ignore flags", func(*testing.T) {
 			repositoryRoot = newAnalyzerFixture(t)
-			configurationPath = filepath.Join(t.TempDir(), "configuration.json")
+			configurationPath = filepath.Join(t.TempDir(), ".goconduct.json")
 			writeFixtureFile(
 				t,
 				filepath.Dir(configurationPath),

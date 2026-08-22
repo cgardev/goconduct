@@ -13,7 +13,7 @@ import (
 
 	"github.com/cgardev/gokeel/conf"
 
-	"digginginsights.com/v3/internal/devtool/dependencygraph/internal/failure"
+	"github.com/cgardev/goconduct/internal/failure"
 )
 
 func TestApplicationConfiguration_LoadDefaults(t *testing.T) {
@@ -71,8 +71,8 @@ func TestApplicationConfiguration_ApplyDocument(t *testing.T) {
 			"Given a JSON document with placeholders, paths, exclusions, and component templates",
 			func(step *testing.T) {
 				repositoryRoot := t.TempDir()
-				t.Setenv("DEPENDENCY_GRAPH_ROOT", repositoryRoot)
-				configurationPath = filepath.Join(t.TempDir(), "configuration.json")
+				t.Setenv("GOCONDUCT_ROOT", repositoryRoot)
+				configurationPath = filepath.Join(t.TempDir(), ".goconduct.json")
 				writeFixtureFile(step, filepath.Dir(configurationPath), filepath.Base(configurationPath), `{
   "server": {
     "address": "127.0.0.1:7000",
@@ -83,7 +83,7 @@ func TestApplicationConfiguration_ApplyDocument(t *testing.T) {
     "requestTimeout": "3s"
   },
   "analysis": {
-    "repositoryRoot": "${DEPENDENCY_GRAPH_ROOT}",
+    "repositoryRoot": "${GOCONDUCT_ROOT}",
     "paths": ["services", "packages"],
     "ignoredPaths": ["generated", "packages/legacy"],
     "components": {
@@ -112,7 +112,7 @@ func TestApplicationConfiguration_ApplyDocument(t *testing.T) {
 			}
 			if configuration.Server.Address != "127.0.0.1:7000" ||
 				configuration.Server.RefreshInterval != 2*time.Second ||
-				configuration.Analysis.RepositoryRoot == "${DEPENDENCY_GRAPH_ROOT}" {
+				configuration.Analysis.RepositoryRoot == "${GOCONDUCT_ROOT}" {
 				t.Fatalf("unexpected bound configuration: %+v", configuration)
 			}
 		}) {
@@ -165,7 +165,7 @@ func TestApplicationConfiguration_RejectInvalidDocument(t *testing.T) {
 			var loadError error
 
 			t.Run("Given an invalid external configuration document", func(step *testing.T) {
-				configurationPath = filepath.Join(t.TempDir(), "configuration.json")
+				configurationPath = filepath.Join(t.TempDir(), ".goconduct.json")
 				writeFixtureFile(
 					step,
 					filepath.Dir(configurationPath),

@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"digginginsights.com/v3/internal/devtool/dependencygraph/internal/failure"
+	"github.com/cgardev/goconduct/internal/failure"
 )
 
 // CacheMode selects the source for a dependency graph.
@@ -90,5 +90,5 @@ func ValidateCacheMode(mode CacheMode) error {
 }
 
 // mutate4go-manifest-begin
-// {"version":1,"tested_at":"2026-08-21T19:49:30Z","module_hash":"ead3884e913480bd6a2db53e57e7daeee1c9a990dab3608c4fc689f2250c69f7","functions":[{"id":"func/NewAnalyzeGraphUseCase","name":"NewAnalyzeGraphUseCase","line":35,"end_line":43,"hash":"afb8d889ef750cdd75d044a1a2211571793729cc7840b1d6bb8a6d5c927bf46c"},{"id":"func/AnalyzeGraphUseCase.Execute","name":"AnalyzeGraphUseCase.Execute","line":46,"end_line":76,"hash":"1bea5e90759be8116ea5c9e5fc292c8171dd02a234c8fe6725308a00475c6934"},{"id":"func/ValidateCacheMode","name":"ValidateCacheMode","line":79,"end_line":90,"hash":"e249cea232322bda9d1ef7f5d2d34046cabcca5e238e27d5c7887f49e76e2964"}]}
+// {"version":1,"tested_at":"2026-08-22T07:15:59Z","module_hash":"4a37216a997ea16d17d2e9d9f446af5ed734c46a185f656bec1d329318b8c8a8","functions":[{"id":"func/NewAnalyzeGraphUseCase","name":"NewAnalyzeGraphUseCase","line":35,"end_line":43,"hash":"afb8d889ef750cdd75d044a1a2211571793729cc7840b1d6bb8a6d5c927bf46c"},{"id":"func/AnalyzeGraphUseCase.Execute","name":"AnalyzeGraphUseCase.Execute","line":46,"end_line":76,"hash":"1bea5e90759be8116ea5c9e5fc292c8171dd02a234c8fe6725308a00475c6934"},{"id":"func/ValidateCacheMode","name":"ValidateCacheMode","line":79,"end_line":90,"hash":"e249cea232322bda9d1ef7f5d2d34046cabcca5e238e27d5c7887f49e76e2964"}]}
 // mutate4go-manifest-end

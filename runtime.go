@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"time"
 
-	"digginginsights.com/v3/internal/devtool/dependencygraph/internal/application"
+	"github.com/cgardev/goconduct/internal/application"
 )
 
 type graphCacheFactory interface {
@@ -85,5 +85,5 @@ func isContextError(ctx context.Context, err error) bool {
 }
 
 // mutate4go-manifest-begin
-// {"version":1,"tested_at":"2026-08-21T18:11:14Z","module_hash":"c7ea978d9550e6d7dc474a5893e0193a0ecae863d1d72f23f642ba563cdf3933","functions":[{"id":"func/newDependencyGraphRuntime","name":"newDependencyGraphRuntime","line":24,"end_line":34,"hash":"e9ce501159c431610ca58060d2fce347ee07de7842bd3bb953fe4a77082a857c"},{"id":"func/dependencyGraphRuntime.analyze","name":"dependencyGraphRuntime.analyze","line":36,"end_line":51,"hash":"e142883a44fbb13edae0f3afe564cdc1d4825fbbfb8fd72b44816b3774239cfb"},{"id":"func/dependencyGraphRuntime.runDashboard","name":"dependencyGraphRuntime.runDashboard","line":53,"end_line":80,"hash":"8e12fc10f8c94c7355ece5f717e4582321ff9bf42bdb7bd4b60e0407c7095bd4"},{"id":"func/isContextError","name":"isContextError","line":82,"end_line":85,"hash":"57e15a1597b77272d920a478349c7ce7fbe65d0aecc7a69138e24bcc74fe2497"}]}
+// {"version":1,"tested_at":"2026-08-22T07:15:59Z","module_hash":"c06ba5e9344ea82415567e42608c718d271d69f703c15840946d2e928a5edf67","functions":[{"id":"func/newDependencyGraphRuntime","name":"newDependencyGraphRuntime","line":24,"end_line":34,"hash":"e9ce501159c431610ca58060d2fce347ee07de7842bd3bb953fe4a77082a857c"},{"id":"func/dependencyGraphRuntime.analyze","name":"dependencyGraphRuntime.analyze","line":36,"end_line":51,"hash":"e142883a44fbb13edae0f3afe564cdc1d4825fbbfb8fd72b44816b3774239cfb"},{"id":"func/dependencyGraphRuntime.runDashboard","name":"dependencyGraphRuntime.runDashboard","line":53,"end_line":80,"hash":"8e12fc10f8c94c7355ece5f717e4582321ff9bf42bdb7bd4b60e0407c7095bd4"},{"id":"func/isContextError","name":"isContextError","line":82,"end_line":85,"hash":"57e15a1597b77272d920a478349c7ce7fbe65d0aecc7a69138e24bcc74fe2497"}]}
 // mutate4go-manifest-end

@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"digginginsights.com/v3/internal/devtool/dependencygraph/internal/failure"
+	"github.com/cgardev/goconduct/internal/failure"
 )
 
 type notifyingResponseRecorder struct {
@@ -384,7 +384,7 @@ func TestDashboard_ServeHTTPResources(t *testing.T) {
 				}
 			}
 			for _, marker := range []string{
-				`dependencygraph-theme`,
+				`goconduct-theme`,
 				`window.localStorage.getItem`,
 				`window.localStorage.setItem`,
 			} {

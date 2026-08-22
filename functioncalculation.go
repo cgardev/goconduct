@@ -1,6 +1,6 @@
 package main
 
-import calculationdomain "digginginsights.com/v3/internal/devtool/dependencygraph/internal/calculation"
+import calculationdomain "github.com/cgardev/goconduct/internal/calculation"
 
 type functionDeclaration struct {
 	identifier      string

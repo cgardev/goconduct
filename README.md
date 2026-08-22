@@ -1,133 +1,148 @@
-# Dependency Graph
+# goconduct
 
-This development tool analyzes Go components, imports, resolved function calls, and coupling. The
-tool reports architecture findings.
+Deterministic quality and architecture guardrails for AI-assisted Go engineering.
 
-Run all commands from the repository root. Use the Go version declared in the root `go.mod` file.
+> [!WARNING]
+> `goconduct` is experimental alpha software.
+> Its configuration, reports, and command surface can change without compatibility guarantees.
 
-## Architecture
+`goconduct` is a Go-only verification engine.
+It turns engineering rules into repeatable checks for humans and coding agents.
 
-The tool has these explicit layers and adapters:
+The name combines Go with *conduct*: to direct an activity and to define expected behavior.
 
-- `internal/report` contains the transport-neutral analysis report.
-- `internal/calculation` contains pure deterministic graph calculations and formulas.
-- `internal/query` selects deterministic report views for CLI consumers.
-- `internal/architecture` contains strategic roles and independent architecture rules.
-- `internal/application` selects a local source or a compatible graph cache.
-- `application.go` adapts the local Go analyzer to the application ports.
-- `runtime.go` is the composition root for the CLI and dashboard. It receives each factory and logger through
-  its constructor.
-- `internal/failure` owns the tool error categories. The tool does not import shared project libraries.
-- The other root Go files provide the analyzer, Cobra adapter, cache adapter, and HTTP adapter.
-- `_resources/web` contains the embedded presentation resources.
+## Why goconduct exists
 
-The pure packages do not import Cobra, HTTP, or presentation code. The HTTP adapter depends on graph
-reader, refresh, subscription, and cache identity ports. The analyzer passes the request context to
-`packages.Load`.
+AI code generation is probabilistic.
+Software acceptance should be deterministic.
 
-The tool is not a business module or an `appmodule.Plugin`. Therefore, it does not register a `do.Package`.
-`main.go` constructs the standalone runtime and injects it into the Cobra adapter. Business modules continue
-to use the repository `do.Package` and injector pairs.
+The Google Developers article
+[Why Go is an ideal language for AI-assisted software engineering](https://developers.googleblog.com/why-go-is-an-ideal-language-for-ai-assisted-software-engineering/)
+describes why Go fits this workflow.
+Go provides simple syntax, strong compatibility, readable code, and integrated deterministic tools.
 
-## Start the dashboard
+Robert C. Martin presents a related workflow in
+[Uncle Bob on Software Fundamentals in the age of AI](https://www.youtube.com/live/zcLPGC-tvgk).
+The workflow evaluates generated software with executable evidence:
 
-Run the tool without a subcommand:
+1. **CRAP score** combines test coverage and cyclomatic complexity.
+   Martin describes a human limit below 4 and agent limits of 6 or possibly 8.
+2. **Mutation testing** changes covered expressions and expects relevant tests to fail.
+   The target is zero surviving mutations.
+3. **Acceptance and system tests** verify Gherkin scenarios and automated end-to-end procedures.
+4. **Architecture rules** declare valid dependency directions and reject every invalid relationship.
+5. **Architecture views** expose dependencies at several levels for human review.
+6. **Short iterations** let people inspect and reshape the design before accidental structure grows.
+
+These thresholds are policy examples.
+Each repository must calibrate its own limits and record them in version control.
+
+## Current alpha
+
+The current alpha provides the architecture foundation:
+
+- Go package and component discovery.
+- Configurable component classification through path templates.
+- Production and test import relationships with source locations.
+- Statically resolved function calls and call sites.
+- Component and function dependency cycles.
+- Afferent and efferent coupling.
+- Instability, abstractness, and distance from the main sequence.
+- Direct and transitive dependency metrics.
+- Deterministic architecture findings.
+- Stable JSON output for command-line consumers.
+- An embedded interactive dependency dashboard.
+- A compatible local dashboard cache for fast queries.
+
+The current alpha does not yet provide the plugin runtime.
+It also does not yet execute `crap4go`, `mutate4go`, `dry4go`, or Gherkin tests.
+
+## Target verification model
+
+`goconduct` will use one normalized evidence model.
+Built-in checks and external plugins will contribute evidence to that model.
+
+The planned pipeline has four deterministic stages:
+
+1. Collect facts from Go source, tests, coverage profiles, and external analyzers.
+2. Normalize facts into versioned records with stable identifiers.
+3. Evaluate repository policies against those records.
+4. Emit ordered findings for people, coding agents, and continuous integration.
+
+Planned integrations include:
+
+| Integration | Evidence |
+| --- | --- |
+| `crap4go` | CRAP score, coverage, and cyclomatic complexity per function. |
+| `mutate4go` | Killed, survived, skipped, and invalid mutations. |
+| `dry4go` | Structurally similar Go functions and likely duplication. |
+| Go coverage | Coverage per package, file, function, and configured path. |
+| Acceptance checks | Gherkin scenarios and executable system procedures. |
+| Architecture checks | Allowed imports, prohibited imports, cycles, and coupling limits. |
+
+The external plugin protocol will use versioned JSON over child processes.
+This approach avoids the platform and toolchain limits of Go runtime plugins.
+Built-in plugins will implement the same logical contract through Go interfaces.
+
+## Install the alpha
+
+Install the current `main` branch:
 
 ```sh
-go run ./internal/devtool/dependencygraph
+go install github.com/cgardev/goconduct@main
 ```
 
-Open <http://127.0.0.1:6062> in a web browser. Keep the command active while you use the dashboard.
+The project does not publish stable releases yet.
 
-Use `Ctrl+C` to stop the server.
+## Analyze a repository
 
-## Query the active graph
-
-Open a second terminal while the server is active. The following command reads the cached graph:
+Write a deterministic report:
 
 ```sh
-go run ./internal/devtool/dependencygraph summary --cache server
+goconduct analyze --root . --fail-on error
 ```
 
-List the components with the highest afferent coupling:
+Write the complete graph:
 
 ```sh
-go run ./internal/devtool/dependencygraph components \
+goconduct analyze --root . --view graph --indent
+```
+
+Start the local dashboard:
+
+```sh
+goconduct --root .
+```
+
+Open <http://127.0.0.1:6062> while the command remains active.
+
+Query the active graph from another terminal:
+
+```sh
+goconduct summary --cache server
+goconduct components --cache server --sort afferent --limit 10
+goconduct functions --cache server --sort incoming-call-sites --limit 10
+```
+
+Inspect one function:
+
+```sh
+goconduct function internal/library/logging.NewLogger --cache server
+```
+
+List resolved calls between two components:
+
+```sh
+goconduct calls \
   --cache server \
-  --role library \
-  --sort afferent \
-  --limit 10
+  --source-component cmd/control \
+  --target-component internal/library/logging
 ```
 
-Select one configured presentation category:
+## Current configuration
 
-```sh
-go run ./internal/devtool/dependencygraph components \
-  --cache server \
-  --category plugin \
-  --sort afferent
-```
-
-List the functions with the most incoming call sites:
-
-```sh
-go run ./internal/devtool/dependencygraph functions \
-  --cache server \
-  --sort incoming-call-sites \
-  --limit 10
-```
-
-Inspect one function and its direct caller functions and callee functions:
-
-```sh
-go run ./internal/devtool/dependencygraph function \
-  internal/library/logging.NewLogger \
-  --cache server
-```
-
-List exact calls between two components:
-
-```sh
-go run ./internal/devtool/dependencygraph calls \
-  --cache server \
-  --source-component cmd/cloudcontrol \
-  --target-component internal/library/logging \
-  --limit 20
-```
-
-These commands return JSON. The query options filter the applicable results. No external JSON
-filtering tool is necessary.
-
-## Select the analysis scope
-
-Repeat `--analysis-path` to replace the default paths. Repeat `--ignore-path` to replace the
-default exclusions.
-
-```sh
-go run ./internal/devtool/dependencygraph \
-  --analysis-path cmd \
-  --analysis-path internal/module \
-  --analysis-path internal/library \
-  --ignore-path vendor \
-  --ignore-path generated
-```
-
-Use the same scope parameters for the server and each cached query. A different scope makes the
-cache incompatible.
-
-Use local mode for an independent analysis:
-
-```sh
-go run ./internal/devtool/dependencygraph functions \
-  --analysis-path internal/devtool/dependencygraph \
-  --cache local \
-  --sort outgoing-call-sites \
-  --limit 10
-```
-
-## Use a configuration document
-
-The default configuration path is `configuration.json` in the current directory.
+`goconduct` reads the optional `.goconduct.json` file from the current directory.
+Use `--configuration` to select another file.
 
 ```json
 {
@@ -142,54 +157,107 @@ The default configuration path is `configuration.json` in the current directory.
   "analysis": {
     "repositoryRoot": ".",
     "paths": ["cmd", "internal"],
-    "ignoredPaths": ["vendor", "generated"],
+    "ignoredPaths": ["vendor", "generated", "target"],
     "components": {
-      "taxonomy": [
-        {
-          "id": "plugin",
-          "role": "library",
-          "paths": ["plugins/{component}"]
-        }
-      ]
+      "applications": ["cmd/{application}"],
+      "applicationModules": ["cmd/{application}/internal/module/{component}"],
+      "sharedModules": ["internal/module/{component}"],
+      "libraries": ["internal/library/{component}"],
+      "infrastructure": ["internal/{component}"],
+      "developmentTools": ["internal/devtool/{component}"]
     }
   }
 }
 ```
 
-Each taxonomy entry has a presentation category and a strategic role. The category can be any
-non-empty identifier. The role must use one of these values:
-
-- `application`
-- `application-module`
-- `shared-module`
-- `library`
-- `infrastructure`
-- `development`
-
-Architecture rules use the role. The web presentation uses the category for filters, labels, groups,
-and deterministic colors.
-
-Select another document with `--configuration`:
+Print the current JSON Schema:
 
 ```sh
-go run ./internal/devtool/dependencygraph \
-  --configuration dependencygraph.json
+goconduct configuration-schema
 ```
 
-Use `configuration-schema` to print the complete configuration schema:
+The current architecture registry evaluates these rules:
+
+- Production dependency cycles.
+- Source analysis failures.
+- Dependencies on less stable components.
+- Stable components with low abstraction.
+- Production imports from development tools.
+- Libraries importing application features.
+- Shared components importing application code.
+- Imports between modules from different applications.
+
+## Planned path policies
+
+The plugin configuration below describes the intended direction.
+The current alpha does not accept this section yet.
+
+```json
+{
+  "quality": {
+    "pathPolicies": [
+      {
+        "include": ["internal/domain/**"],
+        "coverage": {"minimumPercent": 100},
+        "crap": {"maximumScore": 6},
+        "mutation": {"minimumKilledPercent": 100}
+      },
+      {
+        "include": ["cmd/**"],
+        "coverage": {"minimumPercent": 85},
+        "crap": {"maximumScore": 8}
+      }
+    ]
+  },
+  "plugins": [
+    {"id": "crap4go", "command": "crap4go"},
+    {"id": "mutate4go", "command": "mutate4go"},
+    {"id": "dry4go", "command": "dry4go"}
+  ]
+}
+```
+
+Every policy will identify its selected paths, metric, limit, severity, and optional expiry.
+The engine will reject ambiguous path policies and unknown plugin outputs.
+
+## Architecture
+
+The source separates deterministic logic from adapters:
+
+- `internal/report` owns the transport-neutral evidence model.
+- `internal/calculation` owns pure graph calculations and formulas.
+- `internal/query` owns deterministic report projections.
+- `internal/architecture` owns independent architecture rules.
+- `internal/application` selects local analysis or a compatible graph cache.
+- Root files provide Go analysis, Cobra commands, HTTP adapters, and composition.
+- `_resources/web` contains the embedded dashboard.
+
+The pure packages do not import Cobra, HTTP, or presentation code.
+
+## Development
+
+Run the verification suite:
 
 ```sh
-go run ./internal/devtool/dependencygraph configuration-schema
+go test ./...
+go vet ./...
 ```
 
-## Cache modes
+Run `gofmt` before every contribution that changes Go code.
 
-- `auto` reads a compatible server cache and uses local analysis when the cache is unavailable.
-- `server` requires a compatible server cache and returns an error when the cache is unavailable.
-- `local` always calculates the graph in the current process.
+## Roadmap
 
-## Run the module tests
+- Declare allowed dependency graphs with default-deny rules.
+- Report unclassified and ambiguously classified packages.
+- Add expiring architecture waivers with reasons and owners.
+- Add versioned executable plugins and capability manifests.
+- Add path-specific coverage, CRAP, mutation, and duplication limits.
+- Add changed-code policies for incremental adoption.
+- Add Gherkin and end-to-end acceptance evidence.
+- Export machine-readable results for coding-agent repair loops.
+- Compare current evidence with a committed baseline.
+- Preserve deterministic output across machines and repeated runs.
 
-```sh
-go test ./internal/devtool/dependencygraph/...
-```
+## License
+
+`goconduct` is available under the MIT License.

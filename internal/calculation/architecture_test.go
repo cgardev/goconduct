@@ -69,8 +69,8 @@ func TestLayerArchitecture_KeepCalculationPure(t *testing.T) {
 		t.Run("And the package imports only the permitted pure dependencies", func(t *testing.T) {
 			permittedImports := []string{
 				"cmp",
-				"digginginsights.com/v3/internal/devtool/dependencygraph/internal/architecture",
-				"digginginsights.com/v3/internal/devtool/dependencygraph/internal/report",
+				"github.com/cgardev/goconduct/internal/architecture",
+				"github.com/cgardev/goconduct/internal/report",
 				"math",
 				"slices",
 				"sort",
