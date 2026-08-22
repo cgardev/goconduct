@@ -1,0 +1,12 @@
+<div class="alert" [attr.data-tone]="tone()" [attr.role]="role()">
+  <tui-icon class="alert__icon" [icon]="resolvedIcon()" />
+  <div class="alert__body">
+    <p class="alert__heading">{{ heading() }}</p>
+    <div class="alert__content">
+      <ng-content />
+    </div>
+  </div>
+  <div class="alert__action">
+    <ng-content select="[appAlertAction]" />
+  </div>
+</div>

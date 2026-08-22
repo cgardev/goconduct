@@ -1,0 +1,60 @@
+@import 'tokens.less';
+
+:host {
+  display: block;
+}
+
+.page-header {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 1.5rem;
+}
+
+.page-header__text {
+  min-width: 0;
+}
+
+.page-header__heading {
+  display: flex;
+  gap: 0.5rem;
+  align-items: baseline;
+  margin: 0;
+  font-size: clamp(1.75rem, 3vw, 2.25rem);
+  font-weight: 500;
+  line-height: 1.15;
+  letter-spacing: -0.04em;
+}
+
+.page-header__counter {
+  color: @ink-tertiary;
+  font-size: 1.125rem;
+  font-weight: 400;
+  letter-spacing: -0.02em;
+}
+
+.page-header__description {
+  max-width: 46rem;
+  margin: 0.5rem 0 0;
+  color: @ink-secondary;
+  font-size: 0.9375rem;
+  line-height: 1.55;
+}
+
+.page-header__actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 0.5rem;
+  align-items: center;
+
+  &:empty {
+    display: none;
+  }
+}
+
+@media (max-width: 42rem) {
+  .page-header {
+    flex-direction: column;
+  }
+}

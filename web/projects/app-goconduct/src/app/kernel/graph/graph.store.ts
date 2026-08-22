@@ -5,6 +5,9 @@ import { GraphEventType } from 'lib-api-gen/gen/v1/graph_pb';
 import { GRAPH_CLIENT, QUALITY_CLIENT } from '../client/api';
 import { buildGraphLayout } from './graph-layout';
 
+/** State of the connection that keeps the console current. */
+export type LiveState = 'connecting' | 'live' | 'disconnected';
+
 /**
  * The analyzed repository, held once for the whole console.
  *
@@ -29,14 +32,36 @@ export class GraphStore {
   /** The analyzed graph, undefined until the first response arrives. */
   readonly graph = this.graphState.asReadonly();
 
-  /** Whether a load is in flight. */
+  /** Whether the first load has not produced a graph yet. */
   readonly loading = signal(true);
 
-  /** Message of the last failure, empty when the last operation succeeded. */
+  /**
+   * Whether a re-analysis the reader asked for is running.
+   *
+   * It is reported apart from {@link loading} because the two need opposite
+   * treatments: the first load has nothing to show and takes the whole page,
+   * while a refresh keeps the current graph readable and only marks the control
+   * that started it.
+   */
+  readonly refreshing = signal(false);
+
+  /** Message of the last graph failure, empty when the last load succeeded. */
   readonly error = signal('');
 
-  /** Whether the watch stream delivers events. */
-  readonly live = signal(false);
+  /**
+   * Message of the last plugin catalog failure.
+   *
+   * The catalog is reported apart from the graph because it feeds one card of
+   * the overview. Its failure must not claim that the whole analysis is
+   * unavailable while a complete graph is on screen.
+   */
+  readonly pluginError = signal('');
+
+  /** State of the connection that delivers re-analysis events. */
+  readonly liveState = signal<LiveState>('connecting');
+
+  /** When the held graph arrived, undefined before the first response. */
+  readonly lastUpdatedAt = signal<Date | undefined>(undefined);
 
   /** Names of the quality plugins the server reports. */
   readonly qualityPlugins = signal<readonly string[]>([]);
@@ -63,6 +88,9 @@ export class GraphStore {
   /** Positioned map of the most connected components. */
   readonly layout = computed(() => buildGraphLayout(this.components(), this.relationships()));
 
+  /** Whether the console holds no graph and cannot explain why yet. */
+  readonly unavailable = computed(() => this.graphState() === undefined && this.error() !== '');
+
   constructor() {
     this.destroyRef.onDestroy(() => this.abortController.abort());
     void this.initialize();
@@ -70,12 +98,21 @@ export class GraphStore {
 
   /** Re-analyzes the repository and replaces the held graph. */
   async refresh(): Promise<void> {
-    await this.load(true);
+    if (this.refreshing()) {
+      return;
+    }
+    this.refreshing.set(true);
+    try {
+      await Promise.all([this.load(true), this.loadPlugins()]);
+    } finally {
+      this.refreshing.set(false);
+    }
   }
 
   private async initialize(): Promise<void> {
     const [loaded] = await Promise.all([this.load(false), this.loadPlugins()]);
     if (!loaded || this.abortController.signal.aborted) {
+      this.liveState.set('disconnected');
       return;
     }
     await this.watch();
@@ -88,16 +125,18 @@ export class GraphStore {
         { signal: this.abortController.signal },
       );
       this.qualityPlugins.set(response.plugins.map((candidate) => candidate.name));
+      this.pluginError.set('');
     } catch (error: unknown) {
       if (!this.abortController.signal.aborted) {
-        this.error.set(ConnectError.from(error).rawMessage || 'The plugin catalog is unavailable.');
+        this.pluginError.set(
+          ConnectError.from(error).rawMessage || 'The plugin catalog is unavailable.',
+        );
       }
     }
   }
 
   private async load(refresh: boolean): Promise<boolean> {
     const sequence = ++this.loadSequence;
-    this.loading.set(true);
     try {
       const response = await this.client.getGraph(
         { refresh, cacheKey: '', cacheProtocol: 0 },
@@ -107,6 +146,7 @@ export class GraphStore {
         return response.graph !== undefined;
       }
       this.graphState.set(response.graph);
+      this.lastUpdatedAt.set(new Date());
       this.error.set('');
       return true;
     } catch (error: unknown) {
@@ -129,7 +169,7 @@ export class GraphStore {
         { signal: this.abortController.signal },
       );
       for await (const event of events) {
-        this.live.set(true);
+        this.liveState.set('live');
         if (
           event.type === GraphEventType.CHANGED &&
           event.revision !== this.graphState()?.revision
@@ -137,9 +177,10 @@ export class GraphStore {
           await this.load(false);
         }
       }
+      this.liveState.set('disconnected');
     } catch (error: unknown) {
       if (!this.abortController.signal.aborted) {
-        this.live.set(false);
+        this.liveState.set('disconnected');
         this.error.set(ConnectError.from(error).rawMessage || 'Live updates are unavailable.');
       }
     }

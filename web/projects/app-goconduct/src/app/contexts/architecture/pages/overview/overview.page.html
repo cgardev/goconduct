@@ -1,122 +1,157 @@
 <div class="overview">
-  <section class="overview__hero" aria-labelledby="overview-title">
-    <p class="overview__eyebrow">Deterministic architecture for Go</p>
-    <h1 id="overview-title">See every dependency. Enforce every boundary.</h1>
-    <p class="overview__lede">
-      goconduct turns Go source code into an explainable component map with measurable architecture
-      rules.
-    </p>
-  </section>
+  <app-page-header
+    heading="Overview"
+    description="What the deterministic analysis found in this repository, and how its
+      components depend on each other."
+  />
 
-  @if (graph.error()) {
-    <section class="overview__notice" role="alert">
-      <tui-icon icon="@tui.circle-alert" />
-      <div>
-        <strong>Analysis unavailable</strong>
-        <p>{{ graph.error() }}</p>
-      </div>
+  <app-alert tone="info" heading="goconduct is alpha software">
+    The analysis contract and this console still change between releases. Report anything that looks
+    wrong on the repository.
+  </app-alert>
+
+  @if (graph.unavailable()) {
+    <section class="panel">
+      <app-empty-state
+        icon="@tui.circle-alert"
+        heading="The analysis is unavailable"
+        tone="negative"
+        [description]="graph.error()"
+      >
+        <button
+          appEmptyStateAction
+          appearance="secondary"
+          size="s"
+          tuiButton
+          type="button"
+          [disabled]="graph.refreshing()"
+          (click)="graph.refresh()"
+        >
+          Retry
+        </button>
+      </app-empty-state>
     </section>
-  }
-
-  @if (graph.loading() && !graph.graph()) {
+  } @else if (graph.loading()) {
     <section class="overview__loading" aria-live="polite">
       <tui-loader size="l" />
       <p>Reading the repository graph…</p>
     </section>
-  }
+  } @else if (graph.graph(); as analyzed) {
+    @if (graph.error()) {
+      <app-alert tone="warning" heading="The last update failed">{{ graph.error() }}</app-alert>
+    }
 
-  @if (graph.graph(); as analyzed) {
     @if (graph.summary(); as summary) {
-      <section class="overview__metrics" aria-label="Architecture summary">
-        <article class="metric-card">
-          <span class="metric-card__label">Quality plugins</span>
-          <strong>{{ graph.qualityPlugins().length | number }}</strong>
-          <span>{{ graph.qualityPlugins().join(' · ') }}</span>
-        </article>
-        <article class="metric-card">
+      <section class="overview__metrics" aria-label="Analysis summary">
+        <a class="metric-card metric-card--link" [routerLink]="componentsLink">
           <span class="metric-card__label">Components</span>
           <strong>{{ summary.components | number }}</strong>
-          <span>{{ summary.applications }} applications</span>
-        </article>
+          <span class="metric-card__detail">{{ summary.applications }} applications</span>
+          <tui-icon class="metric-card__chevron" icon="@tui.arrow-right" />
+        </a>
+
         <article class="metric-card">
           <span class="metric-card__label">Dependencies</span>
           <strong>{{ summary.productionRelationships | number }}</strong>
-          <span>{{ summary.testOnlyRelationships }} test-only</span>
+          <span class="metric-card__detail">{{ summary.testOnlyRelationships }} test-only</span>
         </article>
+
         <article class="metric-card">
           <span class="metric-card__label">Functions</span>
           <strong>{{ summary.productionFunctions | number }}</strong>
-          <span>{{ summary.functionCallSites }} call sites</span>
+          <span class="metric-card__detail">{{ summary.functionCallSites }} call sites</span>
         </article>
-        <article class="metric-card" [attr.data-state]="summary.errors > 0 ? 'error' : 'clear'">
+
+        <a
+          class="metric-card metric-card--link"
+          [attr.data-state]="summary.errors > 0 ? 'error' : 'clear'"
+          [routerLink]="findingsLink"
+        >
           <span class="metric-card__label">Findings</span>
           <strong>{{ summary.findings | number }}</strong>
-          <span>{{ summary.errors }} errors · {{ summary.warnings }} warnings</span>
+          <span class="metric-card__detail">
+            {{ summary.errors }} errors · {{ summary.warnings }} warnings
+          </span>
+          <tui-icon class="metric-card__chevron" icon="@tui.arrow-right" />
+        </a>
+
+        <article class="metric-card">
+          <span class="metric-card__label">Quality plugins</span>
+          <strong>{{ graph.qualityPlugins().length | number }}</strong>
+          <span class="metric-card__detail">
+            {{ graph.pluginError() || graph.qualityPlugins().join(' · ') || 'None registered' }}
+          </span>
         </article>
       </section>
     }
 
     <article class="panel">
       <header class="panel__header">
-        <div>
-          <p class="panel__eyebrow">Repository map</p>
-          <h2>{{ analyzed.modulePath }}</h2>
+        <div class="panel__title">
+          <h2>Repository map</h2>
+          <p class="panel__description">
+            The {{ layoutLimit }} most connected components. Select one to inspect its dependencies.
+          </p>
         </div>
-        <span class="panel__revision">Revision {{ analyzed.revision.slice(0, 8) }}</span>
+        <span class="panel__meta">
+          <span class="panel__module">{{ analyzed.modulePath }}</span>
+          <span class="panel__revision">{{ analyzed.revision.slice(0, 8) }}</span>
+        </span>
       </header>
 
-      <div class="graph-map" aria-label="Component dependency map">
-        <svg
-          class="graph-map__edges"
-          viewBox="0 0 100 100"
-          preserveAspectRatio="none"
-          aria-hidden="true"
-        >
-          @for (
-            edge of graph.layout().edges;
-            track edge.relationship.source + edge.relationship.target
-          ) {
-            <line
-              [attr.x1]="edge.x1"
-              [attr.y1]="edge.y1"
-              [attr.x2]="edge.x2"
-              [attr.y2]="edge.y2"
-              [class.graph-map__edge--test]="edge.relationship.testOnly"
-            />
-          }
-        </svg>
-
-        @for (node of graph.layout().nodes; track node.component.id) {
-          <button
-            class="graph-map__node"
-            type="button"
-            [attr.data-role]="node.component.role"
-            [class.graph-map__node--selected]="
-              selection.selectedComponentId() === node.component.id
-            "
-            [style.left.%]="node.x"
-            [style.top.%]="node.y"
-            [attr.aria-label]="'Inspect ' + node.component.name"
-            (click)="selection.select(node.component.id)"
+      @if (graph.layout().nodes.length === 0) {
+        <app-empty-state
+          icon="@tui.network"
+          heading="No components to map"
+          description="The analysis found no component in this repository."
+        />
+      } @else {
+        <div class="graph-map">
+          <svg
+            class="graph-map__edges"
+            viewBox="0 0 100 100"
+            preserveAspectRatio="none"
+            aria-hidden="true"
           >
-            <span>{{ node.component.name.slice(0, 2).toUpperCase() }}</span>
-            <small>{{ node.component.name }}</small>
-          </button>
-        }
+            @for (
+              edge of graph.layout().edges;
+              track edge.relationship.source + edge.relationship.target
+            ) {
+              <line
+                [attr.x1]="edge.x1"
+                [attr.y1]="edge.y1"
+                [attr.x2]="edge.x2"
+                [attr.y2]="edge.y2"
+                [class.graph-map__edge--test]="edge.relationship.testOnly"
+              />
+            }
+          </svg>
 
-        @if (graph.layout().nodes.length === 0) {
-          <div class="graph-map__empty">
-            <tui-icon icon="@tui.network" />
-            <p>No components match the current analysis.</p>
-          </div>
-        }
-      </div>
+          @for (node of graph.layout().nodes; track node.component.id) {
+            <button
+              class="graph-map__node"
+              type="button"
+              [attr.data-role]="node.component.role"
+              [attr.aria-pressed]="selection.selectedComponentId() === node.component.id"
+              [class.graph-map__node--selected]="
+                selection.selectedComponentId() === node.component.id
+              "
+              [style.left.%]="node.x"
+              [style.top.%]="node.y"
+              [attr.aria-label]="'Inspect ' + node.component.name"
+              (click)="selection.select(node.component.id)"
+            >
+              <span aria-hidden="true">{{ node.component.name.slice(0, 2).toUpperCase() }}</span>
+              <small aria-hidden="true">{{ node.component.name }}</small>
+            </button>
+          }
+        </div>
 
-      <footer class="graph-map__legend">
-        <span><i class="graph-map__sample"></i>Production dependency</span>
-        <span><i class="graph-map__sample graph-map__sample--test"></i>Test-only dependency</span>
-        <span>Showing the {{ layoutLimit }} most connected components</span>
-      </footer>
+        <footer class="graph-map__legend">
+          <span><i class="graph-map__sample"></i>Production dependency</span>
+          <span><i class="graph-map__sample graph-map__sample--test"></i>Test-only dependency</span>
+        </footer>
+      }
     </article>
   }
 </div>

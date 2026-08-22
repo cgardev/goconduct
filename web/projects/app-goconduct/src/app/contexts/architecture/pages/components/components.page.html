@@ -1,85 +1,178 @@
 <div class="components">
-  @if (graph.error()) {
-    <section class="components__notice" role="alert">
-      <tui-icon icon="@tui.circle-alert" />
-      <div>
-        <strong>Analysis unavailable</strong>
-        <p>{{ graph.error() }}</p>
-      </div>
-    </section>
-  }
+  <app-page-header
+    heading="Components"
+    description="Coupling metrics of every component the analysis found. Select a row to see
+      its dependencies."
+    [counter]="counter()"
+  />
 
-  @if (graph.loading() && !graph.graph()) {
+  @if (graph.unavailable()) {
+    <section class="panel">
+      <app-empty-state
+        icon="@tui.circle-alert"
+        heading="The analysis is unavailable"
+        tone="negative"
+        [description]="graph.error()"
+      >
+        <button
+          appEmptyStateAction
+          appearance="secondary"
+          size="s"
+          tuiButton
+          type="button"
+          [disabled]="graph.refreshing()"
+          (click)="graph.refresh()"
+        >
+          Retry
+        </button>
+      </app-empty-state>
+    </section>
+  } @else if (graph.loading()) {
     <section class="components__loading" aria-live="polite">
       <tui-loader size="l" />
       <p>Reading the repository graph…</p>
     </section>
   } @else {
     <section class="panel">
-      <header class="panel__header panel__header--controls">
-        <div>
-          <p class="panel__eyebrow">Coupling metrics</p>
-          <h2>Components</h2>
-        </div>
+      <header class="panel__toolbar">
+        <tui-textfield class="components__search" iconStart="@tui.search" tuiTextfieldSize="m">
+          <label tuiLabel>Search components</label>
+          <input
+            placeholder="Name, path, category or application"
+            [ngModel]="query()"
+            (ngModelChange)="setQuery($event)"
+          />
+        </tui-textfield>
 
-        <div class="component-filters">
-          <label class="component-filters__search">
-            <tui-icon icon="@tui.search" aria-hidden="true" />
-            <span class="visually-hidden">Search components</span>
-            <input
-              type="search"
-              placeholder="Search components"
-              [value]="query()"
-              (input)="updateQuery($event)"
-            />
-          </label>
-          <label class="component-filters__role">
-            <span class="visually-hidden">Filter by role</span>
-            <select [value]="role()" (change)="updateRole($event)">
-              <option value="all">All roles</option>
-              @for (role of graph.roles(); track role) {
-                <option [value]="role">{{ role }}</option>
-              }
-            </select>
-          </label>
-        </div>
+        <tui-textfield
+          class="components__role"
+          tuiChevron
+          tuiTextfieldSize="m"
+          [stringify]="roleLabel"
+        >
+          <label tuiLabel>Role</label>
+          <input tuiSelect [ngModel]="selectedRole()" (ngModelChange)="setRole($event)" />
+          <tui-data-list-wrapper *tuiDropdown [items]="roleOptions()" />
+        </tui-textfield>
+
+        @if (filtered()) {
+          <button
+            appearance="flat-grayscale"
+            iconStart="@tui.filter-x"
+            size="m"
+            tuiButton
+            type="button"
+            (click)="clearFilters()"
+          >
+            Clear filters
+          </button>
+        }
       </header>
 
-      <div class="component-table" role="table" aria-label="Component coupling metrics">
-        <div class="component-table__header" role="row">
-          <span role="columnheader">Component</span>
-          <span role="columnheader">Role</span>
-          <span role="columnheader">Ca</span>
-          <span role="columnheader">Ce</span>
-          <span role="columnheader">Instability</span>
-          <span role="columnheader">Distance</span>
-        </div>
+      <p class="visually-hidden" aria-live="polite">{{ rows().length }} components match.</p>
 
-        @for (component of components(); track component.id) {
-          <button
-            class="component-table__row"
-            role="row"
-            type="button"
-            [class.component-table__row--selected]="selection.selectedComponentId() === component.id"
-            (click)="selection.select(component.id)"
+      @if (rows().length === 0) {
+        @if (graph.components().length === 0) {
+          <app-empty-state
+            icon="@tui.inbox"
+            heading="No components"
+            description="The analysis found no component in this repository."
+          />
+        } @else {
+          <app-empty-state
+            icon="@tui.search-x"
+            heading="No matches"
+            description="No component matches the current search and role."
           >
-            <span class="component-table__identity" role="cell">
-              <strong>{{ component.name }}</strong>
-              <small>{{ component.id }}</small>
-            </span>
-            <span role="cell"><i [attr.data-role]="component.role"></i>{{ component.role }}</span>
-            <span role="cell">{{ component.afferentCoupling }}</span>
-            <span role="cell">{{ component.efferentCoupling }}</span>
-            <span class="component-table__bar" role="cell">
-              <i><b [style.width.%]="percentage(component.instability)"></b></i>
-              {{ component.instability | number: '1.2-2' }}
-            </span>
-            <span role="cell">{{ component.mainSequenceDistance | number: '1.2-2' }}</span>
-          </button>
-        } @empty {
-          <div class="component-table__empty">No components match this filter.</div>
+            <button
+              appEmptyStateAction
+              appearance="secondary"
+              size="s"
+              tuiButton
+              type="button"
+              (click)="clearFilters()"
+            >
+              Clear filters
+            </button>
+          </app-empty-state>
         }
-      </div>
+      } @else {
+        <div class="components__scroller">
+          <table class="component-table">
+            <caption class="visually-hidden">
+              Component coupling metrics
+            </caption>
+            <thead>
+              <tr>
+                @for (definition of columns; track definition.column) {
+                  <th
+                    scope="col"
+                    [attr.aria-sort]="ariaSort(definition.column)"
+                    [class.component-table__cell--numeric]="definition.numeric"
+                  >
+                    <button
+                      class="component-table__sort"
+                      type="button"
+                      [attr.title]="definition.description"
+                      (click)="toggleSort(definition.column)"
+                    >
+                      {{ definition.label }}
+                      <tui-icon
+                        class="component-table__sort-icon"
+                        [class.component-table__sort-icon--active]="
+                          sort().column === definition.column
+                        "
+                        [icon]="
+                          sort().column === definition.column && sort().direction === 'ascending'
+                            ? '@tui.chevron-up'
+                            : '@tui.chevron-down'
+                        "
+                      />
+                    </button>
+                  </th>
+                }
+              </tr>
+            </thead>
+            <tbody>
+              @for (component of rows(); track component.id) {
+                <tr
+                  [class.component-table__row--selected]="
+                    selection.selectedComponentId() === component.id
+                  "
+                >
+                  <th scope="row" class="component-table__identity">
+                    <button
+                      class="component-table__link"
+                      type="button"
+                      (click)="selection.select(component.id)"
+                    >
+                      {{ component.name }}
+                    </button>
+                    <small>{{ component.id }}</small>
+                  </th>
+                  <td>
+                    <span class="component-table__role">
+                      <i [attr.data-role]="component.role" aria-hidden="true"></i>
+                      {{ component.role }}
+                    </span>
+                  </td>
+                  <td class="component-table__cell--numeric">{{ component.afferentCoupling }}</td>
+                  <td class="component-table__cell--numeric">{{ component.efferentCoupling }}</td>
+                  <td class="component-table__cell--numeric">
+                    <span class="component-table__bar">
+                      <i><b [style.width.%]="percentage(component.instability)"></b></i>
+                      {{ component.instability | number: '1.2-2' }}
+                    </span>
+                  </td>
+                  <td class="component-table__cell--numeric">
+                    {{ component.mainSequenceDistance | number: '1.2-2' }}
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
     </section>
   }
 </div>

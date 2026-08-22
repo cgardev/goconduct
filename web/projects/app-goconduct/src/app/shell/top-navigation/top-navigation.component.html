@@ -1,0 +1,46 @@
+<div class="top-navigation">
+  <a class="top-navigation__identity" [routerLink]="homeLink">
+    <span class="top-navigation__mark" aria-hidden="true">g</span>
+    <span class="top-navigation__wordmark">goconduct</span>
+  </a>
+
+  <div class="top-navigation__utilities">
+    <span class="top-navigation__status" [attr.data-state]="statusState()" aria-live="polite">
+      <span class="top-navigation__dot" aria-hidden="true"></span>
+      {{ statusLabel() }}
+    </span>
+
+    @if (graph.lastUpdatedAt(); as instant) {
+      <time
+        class="top-navigation__updated"
+        [attr.datetime]="instant.toISOString()"
+        [attr.title]="absolute(instant)"
+      >
+        Updated {{ updatedLabel() }}
+      </time>
+    }
+
+    <button
+      appearance="secondary-grayscale"
+      iconStart="@tui.refresh-cw"
+      size="s"
+      tuiButton
+      type="button"
+      [loading]="graph.refreshing()"
+      (click)="graph.refresh()"
+    >
+      Refresh
+    </button>
+
+    <a
+      class="top-navigation__source"
+      iconEnd="@tui.external-link"
+      rel="noreferrer"
+      target="_blank"
+      tuiLink
+      [href]="repositoryUrl"
+    >
+      Source
+    </a>
+  </div>
+</div>

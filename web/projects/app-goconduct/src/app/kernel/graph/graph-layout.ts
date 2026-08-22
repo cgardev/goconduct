@@ -22,8 +22,40 @@ export interface GraphLayout {
   readonly edges: readonly GraphEdge[];
 }
 
+/** Column the components table is sorted by. */
+export type ComponentSortColumn =
+  | 'name'
+  | 'role'
+  | 'afferentCoupling'
+  | 'efferentCoupling'
+  | 'instability'
+  | 'mainSequenceDistance';
+
+/** Direction one column is sorted in. */
+export type SortDirection = 'ascending' | 'descending';
+
+/** How the components table is sorted. */
+export interface ComponentSort {
+  readonly column: ComponentSortColumn;
+  readonly direction: SortDirection;
+}
+
+/** Value of the role filter that keeps every role. */
+export const EVERY_ROLE = 'all';
+
 /** How many components the map places, ordered by total coupling. */
 export const GRAPH_LAYOUT_LIMIT = 18;
+
+/**
+ * Sort the table starts on: the most depended-upon component first.
+ *
+ * A reader opens this table to find what the repository leans on, so the first
+ * row answers that question without a single interaction.
+ */
+export const DEFAULT_COMPONENT_SORT: ComponentSort = {
+  column: 'afferentCoupling',
+  direction: 'descending',
+};
 
 /** Filters components by role and a case-insensitive text query. */
 export function filterComponents(
@@ -33,7 +65,7 @@ export function filterComponents(
 ): GraphComponent[] {
   const normalizedQuery = query.trim().toLocaleLowerCase();
   return components
-    .filter((component) => role === 'all' || component.role === role)
+    .filter((component) => role === EVERY_ROLE || component.role === role)
     .filter((component) => {
       if (normalizedQuery === '') {
         return true;
@@ -42,11 +74,40 @@ export function filterComponents(
         .join(' ')
         .toLocaleLowerCase()
         .includes(normalizedQuery);
-    })
-    .sort(
-      (first, second) =>
-        second.afferentCoupling - first.afferentCoupling || first.id.localeCompare(second.id),
-    );
+    });
+}
+
+/**
+ * Sorts components by one column.
+ *
+ * The identifier breaks every tie, so the order is total. Two runs over the
+ * same graph therefore produce the same table, which a deterministic analysis
+ * has to guarantee.
+ */
+export function sortComponents(
+  components: readonly GraphComponent[],
+  sort: ComponentSort,
+): GraphComponent[] {
+  const sign = sort.direction === 'ascending' ? 1 : -1;
+  return [...components].sort(
+    (first, second) => sign * compare(first, second, sort.column) || first.id.localeCompare(second.id),
+  );
+}
+
+// compare orders two components by one column. A text column compares by
+// locale, and a numeric column by value.
+function compare(
+  first: GraphComponent,
+  second: GraphComponent,
+  column: ComponentSortColumn,
+): number {
+  if (column === 'name') {
+    return first.name.localeCompare(second.name);
+  }
+  if (column === 'role') {
+    return first.role.localeCompare(second.role);
+  }
+  return first[column] - second[column];
 }
 
 /** Builds a stable circular layout for the most connected components. */

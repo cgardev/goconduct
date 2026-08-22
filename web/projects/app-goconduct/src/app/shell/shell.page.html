@@ -1,92 +1,60 @@
-<aside class="shell__sidebar" [class.shell__sidebar--dense]="shell.dense()">
-  <header class="shell__brand">
-    <a class="shell__brand-link" [routerLink]="homeLink" aria-label="goconduct home">
-      <span class="shell__mark" aria-hidden="true">g</span>
-      @if (!shell.dense()) {
-        <span class="shell__wordmark">goconduct</span>
+<app-top-navigation />
+
+<div class="shell__body">
+  <aside class="shell__sidebar" [class.shell__sidebar--dense]="shell.dense()">
+    <nav class="shell__navigation" aria-label="Sections">
+      @for (group of navigationGroups; track group.id) {
+        <section class="shell__group">
+          @if (!shell.dense()) {
+            <p class="shell__group-title">{{ group.title }}</p>
+            <p class="shell__group-subtitle">{{ group.subtitle }}</p>
+          }
+
+          @for (item of group.children; track item.id) {
+            <a
+              class="shell__item"
+              ariaCurrentWhenActive="page"
+              routerLinkActive="shell__item--active"
+              [routerLink]="item.link"
+              [attr.title]="shell.dense() ? item.title : null"
+            >
+              <tui-icon [icon]="item.icon" />
+              @if (!shell.dense()) {
+                <span>{{ item.title }}</span>
+              }
+            </a>
+          }
+        </section>
       }
-    </a>
+    </nav>
 
-    <button
-      appearance="flat-grayscale"
-      size="s"
-      tuiIconButton
-      type="button"
-      [iconStart]="shell.dense() ? '@tui.panel-left-open' : '@tui.panel-left-close'"
-      [attr.aria-label]="shell.dense() ? 'Expand the sidebar' : 'Collapse the sidebar'"
-      (click)="shell.toggleDensity()"
-    ></button>
-  </header>
-
-  <nav class="shell__navigation" aria-label="Sections">
-    @for (group of navigationGroups; track group.id) {
-      <section class="shell__group">
-        @if (!shell.dense()) {
-          <p class="shell__group-title">{{ group.title }}</p>
-          <p class="shell__group-subtitle">{{ group.subtitle }}</p>
-        }
-
-        @for (item of group.children; track item.id) {
-          <a
-            class="shell__item"
-            routerLinkActive="shell__item--active"
-            [routerLink]="item.link"
-            [attr.title]="shell.dense() ? item.title : null"
-          >
-            <tui-icon [icon]="item.icon" />
-            @if (!shell.dense()) {
-              <span>{{ item.title }}</span>
-            }
-          </a>
-        }
-      </section>
-    }
-  </nav>
-
-  <footer class="shell__footer">
-    <span
-      class="shell__live"
-      [class.shell__live--connected]="graph.live()"
-      [attr.title]="graph.live() ? 'Live' : 'Connecting'"
-    >
-      <span class="shell__live-dot" aria-hidden="true"></span>
-      @if (!shell.dense()) {
-        {{ graph.live() ? 'Live' : 'Connecting' }}
+    <div class="shell__sidebar-footer">
+      @if (shell.dense()) {
+        <button
+          appearance="flat-grayscale"
+          iconStart="@tui.panel-left-open"
+          size="s"
+          tuiIconButton
+          type="button"
+          aria-label="Expand the sidebar"
+          (click)="shell.toggleDensity()"
+        ></button>
+      } @else {
+        <button
+          appearance="flat-grayscale"
+          iconStart="@tui.panel-left-close"
+          size="s"
+          tuiButton
+          type="button"
+          (click)="shell.toggleDensity()"
+        >
+          Collapse
+        </button>
       }
-    </span>
+    </div>
+  </aside>
 
-    @if (shell.dense()) {
-      <button
-        appearance="secondary-grayscale"
-        iconStart="@tui.refresh-cw"
-        size="s"
-        tuiIconButton
-        type="button"
-        aria-label="Refresh the analysis"
-        [disabled]="graph.loading()"
-        (click)="graph.refresh()"
-      ></button>
-    } @else {
-      <button
-        appearance="secondary-grayscale"
-        iconStart="@tui.refresh-cw"
-        size="s"
-        tuiButton
-        type="button"
-        [disabled]="graph.loading()"
-        (click)="graph.refresh()"
-      >
-        Refresh
-      </button>
-
-      <div class="shell__meta">
-        <span appearance="neutral" size="s" tuiBadge>Alpha</span>
-        <a class="shell__source" rel="noreferrer" [href]="repositoryUrl">Source</a>
-      </div>
-    }
-  </footer>
-</aside>
-
-<main class="shell__content">
-  <router-outlet />
-</main>
+  <main class="shell__content">
+    <router-outlet />
+  </main>
+</div>

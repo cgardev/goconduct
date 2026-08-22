@@ -1,49 +1,117 @@
 <div class="findings">
-  @if (graph.error()) {
-    <section class="findings__notice" role="alert">
-      <tui-icon icon="@tui.circle-alert" />
-      <div>
-        <strong>Analysis unavailable</strong>
-        <p>{{ graph.error() }}</p>
-      </div>
-    </section>
-  }
+  <app-page-header
+    heading="Findings"
+    description="Every rule the analysis evaluated, and the components that do not satisfy one."
+    [counter]="counter()"
+  />
 
-  @if (graph.loading() && !graph.graph()) {
+  @if (graph.unavailable()) {
+    <section class="panel">
+      <app-empty-state
+        icon="@tui.circle-alert"
+        heading="The analysis is unavailable"
+        tone="negative"
+        [description]="graph.error()"
+      >
+        <button
+          appEmptyStateAction
+          appearance="secondary"
+          size="s"
+          tuiButton
+          type="button"
+          [disabled]="graph.refreshing()"
+          (click)="graph.refresh()"
+        >
+          Retry
+        </button>
+      </app-empty-state>
+    </section>
+  } @else if (graph.loading()) {
     <section class="findings__loading" aria-live="polite">
       <tui-loader size="l" />
       <p>Reading the repository graph…</p>
     </section>
   } @else {
+    @if (graph.error()) {
+      <app-alert tone="warning" heading="The last update failed">{{ graph.error() }}</app-alert>
+    }
+
     <section class="panel">
-      <header class="panel__header">
-        <div>
-          <p class="panel__eyebrow">Deterministic checks</p>
-          <h2>Findings</h2>
-        </div>
-        <span appearance="neutral" size="s" tuiBadge>{{ graph.findings().length }}</span>
+      <header class="panel__toolbar">
+        <tui-textfield
+          class="findings__severity"
+          tuiChevron
+          tuiTextfieldSize="m"
+          [stringify]="severityLabel"
+        >
+          <label tuiLabel>Severity</label>
+          <input
+            tuiSelect
+            [ngModel]="selectedSeverity()"
+            (ngModelChange)="setSeverity($event)"
+          />
+          <tui-data-list-wrapper *tuiDropdown [items]="severityOptions" />
+        </tui-textfield>
+
+        @if (filtered()) {
+          <button
+            appearance="flat-grayscale"
+            iconStart="@tui.filter-x"
+            size="m"
+            tuiButton
+            type="button"
+            (click)="clearFilters()"
+          >
+            Clear filter
+          </button>
+        }
       </header>
 
-      <div class="finding-list">
-        @for (finding of graph.findings(); track finding.rule + finding.subject) {
-          <article class="finding" [attr.data-severity]="finding.severity">
-            <span class="finding__icon">
-              <tui-icon [icon]="severityIcon(finding.severity)" />
-            </span>
-            <div>
-              <strong>{{ finding.rule }}</strong>
-              <p>{{ finding.message }}</p>
-              <span>{{ finding.subject }}</span>
-            </div>
-          </article>
-        } @empty {
-          <div class="finding-list__empty">
-            <tui-icon icon="@tui.circle-check" />
-            <strong>No architecture findings</strong>
-            <p>The current graph satisfies every configured rule.</p>
-          </div>
+      <p class="visually-hidden" aria-live="polite">{{ matches().length }} findings match.</p>
+
+      @if (matches().length === 0) {
+        @if (graph.findings().length === 0) {
+          <app-empty-state
+            icon="@tui.circle-check"
+            heading="No architecture findings"
+            tone="positive"
+            description="The current graph satisfies every configured rule."
+          />
+        } @else {
+          <app-empty-state
+            icon="@tui.search-x"
+            heading="No matches"
+            description="No finding has the selected severity."
+          >
+            <button
+              appEmptyStateAction
+              appearance="secondary"
+              size="s"
+              tuiButton
+              type="button"
+              (click)="clearFilters()"
+            >
+              Clear filter
+            </button>
+          </app-empty-state>
         }
-      </div>
+      } @else {
+        <ul class="finding-list">
+          @for (finding of matches(); track finding.rule + finding.subject) {
+            <li class="finding" [attr.data-severity]="finding.severity">
+              <span class="finding__icon">
+                <tui-icon [icon]="severityIcon(finding.severity)" />
+                <span class="visually-hidden">{{ finding.severity }}</span>
+              </span>
+              <div class="finding__body">
+                <p class="finding__rule">{{ finding.rule }}</p>
+                <p class="finding__message">{{ finding.message }}</p>
+                <p class="finding__subject">{{ finding.subject }}</p>
+              </div>
+            </li>
+          }
+        </ul>
+      }
     </section>
   }
 </div>

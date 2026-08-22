@@ -1,17 +1,27 @@
 @if (selection.selectedComponent(); as component) {
-  <aside class="component-detail" aria-labelledby="component-detail-title">
-    <button
-      appearance="flat-grayscale"
-      iconStart="@tui.x"
-      size="s"
-      tuiIconButton
-      type="button"
-      aria-label="Close component details"
-      (click)="selection.close()"
-    ></button>
-    <p class="component-detail__eyebrow">Selected component</p>
-    <h2 id="component-detail-title">{{ component.name }}</h2>
-    <p class="component-detail__path">{{ component.id }}</p>
+  <aside
+    #panel
+    class="component-detail"
+    role="region"
+    tabindex="-1"
+    aria-labelledby="component-detail-title"
+  >
+    <header class="component-detail__header">
+      <div class="component-detail__identity">
+        <p class="component-detail__eyebrow">Selected component</p>
+        <h2 id="component-detail-title">{{ component.name }}</h2>
+        <p class="component-detail__path">{{ component.id }}</p>
+      </div>
+      <button
+        appearance="flat-grayscale"
+        iconStart="@tui.x"
+        size="s"
+        tuiIconButton
+        type="button"
+        aria-label="Close component details"
+        (click)="close()"
+      ></button>
+    </header>
 
     <dl class="component-detail__metrics">
       <div><dt>Role</dt><dd>{{ component.role }}</dd></div>
@@ -22,7 +32,7 @@
       <div><dt>Abstractness</dt><dd>{{ component.abstractness | number: '1.2-2' }}</dd></div>
     </dl>
 
-    <h3>Direct relationships</h3>
+    <h3 class="component-detail__section">Direct relationships</h3>
     <ul class="component-detail__relationships">
       @for (
         relationship of selection.selectedRelationships();
@@ -30,11 +40,11 @@
       ) {
         <li>
           <span>{{ relationship.source }}</span>
-          <tui-icon icon="@tui.arrow-right" />
+          <tui-icon icon="@tui.arrow-right" aria-label="depends on" />
           <span>{{ relationship.target }}</span>
         </li>
       } @empty {
-        <li>No direct relationships.</li>
+        <li class="component-detail__none">No direct relationships.</li>
       }
     </ul>
   </aside>

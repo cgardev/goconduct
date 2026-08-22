@@ -1,0 +1,81 @@
+@import 'tokens.less';
+
+:host {
+  display: block;
+  margin-bottom: 1rem;
+}
+
+.alert {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  padding: 0.875rem 1rem;
+  border: 0.0625rem solid @line;
+  border-radius: @radius-medium;
+  background: @surface;
+
+  &[data-tone='info'] {
+    color: @ink;
+    background: @surface-muted;
+  }
+
+  &[data-tone='success'] {
+    color: @accent-dark;
+    background: fade(@accent, 8%);
+    border-color: fade(@accent, 25%);
+  }
+
+  &[data-tone='warning'] {
+    color: @warning;
+    background: @warning-soft;
+    border-color: fade(@warning, 25%);
+  }
+
+  &[data-tone='error'] {
+    color: @danger;
+    background: @danger-soft;
+    border-color: fade(@danger, 25%);
+  }
+}
+
+.alert__icon {
+  flex: 0 0 auto;
+  inline-size: 1.125rem;
+  block-size: 1.125rem;
+  margin-block-start: 0.05rem;
+}
+
+.alert__body {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+}
+
+.alert__heading {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.alert__content {
+  color: @ink-secondary;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  // The message can quote a server response, which has no break opportunity.
+  overflow-wrap: anywhere;
+
+  &:empty {
+    display: none;
+  }
+
+  &:not(:empty) {
+    margin-block-start: 0.25rem;
+  }
+}
+
+.alert__action {
+  flex: 0 0 auto;
+
+  &:empty {
+    display: none;
+  }
+}

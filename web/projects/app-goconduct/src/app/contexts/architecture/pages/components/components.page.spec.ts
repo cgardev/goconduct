@@ -1,0 +1,86 @@
+import { provideZonelessChangeDetection } from '@angular/core';
+import { TestBed } from '@angular/core/testing';
+import { provideRouter, withComponentInputBinding } from '@angular/router';
+import { RouterTestingHarness } from '@angular/router/testing';
+import { fakeComponent, fakeGraph, provideFakeClients } from '../../../../testing/fake-clients';
+import { ComponentsPage } from './components.page';
+
+const COMPONENTS = [
+  fakeComponent('internal/library/clock', 'library', 2),
+  fakeComponent('internal/library/eventbus', 'library', 7),
+  fakeComponent('cmd/goconduct', 'application', 1),
+];
+
+async function renderPage(url = '/components'): Promise<HTMLElement> {
+  TestBed.configureTestingModule({
+    providers: [
+      provideZonelessChangeDetection(),
+      provideRouter(
+        [{ path: 'components', component: ComponentsPage }],
+        withComponentInputBinding(),
+      ),
+      ...(provideFakeClients(fakeGraph({ components: COMPONENTS })) as never[]),
+    ],
+  });
+
+  const harness = await RouterTestingHarness.create();
+  await harness.navigateByUrl(url, ComponentsPage);
+  // The store resolves its first graph in a promise, so the rendered table only
+  // holds rows after the microtask queue drains.
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  harness.detectChanges();
+  return harness.routeNativeElement as HTMLElement;
+}
+
+describe('ComponentsPage', () => {
+  afterEach(() => TestBed.resetTestingModule());
+
+  it('renders one row per analyzed component', async () => {
+    const element = await renderPage();
+
+    expect(element.querySelectorAll('tbody tr')).toHaveLength(COMPONENTS.length);
+  });
+
+  /**
+   * The role filter used to be a native select bound through its `value`
+   * attribute, which the browser ignores once the options render after it. The
+   * control then named a role the table was not filtered by.
+   */
+  it('shows the role from the address in the filter control', async () => {
+    const element = await renderPage('/components?role=library');
+    const trigger = element.querySelector<HTMLInputElement>('.components__role input');
+
+    expect(trigger?.value).toBe('library');
+    expect(element.querySelectorAll('tbody tr')).toHaveLength(2);
+  });
+
+  it('shows the query from the address in the search control', async () => {
+    const element = await renderPage('/components?q=eventbus');
+    const search = element.querySelector<HTMLInputElement>('.components__search input');
+
+    expect(search?.value).toBe('eventbus');
+    expect(element.querySelectorAll('tbody tr')).toHaveLength(1);
+  });
+
+  it('offers a way out when the filters match nothing', async () => {
+    const element = await renderPage('/components?q=absent');
+
+    expect(element.querySelectorAll('tbody tr')).toHaveLength(0);
+    expect(element.textContent).toContain('No matches');
+    expect(element.textContent).toContain('Clear filters');
+  });
+
+  it('marks the sorted column for assistive technology', async () => {
+    const element = await renderPage();
+    const sorted = element.querySelectorAll('th[aria-sort]:not([aria-sort="none"])');
+
+    expect(sorted).toHaveLength(1);
+    expect(sorted[0]?.textContent).toContain('Ca');
+  });
+
+  it('counts the components beside the heading', async () => {
+    const element = await renderPage();
+
+    expect(element.querySelector('.page-header__counter')?.textContent).toContain('3');
+  });
+});

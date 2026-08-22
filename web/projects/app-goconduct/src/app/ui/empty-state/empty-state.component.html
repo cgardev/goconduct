@@ -1,0 +1,10 @@
+<div class="empty-state" [attr.data-tone]="tone()">
+  <tui-icon class="empty-state__icon" [icon]="icon()" />
+  <p class="empty-state__heading">{{ heading() }}</p>
+  @if (description()) {
+    <p class="empty-state__description">{{ description() }}</p>
+  }
+  <div class="empty-state__action">
+    <ng-content select="[appEmptyStateAction]" />
+  </div>
+</div>

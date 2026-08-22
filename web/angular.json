@@ -42,6 +42,21 @@
                 "output": "assets/taiga-ui/icons"
               },
               {
+                "glob": "check.svg",
+                "input": "node_modules/@taiga-ui/icons/src",
+                "output": "assets/taiga-ui/icons"
+              },
+              {
+                "glob": "chevron-down.svg",
+                "input": "node_modules/@taiga-ui/icons/src",
+                "output": "assets/taiga-ui/icons"
+              },
+              {
+                "glob": "chevron-up.svg",
+                "input": "node_modules/@taiga-ui/icons/src",
+                "output": "assets/taiga-ui/icons"
+              },
+              {
                 "glob": "circle-alert.svg",
                 "input": "node_modules/@taiga-ui/icons/src",
                 "output": "assets/taiga-ui/icons"
@@ -53,6 +68,26 @@
               },
               {
                 "glob": "circle-x.svg",
+                "input": "node_modules/@taiga-ui/icons/src",
+                "output": "assets/taiga-ui/icons"
+              },
+              {
+                "glob": "external-link.svg",
+                "input": "node_modules/@taiga-ui/icons/src",
+                "output": "assets/taiga-ui/icons"
+              },
+              {
+                "glob": "filter-x.svg",
+                "input": "node_modules/@taiga-ui/icons/src",
+                "output": "assets/taiga-ui/icons"
+              },
+              {
+                "glob": "inbox.svg",
+                "input": "node_modules/@taiga-ui/icons/src",
+                "output": "assets/taiga-ui/icons"
+              },
+              {
+                "glob": "info.svg",
                 "input": "node_modules/@taiga-ui/icons/src",
                 "output": "assets/taiga-ui/icons"
               },
@@ -92,6 +127,11 @@
                 "output": "assets/taiga-ui/icons"
               },
               {
+                "glob": "search-x.svg",
+                "input": "node_modules/@taiga-ui/icons/src",
+                "output": "assets/taiga-ui/icons"
+              },
+              {
                 "glob": "triangle-alert.svg",
                 "input": "node_modules/@taiga-ui/icons/src",
                 "output": "assets/taiga-ui/icons"
@@ -103,9 +143,13 @@
               }
             ],
             "stylePreprocessorOptions": {
-              "includePaths": ["projects/app-goconduct/src/styles"]
+              "includePaths": [
+                "projects/app-goconduct/src/styles"
+              ]
             },
-            "styles": ["projects/app-goconduct/src/styles/styles.less"]
+            "styles": [
+              "projects/app-goconduct/src/styles/styles.less"
+            ]
           },
           "configurations": {
             "production": {

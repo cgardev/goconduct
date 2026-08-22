@@ -10,10 +10,6 @@
   .page-frame();
 }
 
-.components__notice {
-  .notice-error();
-}
-
 .components__loading {
   .loading-placeholder();
 }
@@ -22,120 +18,158 @@
   .panel-surface();
 }
 
-.panel__header {
-  .panel-header();
-}
-
-.panel__eyebrow {
-  .eyebrow();
-}
-
-.component-filters {
+.panel__toolbar {
   display: flex;
-  gap: 0.5rem;
+  gap: 0.75rem;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  padding: 1rem 1.25rem;
+  border-bottom: 0.0625rem solid @line;
+}
 
-  &__search,
-  &__role {
-    display: flex;
-    align-items: center;
-    min-height: 2.5rem;
-    background: @surface-muted;
-    border: 0.0625rem solid @line;
-    border-radius: @radius-small;
-  }
+.components__search {
+  inline-size: min(24rem, 100%);
+  flex: 1 1 16rem;
+}
 
-  &__search {
-    width: min(20rem, 35vw);
-    padding: 0 0.75rem;
+.components__role {
+  inline-size: 14rem;
+  flex: 0 0 auto;
+}
 
-    tui-icon {
-      width: 1rem;
-      height: 1rem;
-      color: @ink-tertiary;
-    }
-
-    input {
-      width: 100%;
-      min-width: 0;
-      padding: 0 0.5rem;
-      color: @ink;
-      background: transparent;
-      border: 0;
-      outline: 0;
-      font-size: 0.8125rem;
-    }
-  }
-
-  &__role {
-    select {
-      min-width: 8.5rem;
-      height: 100%;
-      padding: 0 2rem 0 0.75rem;
-      color: @ink;
-      background: transparent;
-      border: 0;
-      outline: 0;
-      font-size: 0.8125rem;
-    }
-  }
+.components__scroller {
+  overflow-x: auto;
 }
 
 .component-table {
-  overflow-x: auto;
+  inline-size: 100%;
+  min-inline-size: 52rem;
+  border-collapse: collapse;
+  text-align: left;
 
-  &__header,
-  &__row {
-    display: grid;
-    grid-template-columns: minmax(15rem, 2fr) minmax(9rem, 1fr) 4rem 4rem minmax(10rem, 1fr) 6rem;
-    gap: 1rem;
-    align-items: center;
-    min-width: 52rem;
+  th,
+  td {
+    padding: 0.75rem 1.25rem;
+    font-size: 0.8125rem;
+    font-weight: 400;
+    vertical-align: middle;
   }
 
-  &__header {
-    min-height: 2.75rem;
-    padding: 0 1.25rem;
+  thead th {
+    padding: 0;
     color: @ink-tertiary;
     background: @surface-muted;
     border-bottom: 0.0625rem solid @line;
-    font-size: 0.6875rem;
-    font-weight: 650;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
+    white-space: nowrap;
   }
 
-  &__row {
-    width: 100%;
-    min-height: 4rem;
-    padding: 0.625rem 1.25rem;
-    color: @ink-secondary;
-    text-align: left;
-    background: @surface;
-    border: 0;
+  tbody tr {
     border-bottom: 0.0625rem solid @line;
-    cursor: pointer;
     transition: background @transition-fast;
-
-    &:hover,
-    &--selected {
-      background: @surface-hover;
-    }
 
     &:last-child {
       border-bottom: 0;
     }
 
-    > span {
-      display: flex;
-      gap: 0.5rem;
-      align-items: center;
-      min-width: 0;
-      font-size: 0.8125rem;
+    &:hover {
+      background: @surface-hover;
+    }
+  }
+
+  tbody td {
+    color: @ink-secondary;
+  }
+
+  &__row--selected {
+    background: @surface-selected;
+  }
+
+  &__cell--numeric {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  &__sort {
+    display: inline-flex;
+    gap: 0.35rem;
+    align-items: center;
+    inline-size: 100%;
+    min-block-size: 2.75rem;
+    padding: 0 1.25rem;
+    color: inherit;
+    background: transparent;
+    border: 0;
+    cursor: pointer;
+    font-size: 0.6875rem;
+    font-weight: 650;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+
+    &:hover {
+      color: @ink;
     }
 
-    i[data-role] {
-      width: 0.5rem;
-      height: 0.5rem;
+    th.component-table__cell--numeric & {
+      justify-content: flex-end;
+    }
+  }
+
+  &__sort-icon {
+    inline-size: 0.875rem;
+    block-size: 0.875rem;
+    opacity: 0;
+    transition: opacity @transition-fast;
+
+    .component-table__sort:hover & {
+      opacity: 0.5;
+    }
+  }
+
+  &__sort-icon--active {
+    opacity: 1;
+  }
+
+  &__identity {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    min-inline-size: 0;
+
+    small {
+      overflow: hidden;
+      color: @ink-tertiary;
+      font-family: @monospace-family;
+      font-size: 0.6875rem;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+  }
+
+  &__link {
+    align-self: flex-start;
+    padding: 0;
+    color: @ink;
+    background: transparent;
+    border: 0;
+    cursor: pointer;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    text-align: left;
+
+    &:hover {
+      text-decoration: underline;
+      text-underline-offset: 0.2em;
+    }
+  }
+
+  &__role {
+    display: inline-flex;
+    gap: 0.5rem;
+    align-items: center;
+
+    i {
+      inline-size: 0.5rem;
+      block-size: 0.5rem;
       flex: 0 0 auto;
       background: @role-library;
       border-radius: 50%;
@@ -144,34 +178,15 @@
     }
   }
 
-  &__identity {
-    display: grid !important;
-    gap: 0.15rem !important;
-
-    strong,
-    small {
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-
-    strong {
-      color: @ink;
-      font-size: 0.8125rem;
-      font-weight: 600;
-    }
-
-    small {
-      color: @ink-tertiary;
-      font-family: @monospace-family;
-      font-size: 0.6875rem;
-    }
-  }
-
   &__bar {
+    display: inline-flex;
+    gap: 0.5rem;
+    align-items: center;
+    justify-content: flex-end;
+
     i {
-      width: 4.5rem;
-      height: 0.3rem;
+      inline-size: 4.5rem;
+      block-size: 0.3rem;
       overflow: hidden;
       background: @line;
       border-radius: 1rem;
@@ -179,40 +194,28 @@
 
     b {
       display: block;
-      height: 100%;
+      block-size: 100%;
       background: @ink-secondary;
       border-radius: inherit;
     }
   }
-
-  &__empty {
-    padding: 3rem 1.25rem;
-    color: @ink-secondary;
-    text-align: center;
-  }
 }
 
 @media (max-width: 42rem) {
-  .panel__header--controls {
-    align-items: stretch;
+  .panel__toolbar {
     flex-direction: column;
+    align-items: stretch;
   }
 
-  .component-filters {
-    flex-direction: column;
-
-    &__search {
-      width: 100%;
-    }
-
-    &__role select {
-      width: 100%;
-    }
+  .components__search,
+  .components__role {
+    inline-size: 100%;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .component-table__row {
+  .component-table tbody tr,
+  .component-table__sort-icon {
     transition: none;
   }
 }
