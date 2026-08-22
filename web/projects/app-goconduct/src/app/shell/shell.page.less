@@ -1,0 +1,241 @@
+@import 'tokens.less';
+
+// The shell is a two-column frame with no top bar: the sidebar owns the whole
+// viewport height, and the routed content takes the rest.
+:host {
+  display: flex;
+  width: 100%;
+  min-height: 100dvh;
+  color: @ink;
+  background: @page-background;
+}
+
+.shell__sidebar {
+  position: sticky;
+  top: 0;
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  width: @sidebar-width;
+  height: 100dvh;
+  background: @surface;
+  border-right: 0.0625rem solid @line;
+  transition: width @transition-fast;
+}
+
+.shell__sidebar--dense {
+  width: @sidebar-dense-width;
+}
+
+.shell__brand {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 4.5rem;
+  padding: 0 0.75rem;
+  border-bottom: 0.0625rem solid @line;
+}
+
+.shell__sidebar--dense .shell__brand {
+  flex-direction: column;
+  gap: 0.5rem;
+  justify-content: center;
+  padding: 0.75rem 0;
+}
+
+.shell__brand-link {
+  display: inline-flex;
+  gap: 0.625rem;
+  align-items: center;
+  min-width: 0;
+  color: @ink;
+  text-decoration: none;
+}
+
+.shell__mark {
+  display: inline-grid;
+  flex: 0 0 auto;
+  width: 2rem;
+  height: 2rem;
+  place-items: center;
+  color: @surface;
+  background: @ink;
+  border-radius: 0.6rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.shell__wordmark {
+  overflow: hidden;
+  font-size: 1rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.shell__navigation {
+  flex: 1 1 auto;
+  padding: 1rem 0.75rem;
+  overflow-y: auto;
+}
+
+.shell__group + .shell__group {
+  margin-top: 1.5rem;
+}
+
+.shell__group-title {
+  margin: 0;
+  color: @ink-secondary;
+  font-size: 0.6875rem;
+  font-weight: 650;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.shell__group-subtitle {
+  margin: 0.25rem 0 0.75rem;
+  color: @ink-tertiary;
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+
+.shell__item {
+  display: flex;
+  gap: 0.625rem;
+  align-items: center;
+  min-height: 2.5rem;
+  padding: 0 0.625rem;
+  color: @ink-secondary;
+  border-radius: @radius-small;
+  font-size: 0.8125rem;
+  font-weight: 550;
+  text-decoration: none;
+  transition: background @transition-fast, color @transition-fast;
+
+  tui-icon {
+    flex: 0 0 auto;
+    width: 1.125rem;
+    height: 1.125rem;
+  }
+
+  span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &:hover {
+    color: @ink;
+    background: @surface-hover;
+  }
+}
+
+.shell__sidebar--dense .shell__item {
+  justify-content: center;
+  padding: 0;
+}
+
+.shell__item--active {
+  color: @ink;
+  background: @surface-selected;
+}
+
+.shell__footer {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+  align-items: stretch;
+  padding: 0.75rem;
+  border-top: 0.0625rem solid @line;
+}
+
+.shell__sidebar--dense .shell__footer {
+  align-items: center;
+}
+
+.shell__live {
+  display: inline-flex;
+  gap: 0.4375rem;
+  align-items: center;
+  color: @ink-secondary;
+  font-size: 0.8125rem;
+}
+
+.shell__live-dot {
+  flex: 0 0 auto;
+  width: 0.5rem;
+  height: 0.5rem;
+  background: @line-strong;
+  border-radius: 50%;
+}
+
+.shell__live--connected .shell__live-dot {
+  background: @accent;
+  box-shadow: 0 0 0 0.1875rem fade(@accent, 14%);
+}
+
+.shell__meta {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.shell__source {
+  color: @ink-secondary;
+  font-size: 0.75rem;
+  text-underline-offset: 0.2em;
+}
+
+.shell__content {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  // Without this a wide table inside the routed page would push the sidebar off
+  // screen instead of scrolling within its own column.
+  min-width: 0;
+  position: relative;
+}
+
+@media (max-width: 42rem) {
+  :host {
+    flex-direction: column;
+  }
+
+  .shell__sidebar,
+  .shell__sidebar--dense {
+    position: static;
+    width: 100%;
+    height: auto;
+    border-right: 0;
+    border-bottom: 0.0625rem solid @line;
+  }
+
+  .shell__navigation {
+    display: flex;
+    gap: 0.5rem;
+    overflow-x: auto;
+  }
+
+  .shell__group + .shell__group {
+    margin-top: 0;
+  }
+
+  .shell__group-subtitle {
+    display: none;
+  }
+
+  .shell__footer {
+    flex-direction: row;
+    align-items: center;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shell__sidebar,
+  .shell__item {
+    transition: none;
+  }
+}

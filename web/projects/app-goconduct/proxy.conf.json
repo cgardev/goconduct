@@ -3,5 +3,10 @@
     "target": "http://127.0.0.1:6062",
     "secure": false,
     "changeOrigin": false
+  },
+  "/goconduct.v1.QualityService": {
+    "target": "http://127.0.0.1:6062",
+    "secure": false,
+    "changeOrigin": false
   }
 }

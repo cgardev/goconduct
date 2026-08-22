@@ -1,0 +1,124 @@
+<div class="overview">
+  <section class="overview__hero" aria-labelledby="overview-title">
+    <p class="overview__eyebrow">Deterministic architecture for Go</p>
+    <h1 id="overview-title">See every dependency. Enforce every boundary.</h1>
+    <p class="overview__lede">
+      goconduct turns Go source code into an explainable component map with measurable architecture
+      rules.
+    </p>
+  </section>
+
+  @if (graph.error()) {
+    <section class="overview__notice" role="alert">
+      <tui-icon icon="@tui.circle-alert" />
+      <div>
+        <strong>Analysis unavailable</strong>
+        <p>{{ graph.error() }}</p>
+      </div>
+    </section>
+  }
+
+  @if (graph.loading() && !graph.graph()) {
+    <section class="overview__loading" aria-live="polite">
+      <tui-loader size="l" />
+      <p>Reading the repository graph…</p>
+    </section>
+  }
+
+  @if (graph.graph(); as analyzed) {
+    @if (graph.summary(); as summary) {
+      <section class="overview__metrics" aria-label="Architecture summary">
+        <article class="metric-card">
+          <span class="metric-card__label">Quality plugins</span>
+          <strong>{{ graph.qualityPlugins().length | number }}</strong>
+          <span>{{ graph.qualityPlugins().join(' · ') }}</span>
+        </article>
+        <article class="metric-card">
+          <span class="metric-card__label">Components</span>
+          <strong>{{ summary.components | number }}</strong>
+          <span>{{ summary.applications }} applications</span>
+        </article>
+        <article class="metric-card">
+          <span class="metric-card__label">Dependencies</span>
+          <strong>{{ summary.productionRelationships | number }}</strong>
+          <span>{{ summary.testOnlyRelationships }} test-only</span>
+        </article>
+        <article class="metric-card">
+          <span class="metric-card__label">Functions</span>
+          <strong>{{ summary.productionFunctions | number }}</strong>
+          <span>{{ summary.functionCallSites }} call sites</span>
+        </article>
+        <article class="metric-card" [attr.data-state]="summary.errors > 0 ? 'error' : 'clear'">
+          <span class="metric-card__label">Findings</span>
+          <strong>{{ summary.findings | number }}</strong>
+          <span>{{ summary.errors }} errors · {{ summary.warnings }} warnings</span>
+        </article>
+      </section>
+    }
+
+    <article class="panel">
+      <header class="panel__header">
+        <div>
+          <p class="panel__eyebrow">Repository map</p>
+          <h2>{{ analyzed.modulePath }}</h2>
+        </div>
+        <span class="panel__revision">Revision {{ analyzed.revision.slice(0, 8) }}</span>
+      </header>
+
+      <div class="graph-map" aria-label="Component dependency map">
+        <svg
+          class="graph-map__edges"
+          viewBox="0 0 100 100"
+          preserveAspectRatio="none"
+          aria-hidden="true"
+        >
+          @for (
+            edge of graph.layout().edges;
+            track edge.relationship.source + edge.relationship.target
+          ) {
+            <line
+              [attr.x1]="edge.x1"
+              [attr.y1]="edge.y1"
+              [attr.x2]="edge.x2"
+              [attr.y2]="edge.y2"
+              [class.graph-map__edge--test]="edge.relationship.testOnly"
+            />
+          }
+        </svg>
+
+        @for (node of graph.layout().nodes; track node.component.id) {
+          <button
+            class="graph-map__node"
+            type="button"
+            [attr.data-role]="node.component.role"
+            [class.graph-map__node--selected]="
+              selection.selectedComponentId() === node.component.id
+            "
+            [style.left.%]="node.x"
+            [style.top.%]="node.y"
+            [attr.aria-label]="'Inspect ' + node.component.name"
+            (click)="selection.select(node.component.id)"
+          >
+            <span>{{ node.component.name.slice(0, 2).toUpperCase() }}</span>
+            <small>{{ node.component.name }}</small>
+          </button>
+        }
+
+        @if (graph.layout().nodes.length === 0) {
+          <div class="graph-map__empty">
+            <tui-icon icon="@tui.network" />
+            <p>No components match the current analysis.</p>
+          </div>
+        }
+      </div>
+
+      <footer class="graph-map__legend">
+        <span><i class="graph-map__sample"></i>Production dependency</span>
+        <span><i class="graph-map__sample graph-map__sample--test"></i>Test-only dependency</span>
+        <span>Showing the {{ layoutLimit }} most connected components</span>
+      </footer>
+    </article>
+  }
+</div>
+
+<app-component-detail />

@@ -1,0 +1,42 @@
+@import 'tokens.less';
+
+// The oversized code is decoration rather than typography, so it carries a size
+// of its own instead of a heading step.
+@error-code-size: 8rem;
+
+:host {
+  display: flex;
+  flex: 1 1 auto;
+}
+
+.error-404 {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: @page-padding;
+  text-align: center;
+}
+
+.error-404__code {
+  margin: 0;
+  color: @surface-selected;
+  font-size: @error-code-size;
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: -0.05em;
+}
+
+.error-404__heading {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 550;
+  letter-spacing: -0.03em;
+}
+
+.error-404__description {
+  margin: 0;
+  color: @ink-secondary;
+}

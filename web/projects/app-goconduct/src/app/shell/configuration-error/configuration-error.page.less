@@ -1,0 +1,62 @@
+@import 'tokens.less';
+
+// Reading measure for the explanatory copy. Wider lines are hard to track back
+// to their start.
+@configuration-error-measure: 36rem;
+
+:host {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 100dvh;
+  padding: @page-padding;
+  background: @page-background;
+}
+
+.configuration-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  max-width: @configuration-error-measure;
+  text-align: center;
+}
+
+.configuration-error__icon {
+  width: 2rem;
+  height: 2rem;
+  color: @danger;
+}
+
+.configuration-error__heading {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 550;
+  letter-spacing: -0.03em;
+}
+
+.configuration-error__lead {
+  margin: 0;
+  color: @ink-secondary;
+  line-height: 1.55;
+}
+
+.configuration-error__detail {
+  width: 100%;
+  margin: 0;
+  padding: 1rem 1.125rem;
+  color: @danger;
+  background: @danger-soft;
+  border: 0.0625rem solid fade(@danger, 25%);
+  border-radius: @radius-medium;
+  font-size: 0.875rem;
+  // The message names a field of a JSON document, so it is quoted verbatim.
+  overflow-wrap: anywhere;
+}
+
+.configuration-error__hint {
+  margin: 0;
+  color: @ink-tertiary;
+  font-size: 0.8125rem;
+}

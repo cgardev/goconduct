@@ -1,0 +1,41 @@
+@if (selection.selectedComponent(); as component) {
+  <aside class="component-detail" aria-labelledby="component-detail-title">
+    <button
+      appearance="flat-grayscale"
+      iconStart="@tui.x"
+      size="s"
+      tuiIconButton
+      type="button"
+      aria-label="Close component details"
+      (click)="selection.close()"
+    ></button>
+    <p class="component-detail__eyebrow">Selected component</p>
+    <h2 id="component-detail-title">{{ component.name }}</h2>
+    <p class="component-detail__path">{{ component.id }}</p>
+
+    <dl class="component-detail__metrics">
+      <div><dt>Role</dt><dd>{{ component.role }}</dd></div>
+      <div><dt>Packages</dt><dd>{{ component.packages }}</dd></div>
+      <div><dt>Afferent coupling</dt><dd>{{ component.afferentCoupling }}</dd></div>
+      <div><dt>Efferent coupling</dt><dd>{{ component.efferentCoupling }}</dd></div>
+      <div><dt>Instability</dt><dd>{{ component.instability | number: '1.2-2' }}</dd></div>
+      <div><dt>Abstractness</dt><dd>{{ component.abstractness | number: '1.2-2' }}</dd></div>
+    </dl>
+
+    <h3>Direct relationships</h3>
+    <ul class="component-detail__relationships">
+      @for (
+        relationship of selection.selectedRelationships();
+        track relationship.source + relationship.target
+      ) {
+        <li>
+          <span>{{ relationship.source }}</span>
+          <tui-icon icon="@tui.arrow-right" />
+          <span>{{ relationship.target }}</span>
+        </li>
+      } @empty {
+        <li>No direct relationships.</li>
+      }
+    </ul>
+  </aside>
+}

@@ -1,0 +1,218 @@
+@import 'tokens.less';
+@import 'patterns.less';
+
+:host {
+  display: block;
+  flex: 1 1 auto;
+}
+
+.components {
+  .page-frame();
+}
+
+.components__notice {
+  .notice-error();
+}
+
+.components__loading {
+  .loading-placeholder();
+}
+
+.panel {
+  .panel-surface();
+}
+
+.panel__header {
+  .panel-header();
+}
+
+.panel__eyebrow {
+  .eyebrow();
+}
+
+.component-filters {
+  display: flex;
+  gap: 0.5rem;
+
+  &__search,
+  &__role {
+    display: flex;
+    align-items: center;
+    min-height: 2.5rem;
+    background: @surface-muted;
+    border: 0.0625rem solid @line;
+    border-radius: @radius-small;
+  }
+
+  &__search {
+    width: min(20rem, 35vw);
+    padding: 0 0.75rem;
+
+    tui-icon {
+      width: 1rem;
+      height: 1rem;
+      color: @ink-tertiary;
+    }
+
+    input {
+      width: 100%;
+      min-width: 0;
+      padding: 0 0.5rem;
+      color: @ink;
+      background: transparent;
+      border: 0;
+      outline: 0;
+      font-size: 0.8125rem;
+    }
+  }
+
+  &__role {
+    select {
+      min-width: 8.5rem;
+      height: 100%;
+      padding: 0 2rem 0 0.75rem;
+      color: @ink;
+      background: transparent;
+      border: 0;
+      outline: 0;
+      font-size: 0.8125rem;
+    }
+  }
+}
+
+.component-table {
+  overflow-x: auto;
+
+  &__header,
+  &__row {
+    display: grid;
+    grid-template-columns: minmax(15rem, 2fr) minmax(9rem, 1fr) 4rem 4rem minmax(10rem, 1fr) 6rem;
+    gap: 1rem;
+    align-items: center;
+    min-width: 52rem;
+  }
+
+  &__header {
+    min-height: 2.75rem;
+    padding: 0 1.25rem;
+    color: @ink-tertiary;
+    background: @surface-muted;
+    border-bottom: 0.0625rem solid @line;
+    font-size: 0.6875rem;
+    font-weight: 650;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+
+  &__row {
+    width: 100%;
+    min-height: 4rem;
+    padding: 0.625rem 1.25rem;
+    color: @ink-secondary;
+    text-align: left;
+    background: @surface;
+    border: 0;
+    border-bottom: 0.0625rem solid @line;
+    cursor: pointer;
+    transition: background @transition-fast;
+
+    &:hover,
+    &--selected {
+      background: @surface-hover;
+    }
+
+    &:last-child {
+      border-bottom: 0;
+    }
+
+    > span {
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+      min-width: 0;
+      font-size: 0.8125rem;
+    }
+
+    i[data-role] {
+      width: 0.5rem;
+      height: 0.5rem;
+      flex: 0 0 auto;
+      background: @role-library;
+      border-radius: 50%;
+
+      .role-colors(background);
+    }
+  }
+
+  &__identity {
+    display: grid !important;
+    gap: 0.15rem !important;
+
+    strong,
+    small {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    strong {
+      color: @ink;
+      font-size: 0.8125rem;
+      font-weight: 600;
+    }
+
+    small {
+      color: @ink-tertiary;
+      font-family: @monospace-family;
+      font-size: 0.6875rem;
+    }
+  }
+
+  &__bar {
+    i {
+      width: 4.5rem;
+      height: 0.3rem;
+      overflow: hidden;
+      background: @line;
+      border-radius: 1rem;
+    }
+
+    b {
+      display: block;
+      height: 100%;
+      background: @ink-secondary;
+      border-radius: inherit;
+    }
+  }
+
+  &__empty {
+    padding: 3rem 1.25rem;
+    color: @ink-secondary;
+    text-align: center;
+  }
+}
+
+@media (max-width: 42rem) {
+  .panel__header--controls {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .component-filters {
+    flex-direction: column;
+
+    &__search {
+      width: 100%;
+    }
+
+    &__role select {
+      width: 100%;
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .component-table__row {
+    transition: none;
+  }
+}

@@ -1,10 +1,6 @@
 import { create } from '@bufbuild/protobuf';
-import {
-  ComponentSchema,
-  RelationshipSchema,
-  type Component,
-} from 'lib-api-gen/gen/v1/graph_pb';
-import { buildGraphLayout, filterComponents } from './dashboard.store';
+import { ComponentSchema, RelationshipSchema, type Component } from 'lib-api-gen/gen/v1/graph_pb';
+import { buildGraphLayout, filterComponents } from './graph-layout';
 
 function component(
   id: string,

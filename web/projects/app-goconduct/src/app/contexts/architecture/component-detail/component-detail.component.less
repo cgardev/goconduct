@@ -1,0 +1,103 @@
+@import 'tokens.less';
+
+.component-detail {
+  position: fixed;
+  z-index: 10;
+  top: 0;
+  right: 0;
+  width: min(30rem, 100%);
+  height: 100vh;
+  padding: 2rem;
+  overflow-y: auto;
+  background: @surface;
+  border-left: 0.0625rem solid @line;
+  box-shadow: @shadow-drawer;
+
+  > button {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+  }
+
+  h2 {
+    margin: 0;
+    font-size: 2rem;
+    font-weight: 500;
+    letter-spacing: -0.04em;
+  }
+
+  h3 {
+    margin: 2rem 0 0.75rem;
+    font-size: 0.875rem;
+  }
+
+  &__eyebrow {
+    margin: 0 0 0.35rem;
+    color: @ink-secondary;
+    font-size: 0.75rem;
+    font-weight: 650;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+  }
+
+  &__path {
+    margin: 0.5rem 0 1.75rem;
+    color: @ink-tertiary;
+    font-family: @monospace-family;
+    font-size: 0.75rem;
+  }
+
+  &__metrics {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem;
+    margin: 0;
+
+    div {
+      padding: 0.875rem;
+      background: @surface-muted;
+      border-radius: @radius-small;
+    }
+
+    dt {
+      color: @ink-tertiary;
+      font-size: 0.6875rem;
+    }
+
+    dd {
+      margin: 0.35rem 0 0;
+      font-size: 0.875rem;
+      font-weight: 600;
+    }
+  }
+
+  &__relationships {
+    padding: 0;
+    margin: 0;
+    list-style: none;
+
+    li {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+      gap: 0.5rem;
+      align-items: center;
+      padding: 0.75rem 0;
+      color: @ink-secondary;
+      border-bottom: 0.0625rem solid @line;
+      font-family: @monospace-family;
+      font-size: 0.6875rem;
+    }
+
+    span {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    tui-icon {
+      width: 0.875rem;
+      height: 0.875rem;
+      color: @ink-tertiary;
+    }
+  }
+}

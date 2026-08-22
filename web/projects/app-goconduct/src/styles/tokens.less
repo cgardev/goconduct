@@ -1,0 +1,51 @@
+// Design tokens of the console. Every component stylesheet imports this file
+// instead of repeating a literal color, radius, or shadow.
+//
+// The file declares variables only. It emits no rule, so an import costs
+// nothing in the generated stylesheet.
+
+// Surfaces.
+@page-background: #f7f7f8;
+@surface: #ffffff;
+@surface-muted: #f7f7f8;
+@surface-hover: #f2f2f2;
+@surface-selected: #ececf1;
+
+// Text.
+@ink: #0d0d0d;
+@ink-secondary: #6e6e80;
+@ink-tertiary: #8e8ea0;
+
+// Lines.
+@line: #e5e5e5;
+@line-strong: #d1d1d6;
+
+// Status.
+@accent: #10a37f;
+@danger: #c2352a;
+@danger-soft: #fff4f2;
+@warning: #a65f00;
+@warning-soft: #fff8e6;
+@focus-color: #0b74de;
+
+// One color per component role, used by the map nodes and the table markers.
+@role-application: #3f6f8f;
+@role-application-module: #5d5d8f;
+@role-shared-module: #287d68;
+@role-library: #6e6e80;
+@role-infrastructure: #936426;
+@role-development: #8a5578;
+
+// Shape.
+@radius-small: 0.625rem;
+@radius-medium: 1rem;
+@shadow-panel: 0 0.0625rem 0.125rem rgba(0, 0, 0, 0.04);
+@shadow-drawer: -0.75rem 0 2.5rem rgba(0, 0, 0, 0.1);
+@transition-fast: 150ms ease;
+
+// Layout.
+@page-max-width: 90rem;
+@page-padding: clamp(1rem, 3vw, 3rem);
+@sidebar-width: 16rem;
+@sidebar-dense-width: 4.5rem;
+@monospace-family: ui-monospace, SFMono-Regular, Consolas, monospace;

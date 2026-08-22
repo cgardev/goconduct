@@ -1,0 +1,121 @@
+@import 'tokens.less';
+
+// Shared shapes of the console, written as mixins rather than as global rules.
+//
+// A component stylesheet is scoped, so a global class cannot reach into it. A
+// mixin emits its rules only where a page calls it, which keeps one definition
+// of a panel without a rule leaking into every component.
+
+/** The centered page column every routed page renders inside. */
+.page-frame() {
+  width: min(100%, @page-max-width);
+  margin: 0 auto;
+  padding: 2rem @page-padding;
+}
+
+/** Small uppercase label above a heading. */
+.eyebrow() {
+  margin: 0 0 0.35rem;
+  color: @ink-secondary;
+  font-size: 0.75rem;
+  font-weight: 650;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+/** Card surface shared by every panel and metric card. */
+.panel-surface() {
+  min-width: 0;
+  overflow: hidden;
+  background: @surface;
+  border: 0.0625rem solid @line;
+  border-radius: @radius-medium;
+  box-shadow: @shadow-panel;
+}
+
+/** Title row of a panel, with its bottom rule. */
+.panel-header() {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 5rem;
+  padding: 1.125rem 1.25rem;
+  border-bottom: 0.0625rem solid @line;
+
+  h2 {
+    max-width: 34rem;
+    margin: 0;
+    overflow: hidden;
+    font-size: 1.125rem;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+/** Banner that reports a failed analysis. */
+.notice-error() {
+  display: flex;
+  gap: 0.875rem;
+  align-items: flex-start;
+  margin-bottom: 1.5rem;
+  padding: 1rem 1.125rem;
+  color: @danger;
+  background: @danger-soft;
+  border: 0.0625rem solid fade(@danger, 25%);
+  border-radius: @radius-medium;
+
+  tui-icon {
+    flex: 0 0 auto;
+    width: 1.25rem;
+    height: 1.25rem;
+  }
+
+  strong,
+  p {
+    margin: 0;
+  }
+
+  p {
+    margin-top: 0.25rem;
+    color: @ink-secondary;
+  }
+}
+
+/** Centered placeholder shown while the first graph loads. */
+.loading-placeholder() {
+  display: grid;
+  min-height: 22rem;
+  place-content: center;
+  justify-items: center;
+  color: @ink-secondary;
+
+  p {
+    margin: 1rem 0 0;
+  }
+}
+
+/** One color per component role, applied to the given property. */
+.role-colors(@property) {
+  &[data-role='application'] {
+    @{property}: @role-application;
+  }
+
+  &[data-role='application-module'] {
+    @{property}: @role-application-module;
+  }
+
+  &[data-role='shared-module'] {
+    @{property}: @role-shared-module;
+  }
+
+  &[data-role='infrastructure'] {
+    @{property}: @role-infrastructure;
+  }
+
+  &[data-role='development'] {
+    @{property}: @role-development;
+  }
+}

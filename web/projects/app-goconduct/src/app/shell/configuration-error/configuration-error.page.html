@@ -1,0 +1,12 @@
+<div class="configuration-error" role="alert">
+  <tui-icon class="configuration-error__icon" icon="@tui.triangle-alert" />
+  <h1 class="configuration-error__heading">The console is not configured</h1>
+  <p class="configuration-error__lead">
+    goconduct refuses to start with an incomplete runtime environment, because the field it is
+    missing is one it would otherwise have to guess.
+  </p>
+  <p class="configuration-error__detail">{{ detail }}</p>
+  <p class="configuration-error__hint">
+    Correct the runtime environment document served with this deployment, then reload.
+  </p>
+</div>

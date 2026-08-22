@@ -28,7 +28,16 @@
             "inlineStyleLanguage": "less",
             "assets": [
               {
+                "glob": "**/*",
+                "input": "projects/app-goconduct/public"
+              },
+              {
                 "glob": "arrow-right.svg",
+                "input": "node_modules/@taiga-ui/icons/src",
+                "output": "assets/taiga-ui/icons"
+              },
+              {
+                "glob": "boxes.svg",
                 "input": "node_modules/@taiga-ui/icons/src",
                 "output": "assets/taiga-ui/icons"
               },
@@ -48,7 +57,27 @@
                 "output": "assets/taiga-ui/icons"
               },
               {
+                "glob": "layout-dashboard.svg",
+                "input": "node_modules/@taiga-ui/icons/src",
+                "output": "assets/taiga-ui/icons"
+              },
+              {
+                "glob": "list-checks.svg",
+                "input": "node_modules/@taiga-ui/icons/src",
+                "output": "assets/taiga-ui/icons"
+              },
+              {
                 "glob": "network.svg",
+                "input": "node_modules/@taiga-ui/icons/src",
+                "output": "assets/taiga-ui/icons"
+              },
+              {
+                "glob": "panel-left-close.svg",
+                "input": "node_modules/@taiga-ui/icons/src",
+                "output": "assets/taiga-ui/icons"
+              },
+              {
+                "glob": "panel-left-open.svg",
                 "input": "node_modules/@taiga-ui/icons/src",
                 "output": "assets/taiga-ui/icons"
               },
@@ -73,6 +102,9 @@
                 "output": "assets/taiga-ui/icons"
               }
             ],
+            "stylePreprocessorOptions": {
+              "includePaths": ["projects/app-goconduct/src/styles"]
+            },
             "styles": ["projects/app-goconduct/src/styles/styles.less"]
           },
           "configurations": {
@@ -80,8 +112,8 @@
               "budgets": [
                 {
                   "type": "initial",
-                  "maximumWarning": "850kB",
-                  "maximumError": "1.5MB"
+                  "maximumWarning": "1MB",
+                  "maximumError": "2MB"
                 },
                 {
                   "type": "anyComponentStyle",
@@ -89,12 +121,29 @@
                   "maximumError": "32kB"
                 }
               ],
-              "outputHashing": "all"
+              "outputHashing": "all",
+              "fileReplacements": [
+                {
+                  "replace": "projects/app-goconduct/src/environments/environment.ts",
+                  "with": "projects/app-goconduct/src/environments/environment.prod.ts"
+                }
+              ]
             },
             "development": {
               "optimization": false,
               "extractLicenses": false,
               "sourceMap": true
+            },
+            "local": {
+              "optimization": false,
+              "extractLicenses": false,
+              "sourceMap": true,
+              "fileReplacements": [
+                {
+                  "replace": "projects/app-goconduct/src/environments/environment.ts",
+                  "with": "projects/app-goconduct/src/environments/environment.local.ts"
+                }
+              ]
             }
           },
           "defaultConfiguration": "production"
@@ -111,6 +160,9 @@
             },
             "development": {
               "buildTarget": "app-goconduct:build:development"
+            },
+            "local": {
+              "buildTarget": "app-goconduct:build:local"
             }
           },
           "defaultConfiguration": "development"

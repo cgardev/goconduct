@@ -1,0 +1,49 @@
+<div class="findings">
+  @if (graph.error()) {
+    <section class="findings__notice" role="alert">
+      <tui-icon icon="@tui.circle-alert" />
+      <div>
+        <strong>Analysis unavailable</strong>
+        <p>{{ graph.error() }}</p>
+      </div>
+    </section>
+  }
+
+  @if (graph.loading() && !graph.graph()) {
+    <section class="findings__loading" aria-live="polite">
+      <tui-loader size="l" />
+      <p>Reading the repository graph…</p>
+    </section>
+  } @else {
+    <section class="panel">
+      <header class="panel__header">
+        <div>
+          <p class="panel__eyebrow">Deterministic checks</p>
+          <h2>Findings</h2>
+        </div>
+        <span appearance="neutral" size="s" tuiBadge>{{ graph.findings().length }}</span>
+      </header>
+
+      <div class="finding-list">
+        @for (finding of graph.findings(); track finding.rule + finding.subject) {
+          <article class="finding" [attr.data-severity]="finding.severity">
+            <span class="finding__icon">
+              <tui-icon [icon]="severityIcon(finding.severity)" />
+            </span>
+            <div>
+              <strong>{{ finding.rule }}</strong>
+              <p>{{ finding.message }}</p>
+              <span>{{ finding.subject }}</span>
+            </div>
+          </article>
+        } @empty {
+          <div class="finding-list__empty">
+            <tui-icon icon="@tui.circle-check" />
+            <strong>No architecture findings</strong>
+            <p>The current graph satisfies every configured rule.</p>
+          </div>
+        }
+      </div>
+    </section>
+  }
+</div>

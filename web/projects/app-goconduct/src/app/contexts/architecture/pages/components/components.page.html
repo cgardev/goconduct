@@ -1,0 +1,87 @@
+<div class="components">
+  @if (graph.error()) {
+    <section class="components__notice" role="alert">
+      <tui-icon icon="@tui.circle-alert" />
+      <div>
+        <strong>Analysis unavailable</strong>
+        <p>{{ graph.error() }}</p>
+      </div>
+    </section>
+  }
+
+  @if (graph.loading() && !graph.graph()) {
+    <section class="components__loading" aria-live="polite">
+      <tui-loader size="l" />
+      <p>Reading the repository graph…</p>
+    </section>
+  } @else {
+    <section class="panel">
+      <header class="panel__header panel__header--controls">
+        <div>
+          <p class="panel__eyebrow">Coupling metrics</p>
+          <h2>Components</h2>
+        </div>
+
+        <div class="component-filters">
+          <label class="component-filters__search">
+            <tui-icon icon="@tui.search" aria-hidden="true" />
+            <span class="visually-hidden">Search components</span>
+            <input
+              type="search"
+              placeholder="Search components"
+              [value]="query()"
+              (input)="updateQuery($event)"
+            />
+          </label>
+          <label class="component-filters__role">
+            <span class="visually-hidden">Filter by role</span>
+            <select [value]="role()" (change)="updateRole($event)">
+              <option value="all">All roles</option>
+              @for (role of graph.roles(); track role) {
+                <option [value]="role">{{ role }}</option>
+              }
+            </select>
+          </label>
+        </div>
+      </header>
+
+      <div class="component-table" role="table" aria-label="Component coupling metrics">
+        <div class="component-table__header" role="row">
+          <span role="columnheader">Component</span>
+          <span role="columnheader">Role</span>
+          <span role="columnheader">Ca</span>
+          <span role="columnheader">Ce</span>
+          <span role="columnheader">Instability</span>
+          <span role="columnheader">Distance</span>
+        </div>
+
+        @for (component of components(); track component.id) {
+          <button
+            class="component-table__row"
+            role="row"
+            type="button"
+            [class.component-table__row--selected]="selection.selectedComponentId() === component.id"
+            (click)="selection.select(component.id)"
+          >
+            <span class="component-table__identity" role="cell">
+              <strong>{{ component.name }}</strong>
+              <small>{{ component.id }}</small>
+            </span>
+            <span role="cell"><i [attr.data-role]="component.role"></i>{{ component.role }}</span>
+            <span role="cell">{{ component.afferentCoupling }}</span>
+            <span role="cell">{{ component.efferentCoupling }}</span>
+            <span class="component-table__bar" role="cell">
+              <i><b [style.width.%]="percentage(component.instability)"></b></i>
+              {{ component.instability | number: '1.2-2' }}
+            </span>
+            <span role="cell">{{ component.mainSequenceDistance | number: '1.2-2' }}</span>
+          </button>
+        } @empty {
+          <div class="component-table__empty">No components match this filter.</div>
+        }
+      </div>
+    </section>
+  }
+</div>
+
+<app-component-detail />

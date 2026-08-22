@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "goconduct runtime environment",
+  "description": "Schema for public/runtime-env/runtime-env.json, the document the console fetches from /runtime-env/runtime-env.json before it bootstraps, to discover the server it reads the graph from. The console validates the same field itself and refuses to start on an incomplete document, rendering the configuration error page with the name of the offending field, so this schema exists to catch a mistake in an editor rather than in a browser. The schema itself is a development artifact: it sits outside the asset root of Angular and no source file imports it, so it is never bundled nor served.",
+  "type": "object",
+  "required": ["apiBaseUrl"],
+  "additionalProperties": false,
+  "properties": {
+    "apiBaseUrl": {
+      "type": "string",
+      "format": "uri-reference",
+      "minLength": 1,
+      "description": "Base URL the Connect RPC transport prepends to every request. The goconduct binary serves both the console and the services, so \"/\" is the normal value: it targets the origin that served the console. Use an absolute URL such as \"http://127.0.0.1:6062\" to read the graph from a server on another origin, which then has to allow this origin."
+    }
+  },
+  "patternProperties": {
+    "^\\$schema$": {
+      "type": "string",
+      "description": "Optional reference to this schema so editors validate the document. The console ignores it."
+    }
+  }
+}

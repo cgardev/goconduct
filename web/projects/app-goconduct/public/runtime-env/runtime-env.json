@@ -1,0 +1,4 @@
+{
+  "$schema": "../../runtime-env.schema.json",
+  "apiBaseUrl": "/"
+}
