@@ -1,4 +1,4 @@
-package kernel
+package main
 
 import (
 	"io"
@@ -11,15 +11,15 @@ import (
 	"github.com/cgardev/goconduct/plugin"
 )
 
-func TestModuleProvidesSharedServices(t *testing.T) {
+func TestBaseServicesComposeKernelAndApplicationScope(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	injector := do.New(Module, appmodule.SelfScope())
-	do.OverrideValue(injector, logger)
+	injector := do.New(newBaseServices(logger))
 	t.Cleanup(func() {
 		if report := injector.Shutdown(); report != nil && !report.Succeed {
 			t.Errorf("shut down injector: %s", report.Error())
 		}
 	})
+
 	resolvedLogger, err := do.Invoke[*slog.Logger](injector)
 	if err != nil || resolvedLogger != logger {
 		t.Fatalf("resolve logger: logger=%v, error=%v", resolvedLogger, err)
@@ -27,14 +27,11 @@ func TestModuleProvidesSharedServices(t *testing.T) {
 	if _, err := do.Invoke[*plugin.Catalog](injector); err != nil {
 		t.Fatalf("resolve catalog: %v", err)
 	}
-	if _, err := do.Invoke[plugin.CommandRunner](injector); err != nil {
-		t.Fatalf("resolve command runner: %v", err)
-	}
-	scope, err := do.Invoke[appmodule.ScopeResolver](injector)
+	scopes, err := do.Invoke[appmodule.ScopeResolver](injector)
 	if err != nil {
-		t.Fatalf("resolve scope: %v", err)
+		t.Fatalf("resolve application scope: %v", err)
 	}
-	resolvedCatalog, err := appmodule.Resolve[*plugin.Catalog](scope, t.Context())
+	resolvedCatalog, err := appmodule.Resolve[*plugin.Catalog](scopes, t.Context())
 	if err != nil || resolvedCatalog == nil {
 		t.Fatalf("resolve scoped catalog: catalog=%v, error=%v", resolvedCatalog, err)
 	}

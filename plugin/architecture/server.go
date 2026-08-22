@@ -4,6 +4,8 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+
+	"connectrpc.com/connect"
 )
 
 type graphReader interface {
@@ -38,14 +40,18 @@ type dashboardHandler struct {
 
 var _ http.Handler = (*dashboardHandler)(nil)
 
-func newDashboardHandler(source dashboardGraphSource, logger *slog.Logger) *dashboardHandler {
+func newDashboardHandler(
+	source dashboardGraphSource,
+	logger *slog.Logger,
+	options ...connect.HandlerOption,
+) *dashboardHandler {
 	handler := &dashboardHandler{
 		assets: newDashboardAssetHandler(logger),
 		graph:  newGraphEndpoint(source, source, source, logger),
 		logger: logger,
 		router: http.NewServeMux(),
 	}
-	graphServicePath, graphServiceHandler := newGraphServiceHandler(source, logger)
+	graphServicePath, graphServiceHandler := newGraphServiceHandler(source, logger, options...)
 	handler.router.Handle(graphServicePath, graphServiceHandler)
 	handler.router.HandleFunc("GET /api/graph", handler.serveGraph)
 	handler.router.HandleFunc("GET /healthz", handler.serveHealth)

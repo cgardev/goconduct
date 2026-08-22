@@ -3,6 +3,7 @@ package main
 import (
 	"io"
 	"log/slog"
+	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
@@ -11,35 +12,43 @@ import (
 	"connectrpc.com/connect"
 
 	applicationconfiguration "github.com/cgardev/goconduct/cmd/goconduct/internal/configuration"
-	"github.com/cgardev/goconduct/internal/appmodule"
-	"github.com/cgardev/goconduct/internal/kernel"
-	"github.com/cgardev/goconduct/internal/library/httpserver"
 	goconductv1 "github.com/cgardev/goconduct/internal/protogen/v1"
 	"github.com/cgardev/goconduct/internal/protogen/v1/goconductv1connect"
 )
 
 func TestApplicationServerComposesPluginEndpoints(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	host, err := appmodule.NewHost(kernel.Module(logger), builtInPlugins()...)
+	app, err := newApplication(logger)
 	if err != nil {
-		t.Fatalf("create host: %v", err)
+		t.Fatalf("create application: %v", err)
 	}
 	defer func() {
-		if err := host.Shutdown(); err != nil {
-			t.Errorf("shut down host: %v", err)
+		if err := app.Shutdown(t.Context()); err != nil {
+			t.Errorf("shut down application: %v", err)
 		}
 	}()
-	provideConfiguration(host.Injector(), applicationconfiguration.Default())
-	if err := host.Activate(t.Context()); err != nil {
-		t.Fatalf("activate host: %v", err)
+	if err := app.Activate(t.Context(), applicationconfiguration.Default()); err != nil {
+		t.Fatalf("activate application: %v", err)
 	}
-	server := httpserver.New(httpserver.Configuration{Address: "127.0.0.1:0", Logger: logger})
-	if err := host.RegisterEndpoints(server); err != nil {
-		t.Fatalf("register endpoints: %v", err)
+	server, err := app.ComposeServer()
+	if err != nil {
+		t.Fatalf("compose application server: %v", err)
 	}
 	testServer := httptest.NewServer(server.Handler())
 	defer testServer.Close()
 	client := goconductv1connect.NewQualityServiceClient(testServer.Client(), testServer.URL)
+	healthResponse, err := testServer.Client().Get(testServer.URL + "/healthz")
+	if err != nil {
+		t.Fatalf("get health endpoint: %v", err)
+	}
+	defer func() {
+		if err := healthResponse.Body.Close(); err != nil {
+			t.Errorf("close health response: %v", err)
+		}
+	}()
+	if healthResponse.StatusCode != http.StatusNoContent {
+		t.Fatalf("health status is %d", healthResponse.StatusCode)
+	}
 
 	response, err := client.ListPlugins(
 		t.Context(),
@@ -50,6 +59,14 @@ func TestApplicationServerComposesPluginEndpoints(t *testing.T) {
 	}
 	if len(response.Msg.GetPlugins()) != 5 {
 		t.Fatalf("evaluator count is %d", len(response.Msg.GetPlugins()))
+	}
+
+	_, err = client.RunCheck(
+		t.Context(),
+		connect.NewRequest(&goconductv1.RunCheckRequest{Paths: []string{"invalid\\path"}}),
+	)
+	if connect.CodeOf(err) != connect.CodeInvalidArgument {
+		t.Fatalf("validation code is %s: %v", connect.CodeOf(err), err)
 	}
 
 	repositoryRoot := t.TempDir()

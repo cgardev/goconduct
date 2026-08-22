@@ -2,8 +2,10 @@ package quality
 
 import (
 	"context"
+	"errors"
 	"testing"
 
+	"github.com/cgardev/goconduct/internal/library/foundationdomain"
 	"github.com/cgardev/goconduct/plugin"
 )
 
@@ -57,5 +59,18 @@ func TestListPluginsUseCaseHonorsCancellation(t *testing.T) {
 	_, err := NewListPluginsUseCase(plugin.NewCatalog()).Execute(ctx, ListPluginsUseCaseParams{})
 	if err == nil {
 		t.Fatal("cancelled query succeeds")
+	}
+}
+
+func TestRunCheckUseCaseClassifiesUnknownEvaluatorAsValidation(t *testing.T) {
+	_, err := NewRunCheckUseCase(plugin.NewCatalog(), Configuration{}).Execute(
+		t.Context(),
+		RunCheckUseCaseParams{Plugins: []string{"missing"}},
+	)
+	if !errors.Is(err, foundationdomain.ErrValidation) || !errors.Is(
+		err,
+		plugin.ErrEvaluatorNotRegistered,
+	) {
+		t.Fatalf("run check error is %v", err)
 	}
 }

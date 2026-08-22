@@ -6,6 +6,7 @@ import (
 	"context"
 	"log/slog"
 
+	"connectrpc.com/connect"
 	"github.com/samber/do/v2"
 	"github.com/spf13/cobra"
 
@@ -81,9 +82,13 @@ func (architecturePlugin) RegisterCommands(injector do.Injector, root *cobra.Com
 func (architecturePlugin) RegisterEndpoints(
 	injector do.Injector,
 	registrar goplugin.EndpointRegistrar,
+	options ...connect.HandlerOption,
 ) error {
 	dashboard, err := do.Invoke[*dashboardService](injector)
 	if err != nil {
+		return err
+	}
+	if err := dashboard.ConfigureHandlerOptions(options...); err != nil {
 		return err
 	}
 	return registrar.Handle("/", dashboard)

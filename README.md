@@ -36,6 +36,7 @@ It keeps every result explicit, ordered, and suitable for an automated repair lo
 ## Implemented alpha capabilities
 
 - A public Go plugin contract with dependency injection, commands, activation, and HTTP endpoints.
+- A public plugin host with ordered activation and shared service shutdown.
 - Independently usable evaluator packages under `plugin/<name>`.
 - Joint evaluator execution through a deterministic `plugin.Catalog`.
 - Go import and statically resolved function-call graphs.
@@ -283,8 +284,8 @@ api/proto/v1/                         Protocol Buffer contracts
 cmd/goconduct/                        Cobra composition root
 cmd/goconduct/internal/configuration  Unified application configuration
 cmd/goconduct/internal/module/quality Application-owned Connect module
-internal/appmodule/                   Plugin host and request scope
-internal/kernel/                      Shared dependency registrations
+internal/appmodule/                   Application host adapter and request scope
+internal/kernel/                      Logger, evaluator catalog, and command runner
 internal/library/                     Shared application infrastructure
 internal/protogen/                    Generated Go transport code
 plugin/                               Public plugin SDK and evidence model

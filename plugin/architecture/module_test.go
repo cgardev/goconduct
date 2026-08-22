@@ -17,8 +17,10 @@ func TestPluginRegistersEvaluatorAndCommandSurface(t *testing.T) {
 	if candidate.Name() != "architecture" {
 		t.Fatalf("plugin name is %q", candidate.Name())
 	}
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	injector := do.New(
-		kernel.Module(slog.New(slog.NewTextHandler(io.Discard, nil))),
+		kernel.Module,
+		func(injector do.Injector) { do.OverrideValue(injector, logger) },
 		candidate.Services(),
 	)
 	t.Cleanup(func() {

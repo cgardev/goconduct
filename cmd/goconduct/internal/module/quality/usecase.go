@@ -2,10 +2,13 @@ package quality
 
 import (
 	"context"
+	"errors"
 	"slices"
 
 	"github.com/samber/do/v2"
 
+	"github.com/cgardev/goconduct/internal/library/foundationdomain"
+	"github.com/cgardev/goconduct/internal/library/injection"
 	"github.com/cgardev/goconduct/plugin"
 )
 
@@ -19,7 +22,8 @@ type ListPluginsUseCaseParams struct{}
 
 func newListPluginsUseCaseInjector() func(do.Injector) {
 	return do.Lazy[*ListPluginsUseCase](func(injector do.Injector) (*ListPluginsUseCase, error) {
-		catalog, err := do.Invoke[*plugin.Catalog](injector)
+		var err error
+		catalog := injection.Resolve[*plugin.Catalog](injector, &err)
 		if err != nil {
 			return nil, err
 		}
@@ -58,11 +62,9 @@ type RunCheckUseCaseParams struct {
 
 func newRunCheckUseCaseInjector() func(do.Injector) {
 	return do.Lazy[*RunCheckUseCase](func(injector do.Injector) (*RunCheckUseCase, error) {
-		catalog, err := do.Invoke[*plugin.Catalog](injector)
-		if err != nil {
-			return nil, err
-		}
-		configuration, err := do.Invoke[Configuration](injector)
+		var err error
+		catalog := injection.Resolve[*plugin.Catalog](injector, &err)
+		configuration := injection.Resolve[Configuration](injector, &err)
 		if err != nil {
 			return nil, err
 		}
@@ -100,6 +102,13 @@ func (useCase *RunCheckUseCase) Execute(
 		Paths:          paths,
 	})
 	if err != nil {
+		if errors.Is(err, plugin.ErrEvaluatorNotRegistered) {
+			return CheckResult{}, foundationdomain.NewError(
+				foundationdomain.ErrValidation,
+				err.Error(),
+				err,
+			)
+		}
 		return CheckResult{}, err
 	}
 	return newCheckResult(reports), nil

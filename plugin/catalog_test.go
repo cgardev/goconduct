@@ -58,8 +58,11 @@ func TestCatalogRejectsAmbiguousAndUnknownEvaluators(t *testing.T) {
 	if err := catalog.Register(evaluator); err == nil {
 		t.Fatal("expected duplicate evaluator error")
 	}
-	if _, err := catalog.Evaluate(t.Context(), []string{"missing"}, Request{}); err == nil {
-		t.Fatal("expected unknown evaluator error")
+	if _, err := catalog.Evaluate(t.Context(), []string{"missing"}, Request{}); !errors.Is(
+		err,
+		ErrEvaluatorNotRegistered,
+	) {
+		t.Fatalf("unknown evaluator error is %v", err)
 	}
 }
 

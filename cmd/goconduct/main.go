@@ -12,13 +12,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/samber/do/v2"
 	"github.com/spf13/cobra"
 
 	applicationconfiguration "github.com/cgardev/goconduct/cmd/goconduct/internal/configuration"
-	qualitymodule "github.com/cgardev/goconduct/cmd/goconduct/internal/module/quality"
-	"github.com/cgardev/goconduct/internal/appmodule"
-	"github.com/cgardev/goconduct/internal/kernel"
 )
 
 func main() {
@@ -29,6 +25,7 @@ func main() {
 	)
 	defer stopSignalNotifications()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
+	slog.SetDefault(logger)
 	if executionError := runCommand(commandContext, logger, os.Args[1:]); executionError != nil {
 		logger.Error("The goconduct command fails", slog.Any("error", executionError))
 		os.Exit(1)
@@ -36,20 +33,20 @@ func main() {
 }
 
 func runCommand(ctx context.Context, logger *slog.Logger, arguments []string) (resultErr error) {
-	host, err := appmodule.NewHost(kernel.Module(logger), builtInPlugins()...)
+	app, err := newApplication(logger)
 	if err != nil {
 		return err
 	}
 	defer func() {
 		shutdownContext, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
-		resultErr = errors.Join(resultErr, host.ShutdownWithContext(shutdownContext))
+		resultErr = errors.Join(resultErr, app.Shutdown(shutdownContext))
 	}()
 	command := newRootCommand()
-	if err := host.RegisterCommands(command); err != nil {
+	if err := app.host.RegisterCommands(command); err != nil {
 		return err
 	}
-	registerApplicationCommands(host, command)
+	registerApplicationCommands(app, command)
 	command.PersistentPreRunE = func(command *cobra.Command, _ []string) error {
 		if command.Name() == "configuration-schema" {
 			return nil
@@ -65,8 +62,10 @@ func runCommand(ctx context.Context, logger *slog.Logger, arguments []string) (r
 		if err := applyConfigurationOverrides(command, &configuration); err != nil {
 			return err
 		}
-		provideConfiguration(host.Injector(), configuration)
-		return host.Activate(command.Context())
+		if err := applicationconfiguration.Validate(configuration); err != nil {
+			return err
+		}
+		return app.Activate(command.Context(), configuration)
 	}
 	command.SetArgs(slices.Clone(arguments))
 	return command.ExecuteContext(ctx)
@@ -122,24 +121,6 @@ func newRootCommand() *cobra.Command {
 		SilenceErrors: true,
 		SilenceUsage:  true,
 	}
-}
-
-func provideConfiguration(
-	injector do.Injector,
-	configuration applicationconfiguration.ApplicationConfiguration,
-) {
-	do.ProvideValue(injector, configuration)
-	do.ProvideValue(injector, configuration.ArchitecturePluginConfiguration())
-	do.ProvideValue(injector, configuration.Quality.Coverage)
-	do.ProvideValue(injector, configuration.Quality.CRAP)
-	do.ProvideValue(injector, configuration.Quality.Duplication)
-	do.ProvideValue(injector, configuration.Quality.Mutation)
-	check := configuration.CloneCheck()
-	do.ProvideValue(injector, qualitymodule.Configuration{
-		RepositoryRoot: configuration.Analysis.RepositoryRoot,
-		Plugins:        check.Plugins,
-		Paths:          check.Paths,
-	})
 }
 
 // mutate4go-manifest-begin

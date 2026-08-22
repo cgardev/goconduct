@@ -2,11 +2,30 @@ package plugin
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
 	"sync"
 )
+
+// ErrEvaluatorNotRegistered classifies a requested evaluator missing from a catalog.
+var ErrEvaluatorNotRegistered = errors.New("evaluator is not registered")
+
+// EvaluatorNotRegisteredError identifies one missing evaluator selection.
+type EvaluatorNotRegisteredError struct {
+	Name string
+}
+
+// Error returns the missing evaluator name.
+func (selectionError *EvaluatorNotRegisteredError) Error() string {
+	return fmt.Sprintf("evaluator %q is not registered", selectionError.Name)
+}
+
+// Unwrap exposes the stable missing-evaluator classification.
+func (*EvaluatorNotRegisteredError) Unwrap() error {
+	return ErrEvaluatorNotRegistered
+}
 
 // Catalog composes evaluators from independently linked plugins.
 type Catalog struct {
@@ -96,7 +115,7 @@ func (catalog *Catalog) selectEvaluators(names []string) ([]Evaluator, error) {
 	for _, name := range selectedNames {
 		evaluator, available := catalog.evaluators[name]
 		if !available {
-			return nil, fmt.Errorf("evaluator %q is not registered", name)
+			return nil, &EvaluatorNotRegisteredError{Name: name}
 		}
 		selected = append(selected, evaluator)
 	}

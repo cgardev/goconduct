@@ -7,6 +7,8 @@ import (
 	"github.com/samber/do/v2"
 
 	"github.com/cgardev/goconduct/internal/appmodule"
+	"github.com/cgardev/goconduct/internal/library/connecterror"
+	"github.com/cgardev/goconduct/internal/library/injection"
 	goconductv1 "github.com/cgardev/goconduct/internal/protogen/v1"
 	"github.com/cgardev/goconduct/internal/protogen/v1/goconductv1connect"
 	"github.com/cgardev/goconduct/plugin"
@@ -22,7 +24,8 @@ var _ goconductv1connect.QualityServiceHandler = (*QualityAPI)(nil)
 
 func newQualityAPIInjector() func(do.Injector) {
 	return do.Lazy[*QualityAPI](func(injector do.Injector) (*QualityAPI, error) {
-		scopes, err := do.Invoke[appmodule.ScopeResolver](injector)
+		var err error
+		scopes := injection.Resolve[appmodule.ScopeResolver](injector, &err)
 		if err != nil {
 			return nil, err
 		}
@@ -42,11 +45,11 @@ func (api *QualityAPI) ListPlugins(
 ) (*connect.Response[goconductv1.ListPluginsResponse], error) {
 	useCase, err := appmodule.Resolve[*ListPluginsUseCase](api.scopes, ctx)
 	if err != nil {
-		return nil, connect.NewError(connect.CodeInternal, err)
+		return nil, connecterror.From(ctx, err)
 	}
 	names, err := useCase.Execute(ctx, ListPluginsUseCaseParams{})
 	if err != nil {
-		return nil, connect.NewError(connect.CodeInternal, err)
+		return nil, connecterror.From(ctx, err)
 	}
 	descriptors := make([]*goconductv1.PluginDescriptor, 0, len(names))
 	for _, name := range names {
@@ -62,7 +65,7 @@ func (api *QualityAPI) RunCheck(
 ) (*connect.Response[goconductv1.RunCheckResponse], error) {
 	useCase, err := appmodule.Resolve[*RunCheckUseCase](api.scopes, ctx)
 	if err != nil {
-		return nil, connect.NewError(connect.CodeInternal, err)
+		return nil, connecterror.From(ctx, err)
 	}
 	result, err := useCase.Execute(ctx, RunCheckUseCaseParams{
 		RepositoryRoot: request.Msg.GetRepositoryRoot(),
@@ -70,7 +73,7 @@ func (api *QualityAPI) RunCheck(
 		Paths:          request.Msg.GetPaths(),
 	})
 	if err != nil {
-		return nil, connect.NewError(connect.CodeFailedPrecondition, err)
+		return nil, connecterror.From(ctx, err)
 	}
 	return connect.NewResponse(checkResultToProto(result)), nil
 }

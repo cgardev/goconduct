@@ -14,8 +14,10 @@ import (
 
 func TestPluginRegistersCRAPEvaluatorAndCommand(t *testing.T) {
 	candidate := Plugin()
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	injector := do.New(
-		kernel.Module(slog.New(slog.NewTextHandler(io.Discard, nil))),
+		kernel.Module,
+		func(injector do.Injector) { do.OverrideValue(injector, logger) },
 		candidate.Services(),
 	)
 	t.Cleanup(func() {

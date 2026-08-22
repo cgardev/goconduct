@@ -6,7 +6,6 @@ import (
 	"context"
 
 	"connectrpc.com/connect"
-	"connectrpc.com/validate"
 	"github.com/samber/do/v2"
 	"github.com/spf13/cobra"
 
@@ -39,6 +38,12 @@ func (qualityPlugin) Services() func(do.Injector) {
 }
 
 func (qualityPlugin) Activate(_ context.Context, injector do.Injector) error {
+	if _, err := do.Invoke[*ListPluginsUseCase](injector); err != nil {
+		return err
+	}
+	if _, err := do.Invoke[*RunCheckUseCase](injector); err != nil {
+		return err
+	}
 	_, err := do.Invoke[*QualityAPI](injector)
 	return err
 }
@@ -47,14 +52,18 @@ func (qualityPlugin) RegisterCommands(do.Injector, *cobra.Command) error {
 	return nil
 }
 
-func (qualityPlugin) RegisterEndpoints(injector do.Injector, registrar plugin.EndpointRegistrar) error {
+func (qualityPlugin) RegisterEndpoints(
+	injector do.Injector,
+	registrar plugin.EndpointRegistrar,
+	options ...connect.HandlerOption,
+) error {
 	api, err := do.Invoke[*QualityAPI](injector)
 	if err != nil {
 		return err
 	}
 	path, handler := goconductv1connect.NewQualityServiceHandler(
 		api,
-		connect.WithInterceptors(validate.NewInterceptor()),
+		options...,
 	)
 	return registrar.Handle(path, handler)
 }

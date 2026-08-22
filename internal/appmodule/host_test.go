@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"connectrpc.com/connect"
 	"github.com/samber/do/v2"
 	"github.com/spf13/cobra"
 
@@ -20,6 +21,7 @@ type hostTestPlugin struct {
 	activate  func(context.Context, do.Injector) error
 	commands  func(do.Injector, *cobra.Command) error
 	endpoints func(do.Injector, plugin.EndpointRegistrar) error
+	options   func([]connect.HandlerOption)
 }
 
 func (candidate hostTestPlugin) Name() string { return candidate.name }
@@ -48,7 +50,11 @@ func (candidate hostTestPlugin) RegisterCommands(injector do.Injector, root *cob
 func (candidate hostTestPlugin) RegisterEndpoints(
 	injector do.Injector,
 	registrar plugin.EndpointRegistrar,
+	options ...connect.HandlerOption,
 ) error {
+	if candidate.options != nil {
+		candidate.options(options)
+	}
 	if candidate.endpoints == nil {
 		return nil
 	}
@@ -112,6 +118,7 @@ func TestHostComposesServicesBeforeOrderedActivation(t *testing.T) {
 }
 
 func TestHostRegistersCommandsAndEndpoints(t *testing.T) {
+	receivedOptions := 0
 	candidate := hostTestPlugin{
 		name: "coverage",
 		commands: func(_ do.Injector, root *cobra.Command) error {
@@ -120,6 +127,9 @@ func TestHostRegistersCommandsAndEndpoints(t *testing.T) {
 		},
 		endpoints: func(_ do.Injector, registrar plugin.EndpointRegistrar) error {
 			return registrar.Handle("/coverage.v1.CoverageService/", http.NotFoundHandler())
+		},
+		options: func(options []connect.HandlerOption) {
+			receivedOptions = len(options)
 		},
 	}
 	host, err := NewHost(func(do.Injector) {}, candidate)
@@ -139,11 +149,14 @@ func TestHostRegistersCommandsAndEndpoints(t *testing.T) {
 		t.Fatalf("find coverage command: command=%v, error=%v", command, err)
 	}
 	recorder := &endpointRecorder{}
-	if err := host.RegisterEndpoints(recorder); err != nil {
+	if err := host.RegisterEndpoints(recorder, connect.WithInterceptors()); err != nil {
 		t.Fatalf("register endpoints: %v", err)
 	}
 	if !reflect.DeepEqual(recorder.patterns, []string{"/coverage.v1.CoverageService/"}) {
 		t.Fatalf("endpoint patterns are %v", recorder.patterns)
+	}
+	if receivedOptions != 1 {
+		t.Fatalf("received handler option count is %d", receivedOptions)
 	}
 }
 

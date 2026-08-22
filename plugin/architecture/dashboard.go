@@ -5,7 +5,10 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"slices"
 	"sync"
+
+	"connectrpc.com/connect"
 )
 
 type dashboardService struct {
@@ -17,6 +20,18 @@ type dashboardService struct {
 	ctx     context.Context
 	cancel  context.CancelFunc
 	handler http.Handler
+	options []connect.HandlerOption
+}
+
+// ConfigureHandlerOptions sets the shared Connect options before the first request.
+func (service *dashboardService) ConfigureHandlerOptions(options ...connect.HandlerOption) error {
+	service.mutex.Lock()
+	defer service.mutex.Unlock()
+	if service.handler != nil {
+		return fmt.Errorf("architecture dashboard handler is already initialized")
+	}
+	service.options = slices.Clone(options)
+	return nil
 }
 
 var _ http.Handler = (*dashboardService)(nil)
@@ -89,7 +104,7 @@ func (service *dashboardService) initialize(requestContext context.Context) (htt
 		return nil, err
 	}
 	go monitor.run(service.ctx)
-	service.handler = newDashboardHandler(monitor, service.logger)
+	service.handler = newDashboardHandler(monitor, service.logger, service.options...)
 	return service.handler, nil
 }
 

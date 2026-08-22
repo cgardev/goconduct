@@ -1,4 +1,6 @@
-// Package appmodule composes public plugins inside one application process.
+// Package appmodule adapts public plugins to one application composition root.
+// Host registers every service before activation and owns service shutdown.
+// Connect handlers resolve use cases from the scope serving each request.
 package appmodule
 
 import (
@@ -10,7 +12,10 @@ import (
 )
 
 // ScopeResolver selects the dependency graph for one request.
+// A single-scope application always returns one injector.
+// A multi-scope application can select an isolated injector from the context.
 type ScopeResolver interface {
+	// Injector returns the dependency graph serving ctx.
 	Injector(ctx context.Context) (do.Injector, error)
 }
 
@@ -23,6 +28,7 @@ func FixedScope(injector do.Injector) ScopeResolver {
 	return fixedScope{injector: injector}
 }
 
+// Injector returns the fixed application injector.
 func (scope fixedScope) Injector(context.Context) (do.Injector, error) {
 	return scope.injector, nil
 }
@@ -44,5 +50,5 @@ func Resolve[Service any](scopes ScopeResolver, ctx context.Context) (Service, e
 	return do.Invoke[Service](injector)
 }
 
-// Plugin aliases the public contract for composition roots.
+// Plugin aliases the public extension contract for composition roots.
 type Plugin = plugin.Plugin

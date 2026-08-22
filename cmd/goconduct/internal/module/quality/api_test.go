@@ -49,3 +49,26 @@ func TestQualityAPIListsPluginsThroughConnect(t *testing.T) {
 		t.Fatalf("plugins are %+v", response.Msg.GetPlugins())
 	}
 }
+
+func TestQualityAPIMapsSelectionErrorsThroughConnect(t *testing.T) {
+	injector := do.New(
+		func(injector do.Injector) {
+			do.ProvideValue(injector, plugin.NewCatalog())
+			do.ProvideValue(injector, Configuration{})
+		},
+		appmodule.SelfScope(),
+		Module,
+	)
+	api, err := do.Invoke[*QualityAPI](injector)
+	if err != nil {
+		t.Fatalf("resolve API: %v", err)
+	}
+
+	_, err = api.RunCheck(
+		t.Context(),
+		connect.NewRequest(&goconductv1.RunCheckRequest{Plugins: []string{"missing"}}),
+	)
+	if connect.CodeOf(err) != connect.CodeInvalidArgument {
+		t.Fatalf("Connect code is %s: %v", connect.CodeOf(err), err)
+	}
+}

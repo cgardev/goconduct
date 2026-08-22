@@ -12,7 +12,6 @@ import (
 	"github.com/spf13/cobra"
 
 	applicationconfiguration "github.com/cgardev/goconduct/cmd/goconduct/internal/configuration"
-	"github.com/cgardev/goconduct/internal/appmodule"
 	"github.com/cgardev/goconduct/plugin"
 )
 
@@ -30,14 +29,14 @@ type checkReport struct {
 	Reports       []plugin.Report `json:"reports"`
 }
 
-func registerApplicationCommands(host *appmodule.Host, root *cobra.Command) {
-	injector := host.Injector()
+func registerApplicationCommands(app *application, root *cobra.Command) {
+	injector := app.host.Injector()
 	root.AddCommand(
 		newCheckCommand(injector),
 		newPluginsCommand(injector),
 		newApplicationConfigurationSchemaCommand(),
 	)
-	configureApplicationServer(host, root)
+	configureApplicationServer(app, root)
 }
 
 func newCheckCommand(injector do.Injector) *cobra.Command {

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"connectrpc.com/connect"
 	"github.com/samber/do/v2"
 	"github.com/spf13/cobra"
 
@@ -47,7 +48,13 @@ func (crapPlugin) RegisterCommands(injector do.Injector, root *cobra.Command) er
 	return nil
 }
 
-func (crapPlugin) RegisterEndpoints(do.Injector, plugin.EndpointRegistrar) error { return nil }
+func (crapPlugin) RegisterEndpoints(
+	do.Injector,
+	plugin.EndpointRegistrar,
+	...connect.HandlerOption,
+) error {
+	return nil
+}
 
 func newEvaluatorInjector() func(do.Injector) {
 	return do.Lazy[*Evaluator](func(injector do.Injector) (*Evaluator, error) {

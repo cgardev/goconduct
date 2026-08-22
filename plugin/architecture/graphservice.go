@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
-	"connectrpc.com/validate"
 
+	"github.com/cgardev/goconduct/internal/library/connecterror"
 	goconductv1 "github.com/cgardev/goconduct/internal/protogen/v1"
 	"github.com/cgardev/goconduct/internal/protogen/v1/goconductv1connect"
 )
@@ -34,10 +34,11 @@ func newGraphService(source dashboardGraphSource, logger *slog.Logger) *graphSer
 func newGraphServiceHandler(
 	source dashboardGraphSource,
 	logger *slog.Logger,
+	options ...connect.HandlerOption,
 ) (string, http.Handler) {
 	return goconductv1connect.NewGraphServiceHandler(
 		newGraphService(source, logger),
-		connect.WithInterceptors(validate.NewInterceptor()),
+		options...,
 	)
 }
 
@@ -51,10 +52,7 @@ func (service *graphService) GetGraph(
 			"The graph service cannot identify the dependency graph cache.",
 			slog.Any("error", err),
 		)
-		return nil, connect.NewError(
-			connect.CodeInternal,
-			newUnavailableError("identify dependency graph cache", err),
-		)
+		return nil, connecterror.From(ctx, newUnavailableError("identify dependency graph cache", err))
 	}
 	if err := validateGraphCacheContract(
 		request.Msg.GetCacheKey(),
@@ -72,10 +70,7 @@ func (service *graphService) GetGraph(
 				"The graph service cannot refresh the dependency graph.",
 				slog.Any("error", err),
 			)
-			return nil, connect.NewError(
-				connect.CodeUnavailable,
-				newUnavailableError("refresh dependency graph", err),
-			)
+			return nil, connecterror.From(ctx, newUnavailableError("refresh dependency graph", err))
 		}
 	}
 

@@ -12,6 +12,13 @@ cmd/goconduct
   -> internal/kernel
   -> plugin/*
 
+internal/appmodule
+  -> plugin.Host
+
+internal/kernel
+  -> plugin.Catalog
+  -> plugin.CommandRunner
+
 plugin/*
   -> plugin
   -> policy
@@ -23,10 +30,12 @@ web
   -> plugin.Catalog
 ```
 
-The executable is the composition root.
-It selects plugin packages and maps external configuration to their public configuration types.
+The executable is the only composition root.
+`modules.go` selects concrete plugins and provides their typed configuration.
+`infrastructure.go` composes the kernel, request scope, logger, HTTP server, and health endpoint.
+`application.go` enforces activation, endpoint registration, serving, and shutdown order.
 
-The public `plugin` package owns the extension contract, normalized evidence, evaluator catalog, and process boundary.
+The public `plugin` package owns the extension contract, host, normalized evidence, evaluator catalog, and process boundary.
 It does not import any built-in plugin.
 
 Each `plugin/<name>` package owns one quality capability.
@@ -37,15 +46,18 @@ Plugins reuse that package instead of implementing different pattern semantics.
 
 ## Application startup
 
-1. The composition root creates the shared injector from `internal/kernel`.
-2. The host validates unique plugin names and registers every plugin service package.
-3. Cobra parses global configuration flags.
-4. The configuration loader reads one optional strict JSON document over safe defaults.
-5. The composition root provides typed configuration values to the injector.
-6. The host activates plugins in declaration order.
-7. Each evaluator registers itself in `plugin.Catalog`.
-8. The selected command executes or the shared HTTP server starts.
-9. Shutdown stops instantiated services through the dependency container.
+1. The root builds `plugin.Host` from the kernel and declared plugins.
+2. The host validates names and registers all plugin services.
+3. Cobra parses the selected command and global overrides.
+4. The loader reads one optional JSON document over safe defaults.
+5. The root validates the effective configuration after applying overrides.
+6. The root provides typed configuration values to the injector.
+7. The host activates every plugin in declaration order.
+8. Activation eagerly resolves every request service.
+9. The root builds one shared Connect interceptor chain.
+10. Plugins register endpoints with that chain.
+11. The root mounts `/healthz` and starts the HTTP server.
+12. Injector shutdown stops services in reverse dependency order.
 
 The configuration-schema command skips activation because it needs no runtime services.
 
@@ -59,16 +71,37 @@ type Plugin interface {
     Services() func(do.Injector)
     Activate(context.Context, do.Injector) error
     RegisterCommands(do.Injector, *cobra.Command) error
-    RegisterEndpoints(do.Injector, EndpointRegistrar) error
+    RegisterEndpoints(
+        do.Injector,
+        EndpointRegistrar,
+        ...connect.HandlerOption,
+    ) error
 }
 ```
 
 `Services` returns lazy dependency registrations.
 `Activate` resolves services that must start before requests arrive.
 `RegisterCommands` extends the shared Cobra root.
-`RegisterEndpoints` mounts handlers on the shared HTTP server.
+`RegisterEndpoints` mounts handlers with the root's shared Connect options.
 
 The composition root never names a plugin's internal services.
+
+`plugin.Host` is public because external applications must compose third-party plugins.
+`internal/appmodule` aliases that host and adds request-scope resolution for this application.
+
+## Kernel boundary
+
+`internal/kernel` owns only services required by every linked plugin:
+
+- the process logger;
+- the deterministic evaluator catalog;
+- the external command runner.
+
+The composition root owns `appmodule.SelfScope` because request scope is an application decision.
+
+The kernel does not include a database, transactor, event bus, or transactional outbox.
+The current product has no durable state or domain events.
+When a persistent module appears, the kernel must own one production database and its shared transaction infrastructure.
 
 ## Quality module
 
@@ -90,8 +123,11 @@ Files under `api/proto/v1` define the complete web transport.
 Buf generates Go handlers and TypeScript clients from those files.
 
 The Connect HTTP server mounts every service on one `http.ServeMux`.
+The root applies validation and structured request logging to every generated handler.
+API handlers use one shared domain-error translator.
 The architecture plugin also mounts the embedded Angular application at `/`.
 Specific Connect paths take precedence over that fallback path.
+The root-owned `/healthz` endpoint also takes precedence over the fallback.
 
 ## Embedded web application
 

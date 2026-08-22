@@ -7,6 +7,7 @@ import (
 	"context"
 	"net/http"
 
+	"connectrpc.com/connect"
 	"github.com/samber/do/v2"
 	"github.com/spf13/cobra"
 )
@@ -30,8 +31,13 @@ type Plugin interface {
 	// RegisterCommands adds the plugin command surface to the root command.
 	RegisterCommands(injector do.Injector, root *cobra.Command) error
 
-	// RegisterEndpoints mounts the plugin HTTP surface.
-	RegisterEndpoints(injector do.Injector, registrar EndpointRegistrar) error
+	// RegisterEndpoints mounts the plugin HTTP surface with the host's shared
+	// Connect options. A plugin passes those options to every generated handler.
+	RegisterEndpoints(
+		injector do.Injector,
+		registrar EndpointRegistrar,
+		options ...connect.HandlerOption,
+	) error
 }
 
 // Evaluator produces deterministic evidence for one quality capability.

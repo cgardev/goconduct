@@ -107,6 +107,36 @@ func newEvaluatorInjector() func(do.Injector) {
 Activation resolves the evaluator and registers it in the shared catalog.
 Command registration resolves only services required to construct commands.
 Endpoint registration mounts generated Connect handlers through `EndpointRegistrar`.
+Pass every received `connect.HandlerOption` to each generated handler.
+
+The public host composes several lifecycle adapters:
+
+```go
+baseServices := func(injector do.Injector) {
+    do.ProvideValue(injector, slog.Default())
+    do.ProvideValue(injector, plugin.NewCatalog())
+    do.ProvideValue[plugin.CommandRunner](injector, plugin.NewCommandRunner())
+}
+
+host, err := plugin.NewHost(baseServices, plugins...)
+if err != nil {
+    return err
+}
+
+if err := host.Activate(ctx); err != nil {
+    return err
+}
+
+// Register commands and endpoints, then run the application.
+
+if err := host.Shutdown(); err != nil {
+    return err
+}
+```
+
+The host registers all service packages before it activates any plugin.
+This order lets one plugin depend on another plugin's public contract.
+The host also forwards shared Connect options and owns injector shutdown.
 
 ## Configuration rules
 

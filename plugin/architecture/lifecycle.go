@@ -8,6 +8,11 @@ import (
 	"net"
 	"net/http"
 	"time"
+
+	"connectrpc.com/connect"
+	"connectrpc.com/validate"
+
+	"github.com/cgardev/goconduct/internal/library/connectlog"
 )
 
 type dashboardMonitor interface {
@@ -42,7 +47,17 @@ func runDashboard(
 	if err != nil {
 		return newUnavailableError(fmt.Sprintf("listen on %s", address), err)
 	}
-	server := newHTTPServer(ctx, newDashboardHandler(monitor, logger))
+	server := newHTTPServer(
+		ctx,
+		newDashboardHandler(
+			monitor,
+			logger,
+			connect.WithInterceptors(
+				connectlog.NewInterceptor(logger),
+				validate.NewInterceptor(),
+			),
+		),
+	)
 	monitorContext, stopMonitor := context.WithCancel(ctx)
 	defer stopMonitor()
 	go monitor.run(monitorContext)
