@@ -1,5 +1,4 @@
 import {
-  ChangeDetectionStrategy,
   Component,
   computed,
   effect,
@@ -55,7 +54,6 @@ const SEVERITY_LABELS: Record<string, string> = {
   ],
   templateUrl: './findings.page.html',
   styleUrl: './findings.page.less',
-  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class FindingsPage {
   private readonly router = inject(Router);

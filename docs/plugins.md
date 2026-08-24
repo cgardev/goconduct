@@ -23,7 +23,7 @@ Do not include timestamps, temporary paths, random values, or map iteration orde
 ## Recommended package shape
 
 ```text
-plugin/example/
+pkg/plugin/example/
   configuration.go
   evaluator.go
   evaluator_test.go

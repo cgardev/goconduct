@@ -46,6 +46,8 @@
         >
           <label tuiLabel>Severity</label>
           <input
+            data-lpignore="true"
+            data-1p-ignore
             tuiSelect
             [ngModel]="selectedSeverity()"
             (ngModelChange)="setSeverity($event)"

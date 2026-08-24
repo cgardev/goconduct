@@ -1,0 +1,61 @@
+@import 'tokens.less';
+
+// The hidden access list is positioned against this block.
+.dependency-map {
+  position: relative;
+}
+
+// JointJS writes its own SVG attributes inside this surface, so the stylesheet
+// only sizes the surface; every color inside the diagram comes from the
+// diagram tokens.
+.dependency-map__surface {
+  block-size: 29rem;
+  overflow: hidden;
+  background-color: @surface;
+  background-image: radial-gradient(@line 0.0625rem, transparent 0.0625rem);
+  background-size: 1.25rem 1.25rem;
+}
+
+.dependency-map__access {
+  position: absolute;
+  overflow: hidden;
+  inline-size: 0.0625rem;
+  block-size: 0.0625rem;
+  margin: -0.0625rem;
+  padding: 0;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.dependency-map__legend {
+  display: flex;
+  gap: 1.25rem;
+  align-items: center;
+  min-block-size: 3rem;
+  padding: 0 1.25rem;
+  color: @ink-tertiary;
+  border-top: 0.0625rem solid @line;
+  font-size: 0.6875rem;
+
+  span {
+    display: inline-flex;
+    gap: 0.4rem;
+    align-items: center;
+  }
+}
+
+.dependency-map__sample {
+  inline-size: 1.5rem;
+  border-top: 0.0625rem solid @line-strong;
+}
+
+.dependency-map__sample--test {
+  border-top-style: dashed;
+  border-color: @ink-tertiary;
+}
+
+@media (max-width: 32rem) {
+  .dependency-map__surface {
+    block-size: 24rem;
+  }
+}

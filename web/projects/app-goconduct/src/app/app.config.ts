@@ -28,7 +28,11 @@ export function createAppConfig(runtimeEnvironment: RuntimeEnvironment): Applica
       // factory, so <tui-root> — and therefore every dialog and dropdown
       // portalled through it — fails to construct without this. It also brings
       // in the event plugins the templates of Taiga bind against.
-      provideTaiga(),
+      //
+      // The mode is pinned to light because the console styles its own light
+      // surfaces. Without the pin, Taiga follows the operating system: on a
+      // dark system it paints its text white over those light surfaces.
+      provideTaiga({ mode: 'light' }),
       provideRouter(
         appRoutes,
         withComponentInputBinding(),

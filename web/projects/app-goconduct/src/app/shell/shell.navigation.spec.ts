@@ -14,8 +14,11 @@ describe('buildShellNavigation', () => {
     expect(navigation.map((group) => group.title)).toEqual(['Architecture']);
     expect(navigation[0]?.children.map((child) => child.title)).toEqual([
       'Overview',
+      'Strategy',
       'Components',
+      'Balance',
       'Findings',
+      'Types',
     ]);
   });
 
@@ -26,8 +29,11 @@ describe('buildShellNavigation', () => {
    */
   it('builds an absolute link with a single leading separator', () => {
     expect(entry('overview')?.link).toBe('/overview');
+    expect(entry('strategy')?.link).toBe('/strategy');
     expect(entry('components')?.link).toBe('/components');
+    expect(entry('balance')?.link).toBe('/balance');
     expect(entry('findings')?.link).toBe('/findings');
+    expect(entry('types')?.link).toBe('/types');
   });
 
   it('returns an independent tree on every call so a caller cannot mutate the model', () => {

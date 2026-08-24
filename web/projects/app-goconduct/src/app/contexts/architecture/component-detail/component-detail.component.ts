@@ -1,6 +1,5 @@
 import { DecimalPipe } from '@angular/common';
 import {
-  ChangeDetectionStrategy,
   Component,
   effect,
   ElementRef,
@@ -8,11 +7,17 @@ import {
   viewChild,
 } from '@angular/core';
 import { TuiButton, TuiIcon } from '@taiga-ui/core';
+import { TuiAccordion } from '@taiga-ui/kit';
 import { ComponentSelectionStore } from '../../../kernel/graph/component-selection.store';
+import { abstractionLabel, stabilityLabel } from '../../../kernel/graph/metric-reading';
 
 /**
- * Panel with the coupling metrics and the direct dependencies of the selected
- * component.
+ * Panel that reads the coupling metrics of the selected component for someone
+ * who does not know the formulas.
+ *
+ * It leads with a plain-language verdict, then shows the dependencies that
+ * produce each number, then places the component on two labelled scales. The
+ * raw values come last, with a glossary for a reader who wants the formulas.
  *
  * It reads the selection from the store rather than from an input, so the map
  * and the components table open the same panel without either page knowing
@@ -26,13 +31,12 @@ import { ComponentSelectionStore } from '../../../kernel/graph/component-selecti
  */
 @Component({
   selector: 'app-component-detail',
-  imports: [DecimalPipe, TuiButton, TuiIcon],
+  imports: [DecimalPipe, TuiAccordion, TuiButton, TuiIcon],
   templateUrl: './component-detail.component.html',
   styleUrl: './component-detail.component.less',
   host: {
     '(document:keydown.escape)': 'close()',
   },
-  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ComponentDetailComponent {
   protected readonly selection = inject(ComponentSelectionStore);
@@ -53,5 +57,17 @@ export class ComponentDetailComponent {
 
   protected close(): void {
     this.selection.close();
+  }
+
+  protected stabilityLabel(instability: number): string {
+    return stabilityLabel(instability);
+  }
+
+  protected abstractionLabel(abstractness: number): string {
+    return abstractionLabel(abstractness);
+  }
+
+  protected percentage(ratio: number): number {
+    return Math.round(ratio * 100);
   }
 }

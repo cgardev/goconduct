@@ -92,6 +92,11 @@
                 "output": "assets/taiga-ui/icons"
               },
               {
+                "glob": "layers.svg",
+                "input": "node_modules/@taiga-ui/icons/src",
+                "output": "assets/taiga-ui/icons"
+              },
+              {
                 "glob": "layout-dashboard.svg",
                 "input": "node_modules/@taiga-ui/icons/src",
                 "output": "assets/taiga-ui/icons"
@@ -122,12 +127,22 @@
                 "output": "assets/taiga-ui/icons"
               },
               {
+                "glob": "scale.svg",
+                "input": "node_modules/@taiga-ui/icons/src",
+                "output": "assets/taiga-ui/icons"
+              },
+              {
                 "glob": "search.svg",
                 "input": "node_modules/@taiga-ui/icons/src",
                 "output": "assets/taiga-ui/icons"
               },
               {
                 "glob": "search-x.svg",
+                "input": "node_modules/@taiga-ui/icons/src",
+                "output": "assets/taiga-ui/icons"
+              },
+              {
+                "glob": "shapes.svg",
                 "input": "node_modules/@taiga-ui/icons/src",
                 "output": "assets/taiga-ui/icons"
               },
@@ -148,6 +163,7 @@
               ]
             },
             "styles": [
+              "@taiga-ui/styles/taiga-ui-theme.less",
               "projects/app-goconduct/src/styles/styles.less"
             ]
           },
@@ -204,7 +220,7 @@
           "builder": "@angular/build:dev-server",
           "options": {
             "port": 4200,
-            "proxyConfig": "projects/app-goconduct/proxy.conf.json"
+            "proxyConfig": "projects/app-goconduct/proxy.conf.mjs"
           },
           "configurations": {
             "production": {

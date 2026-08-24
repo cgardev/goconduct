@@ -23,29 +23,170 @@
       ></button>
     </header>
 
+    @if (selection.selectedReading(); as reading) {
+      <section class="component-detail__reading" [attr.data-zone]="reading.zone">
+        <p class="component-detail__eyebrow">What the numbers say</p>
+        <h3 class="component-detail__headline">{{ reading.headline }}</h3>
+        <p class="component-detail__explanation">{{ reading.explanation }}</p>
+        <p class="component-detail__advice">{{ reading.advice }}</p>
+      </section>
+    }
+
+    <h3 class="component-detail__section">Who depends on whom</h3>
+    <div class="component-detail__flow">
+      <div class="component-detail__side">
+        <p class="component-detail__side-title">
+          <strong>{{ component.afferentCoupling }}</strong>
+          depend on it
+          <abbr title="Afferent coupling">Ca</abbr>
+        </p>
+        <ul class="component-detail__neighbors">
+          @for (importer of selection.importers(); track importer.id) {
+            <li>
+              <button type="button" (click)="selection.select(importer.id)">
+                <i [attr.data-role]="importer.role" aria-hidden="true"></i>
+                {{ importer.name }}
+              </button>
+              @if (importer.testOnly) {
+                <small>test only</small>
+              }
+            </li>
+          } @empty {
+            <li class="component-detail__none">Nothing depends on it.</li>
+          }
+        </ul>
+      </div>
+
+      <div class="component-detail__center" aria-hidden="true">
+        <tui-icon icon="@tui.arrow-right" />
+        <span>{{ component.name }}</span>
+        <tui-icon icon="@tui.arrow-right" />
+      </div>
+
+      <div class="component-detail__side">
+        <p class="component-detail__side-title">
+          it depends on
+          <strong>{{ component.efferentCoupling }}</strong>
+          <abbr title="Efferent coupling">Ce</abbr>
+        </p>
+        <ul class="component-detail__neighbors">
+          @for (dependency of selection.dependencies(); track dependency.id) {
+            <li>
+              <button type="button" (click)="selection.select(dependency.id)">
+                <i [attr.data-role]="dependency.role" aria-hidden="true"></i>
+                {{ dependency.name }}
+              </button>
+              @if (dependency.testOnly) {
+                <small>test only</small>
+              }
+            </li>
+          } @empty {
+            <li class="component-detail__none">It depends on nothing.</li>
+          }
+        </ul>
+      </div>
+    </div>
+
+    <h3 class="component-detail__section">Where it stands</h3>
+    <div class="component-detail__gauges">
+      <div class="component-detail__gauge">
+        <div class="component-detail__gauge-heading">
+          <span>Freedom to change</span>
+          <strong>{{ stabilityLabel(component.instability) }}</strong>
+        </div>
+        <div
+          class="component-detail__track"
+          role="meter"
+          aria-label="Instability"
+          aria-valuemin="0"
+          aria-valuemax="1"
+          [attr.aria-valuenow]="component.instability"
+          [attr.aria-valuetext]="
+            stabilityLabel(component.instability) + ', ' + (component.instability | number: '1.2-2')
+          "
+        >
+          <i [style.left.%]="percentage(component.instability)"></i>
+        </div>
+        <div class="component-detail__ends">
+          <span>Stable · many depend on it</span>
+          <span>Unstable · free to change</span>
+        </div>
+      </div>
+
+      <div class="component-detail__gauge">
+        <div class="component-detail__gauge-heading">
+          <span>Amount of interface</span>
+          <strong>{{ abstractionLabel(component.abstractness) }}</strong>
+        </div>
+        <div
+          class="component-detail__track"
+          role="meter"
+          aria-label="Abstractness"
+          aria-valuemin="0"
+          aria-valuemax="1"
+          [attr.aria-valuenow]="component.abstractness"
+          [attr.aria-valuetext]="
+            abstractionLabel(component.abstractness) +
+            ', ' +
+            (component.abstractness | number: '1.2-2')
+          "
+        >
+          <i [style.left.%]="percentage(component.abstractness)"></i>
+        </div>
+        <div class="component-detail__ends">
+          <span>Concrete · {{ component.concreteTypes }} types</span>
+          <span>Abstract · {{ component.abstractTypes }} interfaces</span>
+        </div>
+      </div>
+    </div>
+
     <dl class="component-detail__metrics">
       <div><dt>Role</dt><dd>{{ component.role }}</dd></div>
       <div><dt>Packages</dt><dd>{{ component.packages }}</dd></div>
-      <div><dt>Afferent coupling</dt><dd>{{ component.afferentCoupling }}</dd></div>
-      <div><dt>Efferent coupling</dt><dd>{{ component.efferentCoupling }}</dd></div>
-      <div><dt>Instability</dt><dd>{{ component.instability | number: '1.2-2' }}</dd></div>
-      <div><dt>Abstractness</dt><dd>{{ component.abstractness | number: '1.2-2' }}</dd></div>
+      <div><dt>Instability (I)</dt><dd>{{ component.instability | number: '1.2-2' }}</dd></div>
+      <div><dt>Abstractness (A)</dt><dd>{{ component.abstractness | number: '1.2-2' }}</dd></div>
+      <div>
+        <dt>Distance (D)</dt>
+        <dd>{{ component.mainSequenceDistance | number: '1.2-2' }}</dd>
+      </div>
+      <div><dt>In a cycle</dt><dd>{{ component.inCycle ? 'Yes' : 'No' }}</dd></div>
     </dl>
 
-    <h3 class="component-detail__section">Direct relationships</h3>
-    <ul class="component-detail__relationships">
-      @for (
-        relationship of selection.selectedRelationships();
-        track relationship.source + relationship.target
-      ) {
-        <li>
-          <span>{{ relationship.source }}</span>
-          <tui-icon icon="@tui.arrow-right" aria-label="depends on" />
-          <span>{{ relationship.target }}</span>
-        </li>
-      } @empty {
-        <li class="component-detail__none">No direct relationships.</li>
-      }
-    </ul>
+    <tui-accordion class="component-detail__glossary" size="s">
+      <button tuiAccordion>What do these numbers mean?</button>
+      <tui-expand>
+        <dl class="component-detail__terms">
+          <div>
+            <dt>Ca · afferent coupling</dt>
+            <dd>How many components import this one. High means a change here reaches many.</dd>
+          </div>
+          <div>
+            <dt>Ce · efferent coupling</dt>
+            <dd>How many components this one imports. High means it changes when any of them does.</dd>
+          </div>
+          <div>
+            <dt>I · instability</dt>
+            <dd>
+              Ce ÷ (Ca + Ce). Zero means stable: hard to change because many depend on it. One
+              means unstable: nothing depends on it, so it can change at any time.
+            </dd>
+          </div>
+          <div>
+            <dt>A · abstractness</dt>
+            <dd>
+              Interfaces ÷ all types. A stable component should be abstract, so others extend it
+              instead of changing it.
+            </dd>
+          </div>
+          <div>
+            <dt>D · distance</dt>
+            <dd>
+              |A + I − 1|. How far the component is from the balance line. Zero is on the line.
+              One is in a corner: stable and concrete, or abstract and unused.
+            </dd>
+          </div>
+        </dl>
+      </tui-expand>
+    </tui-accordion>
   </aside>
 }

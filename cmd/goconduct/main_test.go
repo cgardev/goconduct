@@ -9,7 +9,7 @@ import (
 
 func TestCompositionRootRegistersBuiltInPlugins(t *testing.T) {
 	plugins := applicationPlugins()
-	want := []string{"architecture", "coverage", "crap", "duplication", "mutation", "quality"}
+	want := []string{"architecture", "coverage", "crap", "duplication", "loc", "mutation", "quality"}
 	if len(plugins) != len(want) {
 		t.Fatalf("built-in plugin count is %d", len(plugins))
 	}

@@ -1,0 +1,28 @@
+<nav class="component-tree" aria-label="Analyzed components">
+  @for (root of roots(); track root.path) {
+    <tui-tree
+      [value]="root"
+      [childrenHandler]="childrenOf"
+      [content]="content"
+      [map]="expansion()"
+      [tuiTreeController]="false"
+      (toggled)="toggle($event)"
+    />
+  }
+
+  <ng-template #content let-node>
+    @if (node.componentId !== '') {
+      <button
+        class="component-tree__item component-tree__item--component"
+        type="button"
+        [class.component-tree__item--selected]="node.componentId === selectedId()"
+        [attr.aria-pressed]="node.componentId === selectedId()"
+        (click)="select.emit(node.componentId)"
+      >
+        {{ node.label }}
+      </button>
+    } @else {
+      <span class="component-tree__item">{{ node.label }}</span>
+    }
+  </ng-template>
+</nav>

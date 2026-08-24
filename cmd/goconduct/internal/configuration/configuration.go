@@ -8,12 +8,13 @@ import (
 
 	"github.com/cgardev/gokeel/conf"
 
-	"github.com/cgardev/goconduct/failure"
-	"github.com/cgardev/goconduct/plugin/architecture"
-	"github.com/cgardev/goconduct/plugin/coverage"
-	"github.com/cgardev/goconduct/plugin/crap"
-	"github.com/cgardev/goconduct/plugin/duplication"
-	"github.com/cgardev/goconduct/plugin/mutation"
+	"github.com/cgardev/goconduct/pkg/failure"
+	"github.com/cgardev/goconduct/pkg/plugin/architecture"
+	"github.com/cgardev/goconduct/pkg/plugin/coverage"
+	"github.com/cgardev/goconduct/pkg/plugin/crap"
+	"github.com/cgardev/goconduct/pkg/plugin/duplication"
+	"github.com/cgardev/goconduct/pkg/plugin/loc"
+	"github.com/cgardev/goconduct/pkg/plugin/mutation"
 )
 
 // FailureThreshold selects which finding severity fails a combined check.
@@ -41,6 +42,7 @@ type QualityConfiguration struct {
 	Coverage    coverage.Configuration    `json:"coverage"`
 	CRAP        crap.Configuration        `json:"crap"`
 	Duplication duplication.Configuration `json:"duplication"`
+	LOC         loc.Configuration         `json:"loc"`
 	Mutation    mutation.Configuration    `json:"mutation"`
 }
 
@@ -69,6 +71,7 @@ func Default() ApplicationConfiguration {
 			Coverage:    coverage.DefaultConfiguration(),
 			CRAP:        crap.DefaultConfiguration(),
 			Duplication: duplication.DefaultConfiguration(),
+			LOC:         loc.DefaultConfiguration(),
 			Mutation:    mutation.DefaultConfiguration(),
 		},
 	}
@@ -95,7 +98,7 @@ func Validate(configuration ApplicationConfiguration) error {
 		return failure.Validation("quality check plugin list is empty", nil)
 	}
 	knownPlugins := map[string]struct{}{
-		"architecture": {}, "coverage": {}, "crap": {}, "duplication": {}, "mutation": {},
+		"architecture": {}, "coverage": {}, "crap": {}, "duplication": {}, "loc": {}, "mutation": {},
 	}
 	seen := make(map[string]struct{}, len(configuration.Quality.Check.Plugins))
 	for _, name := range configuration.Quality.Check.Plugins {
@@ -139,11 +142,11 @@ func SchemaDefinition() conf.SchemaDefinition {
 	fields["quality.check.plugins"] = conf.FieldDefinition{
 		Description: "Plugins executed by the combined check command.",
 		Default:     []string{"architecture", "coverage"},
-		Enum:        []any{"architecture", "coverage", "crap", "duplication", "mutation"},
+		Enum:        []any{"architecture", "coverage", "crap", "duplication", "loc", "mutation"},
 	}
 	fields["quality.check.paths"] = conf.FieldDefinition{
 		Description: "Optional repository-relative paths supplied to selected plugins.",
-		Examples:    []any{"cmd", "internal", "plugin"},
+		Examples:    []any{"cmd", "internal", "pkg"},
 	}
 	fields["quality.check.failOn"] = conf.FieldDefinition{
 		Description: "Finding severity that fails the combined check.",
@@ -164,6 +167,45 @@ func SchemaDefinition() conf.SchemaDefinition {
 	fields["quality.duplication.minimumLines"] = conf.FieldDefinition{Description: "Minimum source lines per duplicate candidate.", Default: 4, Minimum: conf.Pointer(1.0)}
 	fields["quality.duplication.minimumNodes"] = conf.FieldDefinition{Description: "Minimum syntax nodes per duplicate candidate.", Default: 20, Minimum: conf.Pointer(1.0)}
 	fields["quality.duplication.maximumCandidates"] = conf.FieldDefinition{Description: "Maximum accepted duplicate candidates.", Default: 0, Minimum: conf.Pointer(0.0)}
+	locDefaults := loc.DefaultConfiguration()
+	fields["quality.loc"] = conf.FieldDefinition{Description: "Go source line and function measurements."}
+	fields["quality.loc.selection"] = conf.FieldDefinition{Description: "Source roots and shared glob filters."}
+	fields["quality.loc.selection.paths"] = conf.FieldDefinition{
+		Description: "Repository-relative directories or Go files used as LOC roots.",
+		Default:     locDefaults.Selection.Paths,
+		Examples:    []any{"cmd", "internal", "pkg"},
+	}
+	fields["quality.loc.selection.include"] = conf.FieldDefinition{
+		Description: "Shared glob patterns that include Go files.",
+		Default:     locDefaults.Selection.Include,
+		Examples:    []any{"internal/**", "pkg/plugin/**"},
+	}
+	fields["quality.loc.selection.exclude"] = conf.FieldDefinition{
+		Description: "Shared glob patterns that exclude Go files. Exclusions take precedence.",
+		Default:     locDefaults.Selection.Exclude,
+		Examples:    []any{"**/testdata/**", "internal/legacy/**"},
+	}
+	fields["quality.loc.generated"] = conf.FieldDefinition{Description: "Generated Go file classification rules."}
+	fields["quality.loc.generated.standardMarker"] = conf.FieldDefinition{
+		Description: "Recognize the standard Go generated marker before the package clause.",
+		Default:     true,
+	}
+	fields["quality.loc.generated.pathPatterns"] = conf.FieldDefinition{
+		Description: "Shared glob patterns that classify matching files as generated.",
+		Default:     locDefaults.Generated.PathPatterns,
+		Examples:    []any{"**/*.pb.go", "**/*.connect.go"},
+	}
+	fields["quality.loc.generated.headerPatterns"] = conf.FieldDefinition{
+		Description: "RE2 expressions that classify matching source headers as generated.",
+		Default:     []string{},
+		Examples:    []any{"(?m)^// AUTOGENERATED$"},
+	}
+	fields["quality.loc.generated.forceHandwrittenPaths"] = conf.FieldDefinition{
+		Description: "Shared glob patterns that override every generated detector.",
+		Default:     []string{},
+		Examples:    []any{"internal/protogen/manual.pb.go"},
+	}
+	fields["quality.loc.pathPolicies"] = conf.FieldDefinition{Description: "Path-specific LOC metric thresholds."}
 	fields["quality.mutation"] = conf.FieldDefinition{Description: "Coverage run and mutation limits."}
 	fields["quality.mutation.command"] = conf.FieldDefinition{Description: "Go executable used for coverage.", Default: "go"}
 	fields["quality.mutation.packages"] = conf.FieldDefinition{Description: "Go package patterns passed to go test.", Default: []string{"./..."}}

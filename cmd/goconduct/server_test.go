@@ -57,7 +57,7 @@ func TestApplicationServerComposesPluginEndpoints(t *testing.T) {
 	if err != nil {
 		t.Fatalf("list plugins: %v", err)
 	}
-	if len(response.Msg.GetPlugins()) != 5 {
+	if len(response.Msg.GetPlugins()) != 6 {
 		t.Fatalf("evaluator count is %d", len(response.Msg.GetPlugins()))
 	}
 

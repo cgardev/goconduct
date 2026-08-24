@@ -1,6 +1,5 @@
 import { DecimalPipe } from '@angular/common';
 import {
-  ChangeDetectionStrategy,
   Component,
   computed,
   effect,
@@ -11,7 +10,7 @@ import {
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
-import { TuiButton, TuiDropdown, TuiIcon, TuiLoader, TuiTextfield } from '@taiga-ui/core';
+import { TuiButton, TuiDropdown, TuiIcon, TuiInput, TuiLoader, TuiTextfield } from '@taiga-ui/core';
 import { TuiChevron, TuiDataListWrapper, TuiSelect } from '@taiga-ui/kit';
 import { ComponentSelectionStore } from '../../../../kernel/graph/component-selection.store';
 import {
@@ -76,11 +75,11 @@ const COLUMNS: readonly ColumnDefinition[] = [
     TuiIcon,
     TuiLoader,
     TuiSelect,
+    TuiInput,
     TuiTextfield,
   ],
   templateUrl: './components.page.html',
   styleUrl: './components.page.less',
-  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ComponentsPage {
   private readonly router = inject(Router);

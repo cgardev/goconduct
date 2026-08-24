@@ -7,7 +7,7 @@ const thirdPartyLicenses = fileURLToPath(
   new URL('../dist/app-goconduct/3rdpartylicenses.txt', import.meta.url),
 );
 const target = fileURLToPath(
-  new URL('../../plugin/architecture/_resources/web/', import.meta.url),
+  new URL('../../pkg/plugin/architecture/_resources/web/', import.meta.url),
 );
 
 await rm(target, { recursive: true, force: true });

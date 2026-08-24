@@ -1,0 +1,26 @@
+<div class="dependency-map">
+  <div #surface class="dependency-map__surface" aria-hidden="true"></div>
+
+  <!--
+    The diagram is pointer-only, so this hidden list carries the same
+    selection for the keyboard and assistive technology.
+  -->
+  <ul class="dependency-map__access" aria-label="Mapped components">
+    @for (node of layout().nodes; track node.component.id) {
+      <li>
+        <button
+          type="button"
+          [attr.aria-pressed]="selection.selectedComponentId() === node.component.id"
+          (click)="selection.select(node.component.id)"
+        >
+          Inspect {{ node.component.name }}
+        </button>
+      </li>
+    }
+  </ul>
+
+  <footer class="dependency-map__legend">
+    <span><i class="dependency-map__sample"></i>Production dependency</span>
+    <span><i class="dependency-map__sample dependency-map__sample--test"></i>Test-only dependency</span>
+  </footer>
+</div>

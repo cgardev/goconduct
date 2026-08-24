@@ -37,8 +37,14 @@
       <header class="panel__toolbar">
         <tui-textfield class="components__search" iconStart="@tui.search" tuiTextfieldSize="m">
           <label tuiLabel>Search components</label>
+          <!-- autocomplete and data-lpignore keep browser and password-manager
+               suggestions away from a filter that is neither a form nor a login. -->
           <input
+            autocomplete="off"
+            data-lpignore="true"
+            data-1p-ignore
             placeholder="Name, path, category or application"
+            tuiInput
             [ngModel]="query()"
             (ngModelChange)="setQuery($event)"
           />
@@ -51,7 +57,13 @@
           [stringify]="roleLabel"
         >
           <label tuiLabel>Role</label>
-          <input tuiSelect [ngModel]="selectedRole()" (ngModelChange)="setRole($event)" />
+          <input
+            data-lpignore="true"
+            data-1p-ignore
+            tuiSelect
+            [ngModel]="selectedRole()"
+            (ngModelChange)="setRole($event)"
+          />
           <tui-data-list-wrapper *tuiDropdown [items]="roleOptions()" />
         </tui-textfield>
 

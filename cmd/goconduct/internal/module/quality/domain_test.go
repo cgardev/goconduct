@@ -3,7 +3,7 @@ package quality
 import (
 	"testing"
 
-	"github.com/cgardev/goconduct/plugin"
+	"github.com/cgardev/goconduct/pkg/plugin"
 )
 
 func TestNewCheckResultCountsEverySeverity(t *testing.T) {

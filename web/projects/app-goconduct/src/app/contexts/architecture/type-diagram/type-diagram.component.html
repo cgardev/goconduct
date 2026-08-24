@@ -1,0 +1,74 @@
+<div class="type-diagram">
+  <div class="type-diagram__toolbar">
+    <button
+      appearance="secondary"
+      size="s"
+      tuiButton
+      type="button"
+      aria-label="Zoom in"
+      (click)="zoomIn()"
+    >
+      +
+    </button>
+    <button
+      appearance="secondary"
+      size="s"
+      tuiButton
+      type="button"
+      aria-label="Zoom out"
+      (click)="zoomOut()"
+    >
+      −
+    </button>
+    <button appearance="flat" size="s" tuiButton type="button" (click)="resetView()">
+      Reset view
+    </button>
+  </div>
+
+  <div #surface class="type-diagram__surface" aria-hidden="true"></div>
+
+  <!--
+    The diagram is pointer-only, so this hidden list carries the same
+    selection, collapse, and navigation actions for the keyboard and
+    assistive technology.
+  -->
+  <ul class="type-diagram__access" aria-label="Diagrammed types">
+    @for (node of model().nodes; track node.id) {
+      <li>
+        <button
+          type="button"
+          [attr.aria-pressed]="store.selectedTypeId() === node.id"
+          (click)="store.selectType(node.id)"
+        >
+          Inspect {{ node.name }}
+        </button>
+        <button type="button" (click)="store.toggleCollapsed(node.id)">
+          {{ collapseLabel(node.id, node.name) }}
+        </button>
+      </li>
+    }
+    @for (external of model().externals; track external.id) {
+      <li>
+        <button type="button" (click)="navigateComponent.emit(external.componentId)">
+          Open {{ external.name }} in {{ external.componentId }}
+        </button>
+      </li>
+    }
+  </ul>
+
+  <footer class="type-diagram__legend">
+    <span><i class="type-diagram__kind type-diagram__kind--struct"></i>Struct</span>
+    <span><i class="type-diagram__kind type-diagram__kind--interface"></i>Interface</span>
+    <span><i class="type-diagram__kind type-diagram__kind--alias"></i>Alias</span>
+    <span><i class="type-diagram__kind type-diagram__kind--basic"></i>Basic</span>
+    <span><i class="type-diagram__sample type-diagram__sample--implements"></i>Implements</span>
+    <span><i class="type-diagram__sample type-diagram__sample--embeds"></i>Embeds</span>
+    <span><i class="type-diagram__sample type-diagram__sample--references"></i>References</span>
+    <span><b class="type-diagram__visibility">+</b>Exported</span>
+    <span><b class="type-diagram__visibility type-diagram__visibility--private">−</b>Unexported</span>
+    <span>
+      <b class="type-diagram__visibility">◂n</b>
+      Uses from other components; select the type to draw them
+    </span>
+  </footer>
+</div>

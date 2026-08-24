@@ -1,5 +1,4 @@
 import {
-  ChangeDetectionStrategy,
   Component,
   provideBrowserGlobalErrorListeners,
   provideZonelessChangeDetection,
@@ -34,7 +33,6 @@ import { environment } from './environments/environment';
       min-height: 100%;
     }
   `,
-  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 class ConfigurationErrorApp {}
 
@@ -65,7 +63,7 @@ function bootstrapConfigurationError(error: unknown): Promise<unknown> {
     providers: [
       provideBrowserGlobalErrorListeners(),
       provideZonelessChangeDetection(),
-      provideTaiga(),
+      provideTaiga({ mode: 'light' }),
       ...provideConfigurationError(error),
     ],
   });

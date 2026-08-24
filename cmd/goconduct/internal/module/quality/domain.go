@@ -1,6 +1,6 @@
 package quality
 
-import "github.com/cgardev/goconduct/plugin"
+import "github.com/cgardev/goconduct/pkg/plugin"
 
 // CheckSummary counts evidence by type and severity.
 type CheckSummary struct {

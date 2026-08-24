@@ -1,0 +1,128 @@
+@import 'tokens.less';
+@import 'patterns.less';
+
+:host {
+  display: block;
+  flex: 1 1 auto;
+}
+
+.strategy {
+  .page-frame();
+}
+
+.strategy__loading {
+  .loading-placeholder();
+}
+
+.panel {
+  .panel-surface();
+
+  & + .panel {
+    margin-top: 0.75rem;
+  }
+}
+
+.panel__header {
+  .panel-header();
+}
+
+.panel__title h2 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.panel__description {
+  margin: 0.25rem 0 0;
+  color: @ink-secondary;
+  font-size: 0.8125rem;
+}
+
+// amCharts draws on a canvas inside this surface, so the stylesheet only
+// sizes it; every color inside comes from the diagram tokens.
+.strategy__matrix {
+  block-size: 30rem;
+  margin: 0 1.25rem 1rem;
+}
+
+.strategy__observations {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.5rem;
+  padding: 1.125rem 1.25rem;
+}
+
+.strategy__subheading {
+  margin: 0 0 0.5rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.strategy__list {
+  display: grid;
+  gap: 0.4rem;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+  font-size: 0.8125rem;
+}
+
+.strategy__cycle {
+  padding: 0.5rem 0.75rem;
+  background: @danger-soft;
+  border-inline-start: 0.1875rem solid @danger;
+  border-radius: 0 @radius-small @radius-small 0;
+}
+
+.strategy__edge {
+  display: block;
+  inline-size: 100%;
+  padding: 0.45rem 0.75rem;
+  color: @ink;
+  background: @surface-muted;
+  border: 0;
+  border-radius: @radius-small;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+
+  small {
+    display: block;
+    color: @ink-tertiary;
+  }
+
+  &:hover {
+    background: @surface-hover;
+  }
+
+  &:focus-visible {
+    outline: 0.125rem solid @focus-color;
+    outline-offset: 0.0625rem;
+  }
+}
+
+.strategy__none {
+  color: @ink-tertiary;
+}
+
+.strategy__relationships {
+  display: grid;
+  gap: 0.3rem;
+  max-block-size: 22rem;
+  overflow: auto;
+  padding: 1.125rem 1.25rem;
+  margin: 0;
+  list-style: none;
+  font-size: 0.8125rem;
+
+  code {
+    font-family: @monospace-family;
+  }
+}
+
+@media (max-width: 48rem) {
+  .strategy__observations {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

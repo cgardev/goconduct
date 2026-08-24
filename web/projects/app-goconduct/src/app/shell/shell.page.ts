@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { Component, inject } from '@angular/core';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { TuiButton, TuiIcon } from '@taiga-ui/core';
 import { buildShellNavigation } from './shell.navigation';
@@ -29,7 +29,6 @@ import { TopNavigationComponent } from './top-navigation/top-navigation.componen
   ],
   templateUrl: './shell.page.html',
   styleUrl: './shell.page.less',
-  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ShellPage {
   protected readonly shell = inject(ShellStore);

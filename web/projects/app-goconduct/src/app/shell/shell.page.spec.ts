@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, provideZonelessChangeDetection } from '@angular/core';
+import { Component, provideZonelessChangeDetection } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
@@ -9,7 +9,6 @@ import { ShellPage } from './shell.page';
 @Component({
   selector: 'app-stub-page',
   template: '<p>page</p>',
-  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 class StubPage {}
 
@@ -49,7 +48,14 @@ describe('ShellPage', () => {
       item.textContent?.trim(),
     );
 
-    expect(links).toEqual(['Overview', 'Components', 'Findings']);
+    expect(links).toEqual([
+      'Overview',
+      'Strategy',
+      'Components',
+      'Balance',
+      'Findings',
+      'Types',
+    ]);
   });
 
   /**

@@ -1,0 +1,44 @@
+@import 'tokens.less';
+
+.component-tree {
+  display: block;
+  font-size: 0.8125rem;
+}
+
+.component-tree__item {
+  padding: 0.2rem 0.35rem;
+  margin: 0;
+  overflow: hidden;
+  max-inline-size: 100%;
+  color: @ink-secondary;
+  background: none;
+  border: 0;
+  border-radius: 0.35rem;
+  font: inherit;
+  text-align: start;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.component-tree__item--component {
+  color: @ink;
+  cursor: pointer;
+
+  &:hover {
+    background: @surface-hover;
+  }
+
+  &:focus-visible {
+    outline: 0.125rem solid @focus-color;
+    outline-offset: 0.0625rem;
+  }
+}
+
+.component-tree__item--selected {
+  background: @surface-selected;
+  font-weight: 600;
+
+  &:hover {
+    background: @surface-selected;
+  }
+}

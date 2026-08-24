@@ -74,7 +74,7 @@ describe('OverviewPage', () => {
   it('places one node per mapped component', async () => {
     const element = await renderPage();
 
-    expect(element.querySelectorAll('.graph-map__node')).toHaveLength(2);
+    expect(element.querySelectorAll('.dependency-map__access button')).toHaveLength(2);
   });
 
   /**
@@ -85,7 +85,7 @@ describe('OverviewPage', () => {
   it('keeps a missing plugin catalog out of the analysis state', async () => {
     const element = await renderPage([]);
 
-    expect(element.querySelector('.graph-map')).not.toBeNull();
+    expect(element.querySelector('app-dependency-map')).not.toBeNull();
     expect(element.textContent).not.toContain('The analysis is unavailable');
   });
 });

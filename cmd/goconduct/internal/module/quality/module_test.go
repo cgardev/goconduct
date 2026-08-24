@@ -6,7 +6,7 @@ import (
 	"github.com/samber/do/v2"
 
 	"github.com/cgardev/goconduct/internal/appmodule"
-	"github.com/cgardev/goconduct/plugin"
+	"github.com/cgardev/goconduct/pkg/plugin"
 )
 
 func TestPluginUsesStableNameAndServices(t *testing.T) {

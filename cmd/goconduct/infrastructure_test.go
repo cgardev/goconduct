@@ -8,7 +8,7 @@ import (
 	"github.com/samber/do/v2"
 
 	"github.com/cgardev/goconduct/internal/appmodule"
-	"github.com/cgardev/goconduct/plugin"
+	"github.com/cgardev/goconduct/pkg/plugin"
 )
 
 func TestBaseServicesComposeKernelAndApplicationScope(t *testing.T) {

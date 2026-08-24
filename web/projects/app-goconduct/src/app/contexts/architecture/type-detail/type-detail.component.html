@@ -1,0 +1,148 @@
+@if (store.selectedType(); as declaration) {
+  <aside
+    #panel
+    class="type-detail"
+    role="region"
+    tabindex="-1"
+    aria-labelledby="type-detail-title"
+  >
+    <header class="type-detail__header">
+      <div class="type-detail__identity">
+        <p class="type-detail__eyebrow">Selected type</p>
+        <h2 id="type-detail-title">
+          {{ declaration.name }}
+          <em class="type-detail__kind" [attr.data-kind]="declaration.kind">
+            «{{ declaration.kind }}»
+          </em>
+        </h2>
+        <p class="type-detail__path">{{ declaration.path }}:{{ declaration.line }}</p>
+        @if (declaration.underlying !== '') {
+          <p class="type-detail__underlying">= {{ declaration.underlying }}</p>
+        }
+      </div>
+      <button
+        appearance="flat-grayscale"
+        iconStart="@tui.x"
+        size="s"
+        tuiIconButton
+        type="button"
+        aria-label="Close type details"
+        (click)="close()"
+      ></button>
+    </header>
+
+    <div class="type-detail__actions">
+      <button appearance="secondary" size="s" tuiButton type="button"
+        (click)="store.toggleCollapsed(declaration.id)"
+      >
+        {{ store.collapsedIds().has(declaration.id) ? 'Expand on diagram' : 'Collapse on diagram' }}
+      </button>
+    </div>
+
+    <h3 class="type-detail__section">Fields ({{ declaration.fields.length }})</h3>
+    <ul class="type-detail__members">
+      @for (field of declaration.fields; track field.name) {
+        <li>
+          <code>{{ field.name }}: {{ field.type }}</code>
+          @if (field.embedded) {
+            <small>embedded</small>
+          }
+        </li>
+      } @empty {
+        <li class="type-detail__none">The type declares no fields.</li>
+      }
+    </ul>
+
+    <h3 class="type-detail__section">Methods ({{ declaration.methods.length }})</h3>
+    <ul class="type-detail__members">
+      @for (method of declaration.methods; track method.name) {
+        <li>
+          <code>{{ method.name }}{{ method.signature }}</code>
+          @if (method.pointerReceiver) {
+            <small>pointer receiver</small>
+          }
+        </li>
+      } @empty {
+        <li class="type-detail__none">The type declares no methods.</li>
+      }
+    </ul>
+
+    <!--
+      Go satisfies interfaces implicitly, so the declaring component cannot
+      know its implementers; these inverse lists name them, grouped by what
+      each source does with the selected type.
+    -->
+    @if (store.selectedIncoming().length === 0) {
+      <h3 class="type-detail__section">Used by other components (0)</h3>
+      <ul class="type-detail__relations">
+        <li class="type-detail__none">No other component implements or uses this type.</li>
+      </ul>
+    } @else {
+      @for (group of incomingGroups(); track group.kind) {
+        @if (group.relations.length > 0) {
+          <h3 class="type-detail__section">
+            {{ group.title }} ({{ group.relations.length }})
+          </h3>
+          <ul class="type-detail__relations">
+            @for (relation of group.relations; track relation.sourceId) {
+              <li>
+                <button type="button" (click)="navigateComponent.emit(relation.sourceComponent)">
+                  {{ shortName(relation.sourceId) }}
+                  <small>{{ relation.sourceComponent }}</small>
+                </button>
+              </li>
+            }
+          </ul>
+        }
+      }
+    }
+
+    <h3 class="type-detail__section">Implements ({{ declaration.implements.length }})</h3>
+    <ul class="type-detail__relations">
+      @for (reference of declaration.implements; track reference.id) {
+        <li>
+          <button type="button" (click)="follow(reference)">
+            {{ shortName(reference.id) }}
+            @if (external(reference)) {
+              <small>{{ reference.component }}</small>
+            }
+          </button>
+        </li>
+      } @empty {
+        <li class="type-detail__none">The type implements no declared interface.</li>
+      }
+    </ul>
+
+    <h3 class="type-detail__section">Embeds ({{ declaration.embeds.length }})</h3>
+    <ul class="type-detail__relations">
+      @for (reference of declaration.embeds; track reference.id) {
+        <li>
+          <button type="button" (click)="follow(reference)">
+            {{ shortName(reference.id) }}
+            @if (external(reference)) {
+              <small>{{ reference.component }}</small>
+            }
+          </button>
+        </li>
+      } @empty {
+        <li class="type-detail__none">The type embeds no other type.</li>
+      }
+    </ul>
+
+    <h3 class="type-detail__section">References ({{ declaration.references.length }})</h3>
+    <ul class="type-detail__relations">
+      @for (reference of declaration.references; track reference.id) {
+        <li>
+          <button type="button" (click)="follow(reference)">
+            {{ shortName(reference.id) }}
+            @if (external(reference)) {
+              <small>{{ reference.component }}</small>
+            }
+          </button>
+        </li>
+      } @empty {
+        <li class="type-detail__none">The type references no other declared type.</li>
+      }
+    </ul>
+  </aside>
+}

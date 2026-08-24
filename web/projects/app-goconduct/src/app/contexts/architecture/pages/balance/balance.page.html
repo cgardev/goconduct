@@ -1,0 +1,104 @@
+<div class="balance">
+  <app-page-header
+    heading="Balance"
+    description="Whether each component offers as much interface as its stability asks for, and
+      which ones to act on first."
+  />
+
+  @if (graph.unavailable()) {
+    <section class="panel">
+      <app-empty-state
+        icon="@tui.circle-alert"
+        heading="The analysis is unavailable"
+        tone="negative"
+        [description]="graph.error()"
+      >
+        <button
+          appEmptyStateAction
+          appearance="secondary"
+          size="s"
+          tuiButton
+          type="button"
+          [disabled]="graph.refreshing()"
+          (click)="graph.refresh()"
+        >
+          Retry
+        </button>
+      </app-empty-state>
+    </section>
+  } @else if (graph.loading()) {
+    <section class="balance__loading" aria-live="polite">
+      <tui-loader size="l" />
+      <p>Reading the repository graph…</p>
+    </section>
+  } @else if (graph.components().length === 0) {
+    <section class="panel">
+      <app-empty-state
+        icon="@tui.scale"
+        heading="No components to weigh"
+        description="The analysis found no component in this repository."
+      />
+    </section>
+  } @else {
+    @if (graph.error()) {
+      <app-alert tone="warning" heading="The last update failed">{{ graph.error() }}</app-alert>
+    }
+
+    <section class="balance__zones" aria-label="Components per zone">
+      @for (zone of zones(); track zone.zone) {
+        <article class="zone-card" [attr.data-zone]="zone.zone">
+          <strong class="zone-card__count">{{ zone.count | number }}</strong>
+          <span class="zone-card__title">{{ zone.title }}</span>
+          <span class="zone-card__meaning">{{ zone.meaning }}</span>
+        </article>
+      }
+    </section>
+
+    <article class="panel">
+      <header class="panel__header">
+        <div class="panel__title">
+          <h2>Act on these first</h2>
+          <p class="panel__description">
+            The {{ rankingLimit }} unbalanced components the rest of the repository leans on the
+            most. The color names the zone. Select a bar to read what its position means.
+          </p>
+        </div>
+      </header>
+      @if (offenders().length === 0) {
+        <app-empty-state
+          icon="@tui.circle-check"
+          heading="Nothing calls for attention"
+          description="Every component sits near its balance."
+        />
+      } @else {
+        <div
+          #rankingSurface
+          class="balance__ranking"
+          role="group"
+          aria-label="Components farthest from their balance, one bar per component"
+        ></div>
+      }
+    </article>
+
+    <article class="panel">
+      <header class="panel__header">
+        <div class="panel__title">
+          <h2>How the repository spreads</h2>
+          <p class="panel__description">
+            How many components sit at each distance from their balance. Green buckets are within
+            the balanced range.
+          </p>
+        </div>
+      </header>
+      <div
+        #distributionSurface
+        class="balance__distribution"
+        role="group"
+        aria-label="Distribution of the distance from the balance"
+      ></div>
+    </article>
+
+  }
+</div>
+
+<app-component-detail />

@@ -20,7 +20,7 @@ func TestCompositionRootOwnsConcretePluginSelection(t *testing.T) {
 			continue
 		}
 		for _, imported := range importsOfFile(t, entry.Name()) {
-			if strings.HasPrefix(imported, "github.com/cgardev/goconduct/plugin/") && entry.Name() != "modules.go" {
+			if strings.HasPrefix(imported, "github.com/cgardev/goconduct/pkg/plugin/") && entry.Name() != "modules.go" {
 				t.Errorf("%s selects concrete plugin %q", entry.Name(), imported)
 			}
 		}
@@ -41,7 +41,7 @@ func TestKernelDoesNotOwnApplicationScopeOrConcretePlugins(t *testing.T) {
 		for _, imported := range importsOfFile(t, path) {
 			if strings.Contains(imported, "/internal/appmodule") || strings.HasPrefix(
 				imported,
-				"github.com/cgardev/goconduct/plugin/",
+				"github.com/cgardev/goconduct/pkg/plugin/",
 			) {
 				t.Errorf("kernel imports application-owned package %q", imported)
 			}
@@ -61,7 +61,7 @@ func TestQualityModuleDependsOnlyOnPublicPluginContracts(t *testing.T) {
 		}
 		path := filepath.Join(qualityDirectory, entry.Name())
 		for _, imported := range importsOfFile(t, path) {
-			if strings.HasPrefix(imported, "github.com/cgardev/goconduct/plugin/") {
+			if strings.HasPrefix(imported, "github.com/cgardev/goconduct/pkg/plugin/") {
 				t.Errorf("quality module imports concrete plugin %q", imported)
 			}
 		}

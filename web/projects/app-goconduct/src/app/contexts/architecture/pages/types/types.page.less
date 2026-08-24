@@ -1,0 +1,49 @@
+@import 'tokens.less';
+@import 'patterns.less';
+
+:host {
+  display: block;
+  flex: 1 1 auto;
+}
+
+.types {
+  .page-frame();
+}
+
+.types__loading {
+  .loading-placeholder();
+}
+
+.panel {
+  .panel-surface();
+}
+
+// The workspace splits into the component tree at the left and the canvas at
+// the right, the way a code editor splits files and content.
+.types__workspace {
+  display: grid;
+  grid-template-columns: 18rem minmax(0, 1fr);
+}
+
+.types__tree {
+  overflow: auto;
+  max-block-size: 42rem;
+  padding: 0.75rem 0.5rem;
+  border-inline-end: 0.0625rem solid @line;
+}
+
+.types__canvas {
+  min-inline-size: 0;
+}
+
+@media (max-width: 48rem) {
+  .types__workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .types__tree {
+    max-block-size: 16rem;
+    border-inline-end: 0;
+    border-bottom: 0.0625rem solid @line;
+  }
+}

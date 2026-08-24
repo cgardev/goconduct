@@ -14,13 +14,28 @@ export const navTo = {
     return ['/', ROUTE_PATH.overview];
   },
 
+  /** The strategy the repository follows: de facto layers, matrix, and contradictions. */
+  strategy(): NavCommands {
+    return ['/', ROUTE_PATH.strategy];
+  },
+
   /** Coupling metrics of every analyzed component. */
   components(): NavCommands {
     return ['/', ROUTE_PATH.components];
   },
 
+  /** The balance of every component: zones, ranking, and distribution. */
+  balance(): NavCommands {
+    return ['/', ROUTE_PATH.balance];
+  },
+
   /** Results of the deterministic architecture rules. */
   findings(): NavCommands {
     return ['/', ROUTE_PATH.findings];
+  },
+
+  /** UML-style diagram of the Go types of one component. */
+  types(): NavCommands {
+    return ['/', ROUTE_PATH.types];
   },
 } as const;

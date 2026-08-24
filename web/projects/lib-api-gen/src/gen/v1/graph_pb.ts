@@ -11,7 +11,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file v1/graph.proto.
  */
 export const file_v1_graph: GenFile = /*@__PURE__*/
-  fileDesc("Cg52MS9ncmFwaC5wcm90bxIMZ29jb25kdWN0LnYxInAKD0dldEdyYXBoUmVxdWVzdBIPCgdyZWZyZXNoGAEgASgIEisKCWNhY2hlX2tleRgCIAEoCUIYukgVchMyEV4kfF5bYS1mMC05XXs2NH0kEh8KDmNhY2hlX3Byb3RvY29sGAMgASgNQge6SAQqAhgBImEKEEdldEdyYXBoUmVzcG9uc2USIgoFZ3JhcGgYASABKAsyEy5nb2NvbmR1Y3QudjEuR3JhcGgSEQoJY2FjaGVfa2V5GAIgASgJEhYKDmNhY2hlX3Byb3RvY29sGAMgASgNIkQKEVdhdGNoR3JhcGhSZXF1ZXN0Ei8KDWZyb21fcmV2aXNpb24YASABKAlCGLpIFXITMhFeJHxeW2EtZjAtOV17NjR9JCJSChJXYXRjaEdyYXBoUmVzcG9uc2USKgoEdHlwZRgBIAEoDjIcLmdvY29uZHVjdC52MS5HcmFwaEV2ZW50VHlwZRIQCghyZXZpc2lvbhgCIAEoCSK3BAoFR3JhcGgSFgoOc2NoZW1hX3ZlcnNpb24YASABKA0SEAoIcmV2aXNpb24YAiABKAkSEwoLbW9kdWxlX3BhdGgYAyABKAkSKgoFc2NvcGUYBCABKAsyGy5nb2NvbmR1Y3QudjEuQW5hbHlzaXNTY29wZRIsCgZwb2xpY3kYBSABKAsyHC5nb2NvbmR1Y3QudjEuQW5hbHlzaXNQb2xpY3kSKwoHc3VtbWFyeRgGIAEoCzIaLmdvY29uZHVjdC52MS5HcmFwaFN1bW1hcnkSKwoKY29tcG9uZW50cxgHIAMoCzIXLmdvY29uZHVjdC52MS5Db21wb25lbnQSMQoNcmVsYXRpb25zaGlwcxgIIAMoCzIaLmdvY29uZHVjdC52MS5SZWxhdGlvbnNoaXASKQoJZnVuY3Rpb25zGAkgAygLMhYuZ29jb25kdWN0LnYxLkZ1bmN0aW9uEjIKDmZ1bmN0aW9uX2NhbGxzGAogAygLMhouZ29jb25kdWN0LnYxLkZ1bmN0aW9uQ2FsbBIsCg9mdW5jdGlvbl9jeWNsZXMYCyADKAsyEy5nb2NvbmR1Y3QudjEuQ3ljbGUSIwoGY3ljbGVzGAwgAygLMhMuZ29jb25kdWN0LnYxLkN5Y2xlEi0KC2RpYWdub3N0aWNzGA0gAygLMhguZ29jb25kdWN0LnYxLkRpYWdub3N0aWMSJwoIZmluZGluZ3MYDiADKAsyFS5nb2NvbmR1Y3QudjEuRmluZGluZyJnCg1BbmFseXNpc1Njb3BlEg0KBXBhdGhzGAEgAygJEhUKDWlnbm9yZWRfcGF0aHMYAiADKAkSMAoKY29tcG9uZW50cxgDIAEoCzIcLmdvY29uZHVjdC52MS5Db21wb25lbnRSdWxlcyLYAQoOQ29tcG9uZW50UnVsZXMSFAoMYXBwbGljYXRpb25zGAEgAygJEhsKE2FwcGxpY2F0aW9uX21vZHVsZXMYAiADKAkSFgoOc2hhcmVkX21vZHVsZXMYAyADKAkSEQoJbGlicmFyaWVzGAQgAygJEhYKDmluZnJhc3RydWN0dXJlGAUgAygJEhkKEWRldmVsb3BtZW50X3Rvb2xzGAYgAygJEjUKCHRheG9ub215GAcgAygLMiMuZ29jb25kdWN0LnYxLkNvbXBvbmVudENhdGVnb3J5UnVsZSJAChVDb21wb25lbnRDYXRlZ29yeVJ1bGUSCgoCaWQYASABKAkSDAoEcm9sZRgCIAEoCRINCgVwYXRocxgDIAMoCSK7AwoOQW5hbHlzaXNQb2xpY3kSGwoTaW5zdGFiaWxpdHlfZm9ybXVsYRgBIAEoCRIkChxmdW5jdGlvbl9pbnN0YWJpbGl0eV9mb3JtdWxhGAIgASgJEiQKHGZ1bmN0aW9uX2NvdXBsaW5nX2RlZmluaXRpb24YAyABKAkSIAoYZnVuY3Rpb25fY2FsbF9yZXNvbHV0aW9uGAQgASgJEhwKFGlzb2xhdGVkX2luc3RhYmlsaXR5GAUgASgBEhwKFGFic3RyYWN0bmVzc19mb3JtdWxhGAYgASgJEhwKFHVudHlwZWRfYWJzdHJhY3RuZXNzGAcgASgBEiYKHm1haW5fc2VxdWVuY2VfZGlzdGFuY2VfZm9ybXVsYRgIIAEoCRJIChZzdGFibGVfbG93X2Fic3RyYWN0aW9uGAkgASgLMiguZ29jb25kdWN0LnYxLlN0YWJsZUxvd0Fic3RyYWN0aW9uUG9saWN5ElIKG3N0YWJsZV9kZXBlbmRlbmN5X3ByaW5jaXBsZRgKIAEoCzItLmdvY29uZHVjdC52MS5TdGFibGVEZXBlbmRlbmN5UHJpbmNpcGxlUG9saWN5InoKGlN0YWJsZUxvd0Fic3RyYWN0aW9uUG9saWN5EiEKGW1pbmltdW1fYWZmZXJlbnRfY291cGxpbmcYASABKA0SGwoTbWF4aW11bV9pbnN0YWJpbGl0eRgCIAEoARIcChRtYXhpbXVtX2Fic3RyYWN0bmVzcxgDIAEoASJVCh9TdGFibGVEZXBlbmRlbmN5UHJpbmNpcGxlUG9saWN5EhkKEXJlcXVpcmVkX3JlbGF0aW9uGAEgASgJEhcKD3Byb2R1Y3Rpb25fb25seRgCIAEoCCKJBgoMR3JhcGhTdW1tYXJ5EhIKCmNvbXBvbmVudHMYASABKA0SFQoNcmVsYXRpb25zaGlwcxgCIAEoDRIRCglmdW5jdGlvbnMYAyABKA0SHAoUcHJvZHVjdGlvbl9mdW5jdGlvbnMYBCABKA0SFgoOdGVzdF9mdW5jdGlvbnMYBSABKA0SFgoOZnVuY3Rpb25fY2FsbHMYBiABKA0SGwoTZnVuY3Rpb25fY2FsbF9zaXRlcxgHIAEoDRIrCiNjcm9zc19jb21wb25lbnRfZnVuY3Rpb25fY2FsbF9zaXRlcxgIIAEoDRIXCg9mdW5jdGlvbl9jeWNsZXMYCSABKA0SIAoYcHJvZHVjdGlvbl9yZWxhdGlvbnNoaXBzGAogASgNEh8KF3Rlc3Rfb25seV9yZWxhdGlvbnNoaXBzGAsgASgNEhQKDGFwcGxpY2F0aW9ucxgMIAEoDRIbChNhcHBsaWNhdGlvbl9tb2R1bGVzGA0gASgNEhYKDnNoYXJlZF9tb2R1bGVzGA4gASgNEhEKCWxpYnJhcmllcxgPIAEoDRIWCg5pbmZyYXN0cnVjdHVyZRgQIAEoDRIZChFkZXZlbG9wbWVudF90b29scxgRIAEoDRI+CgpjYXRlZ29yaWVzGBIgAygLMiouZ29jb25kdWN0LnYxLkdyYXBoU3VtbWFyeS5DYXRlZ29yaWVzRW50cnkSDgoGY3ljbGVzGBMgASgNEiQKHHJlbGF0aW9uc2hpcF9ydWxlX3Zpb2xhdGlvbnMYFCABKA0SLgomc3RhYmxlX2RlcGVuZGVuY3lfcHJpbmNpcGxlX3Zpb2xhdGlvbnMYFSABKA0SKQohc3RhYmxlX2xvd19hYnN0cmFjdGlvbl9jb21wb25lbnRzGBYgASgNEhAKCGZpbmRpbmdzGBcgASgNEg4KBmVycm9ycxgYIAEoDRIQCgh3YXJuaW5ncxgZIAEoDRoxCg9DYXRlZ29yaWVzRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgNOgI4ASKhCAoJQ29tcG9uZW50EgoKAmlkGAEgASgJEgwKBG5hbWUYAiABKAkSDAoEcm9sZRgDIAEoCRIQCghjYXRlZ29yeRgEIAEoCRITCgthcHBsaWNhdGlvbhgFIAEoCRIQCghwYWNrYWdlcxgGIAEoDRIUCgxzb3VyY2VfZmlsZXMYByABKA0SGAoQcHJvZHVjdGlvbl9maWxlcxgIIAEoDRISCgp0ZXN0X2ZpbGVzGAkgASgNEhsKE2RpcmVjdF9kZXBlbmRlbmNpZXMYCiABKA0SHwoXcHJvZHVjdGlvbl9kZXBlbmRlbmNpZXMYCyABKA0SHgoWdGVzdF9vbmx5X2RlcGVuZGVuY2llcxgMIAEoDRIjChtkaXJlY3RfaW1wb3J0aW5nX2NvbXBvbmVudHMYDSABKA0SJwofcHJvZHVjdGlvbl9pbXBvcnRpbmdfY29tcG9uZW50cxgOIAEoDRImCh50ZXN0X29ubHlfaW1wb3J0aW5nX2NvbXBvbmVudHMYDyABKA0SHwoXdHJhbnNpdGl2ZV9kZXBlbmRlbmNpZXMYECABKA0SJwofdHJhbnNpdGl2ZV9pbXBvcnRpbmdfY29tcG9uZW50cxgRIAEoDRIZChFpbXBvcnRlcl9wYWNrYWdlcxgSIAEoDRIkChxwcm9kdWN0aW9uX2ltcG9ydGVyX3BhY2thZ2VzGBMgASgNEh4KFnRlc3RfaW1wb3J0ZXJfcGFja2FnZXMYFCABKA0SHwoXdXNpbmdfYXBwbGljYXRpb25fY291bnQYFSABKA0SGgoSdXNpbmdfYXBwbGljYXRpb25zGBYgAygJEhkKEWFmZmVyZW50X2NvdXBsaW5nGBcgASgNEhkKEWVmZmVyZW50X2NvdXBsaW5nGBggASgNEhMKC2luc3RhYmlsaXR5GBkgASgBEhYKDmFic3RyYWN0X3R5cGVzGBogASgNEhYKDmNvbmNyZXRlX3R5cGVzGBsgASgNEhQKDGFic3RyYWN0bmVzcxgcIAEoARIeChZtYWluX3NlcXVlbmNlX2Rpc3RhbmNlGB0gASgBEiYKHmlzX3N0YWJsZV93aXRoX2xvd19hYnN0cmFjdGlvbhgeIAEoCBIQCghpbl9jeWNsZRgfIAEoCBIcChRwcm9kdWN0aW9uX2Z1bmN0aW9ucxggIAEoDRIWCg50ZXN0X2Z1bmN0aW9ucxghIAEoDRImCh5wcm9kdWN0aW9uX2luY29taW5nX2NhbGxfc2l0ZXMYIiABKA0SJgoecHJvZHVjdGlvbl9vdXRnb2luZ19jYWxsX3NpdGVzGCMgASgNEiAKGHRlc3RfaW5jb21pbmdfY2FsbF9zaXRlcxgkIAEoDRIgChh0ZXN0X291dGdvaW5nX2NhbGxfc2l0ZXMYJSABKA0irgMKDFJlbGF0aW9uc2hpcBIOCgZzb3VyY2UYASABKAkSDgoGdGFyZ2V0GAIgASgJEiQKHHByb2R1Y3Rpb25fcmVmZXJlbmNpbmdfZmlsZXMYAyABKA0SHgoWdGVzdF9yZWZlcmVuY2luZ19maWxlcxgEIAEoDRIXCg9zb3VyY2VfcGFja2FnZXMYBSADKAkSFwoPdGFyZ2V0X3BhY2thZ2VzGAYgAygJEi4KDGltcG9ydF9zaXRlcxgHIAMoCzIYLmdvY29uZHVjdC52MS5JbXBvcnRTaXRlEiYKHnByb2R1Y3Rpb25fZnVuY3Rpb25fY2FsbF9zaXRlcxgIIAEoDRIgChh0ZXN0X2Z1bmN0aW9uX2NhbGxfc2l0ZXMYCSABKA0SGAoQY2FsbGVyX2Z1bmN0aW9ucxgKIAEoDRIYChBjYWxsZWVfZnVuY3Rpb25zGAsgASgNEhEKCXRlc3Rfb25seRgMIAEoCBIsCiR2aW9sYXRlc19zdGFibGVfZGVwZW5kZW5jeV9wcmluY2lwbGUYDSABKAgSFwoPcnVsZV92aW9sYXRpb25zGA4gAygJInUKCkltcG9ydFNpdGUSFgoOc291cmNlX3BhY2thZ2UYASABKAkSFgoOdGFyZ2V0X3BhY2thZ2UYAiABKAkSDAoEcGF0aBgDIAEoCRIMCgRsaW5lGAQgASgNEg0KBWFsaWFzGAUgASgJEgwKBHRlc3QYBiABKAgiygUKCEZ1bmN0aW9uEgoKAmlkGAEgASgJEgwKBG5hbWUYAiABKAkSDwoHcGFja2FnZRgDIAEoCRIRCgljb21wb25lbnQYBCABKAkSDAoEcGF0aBgFIAEoCRIMCgRsaW5lGAYgASgNEhAKCHJlY2VpdmVyGAcgASgJEg4KBm1ldGhvZBgIIAEoCBIQCghleHBvcnRlZBgJIAEoCBIMCgR0ZXN0GAogASgIEhEKCXN5bnRoZXRpYxgLIAEoCBIZChFpbl9hbmFseXNpc19zY29wZRgMIAEoCBIZChFhZmZlcmVudF9jb3VwbGluZxgNIAEoDRIZChFlZmZlcmVudF9jb3VwbGluZxgOIAEoDRIeChZ0ZXN0X2FmZmVyZW50X2NvdXBsaW5nGA8gASgNEh4KFnRlc3RfZWZmZXJlbnRfY291cGxpbmcYECABKA0SGwoTaW5jb21pbmdfY2FsbF9zaXRlcxgRIAEoDRIbChNvdXRnb2luZ19jYWxsX3NpdGVzGBIgASgNEiAKGHRlc3RfaW5jb21pbmdfY2FsbF9zaXRlcxgTIAEoDRIgChh0ZXN0X291dGdvaW5nX2NhbGxfc2l0ZXMYFCABKA0SKAogY3Jvc3NfY29tcG9uZW50X2NhbGxlcl9mdW5jdGlvbnMYFSABKA0SKAogY3Jvc3NfY29tcG9uZW50X2NhbGxlZV9mdW5jdGlvbnMYFiABKA0SIwobdHJhbnNpdGl2ZV9jYWxsZXJfZnVuY3Rpb25zGBcgASgNEiMKG3RyYW5zaXRpdmVfY2FsbGVlX2Z1bmN0aW9ucxgYIAEoDRIfChd1c2luZ19hcHBsaWNhdGlvbl9jb3VudBgZIAEoDRIaChJ1c2luZ19hcHBsaWNhdGlvbnMYGiADKAkSEAoIaW5fY3ljbGUYGyABKAgSEwoLaW5zdGFiaWxpdHkYHCABKAEiyQEKDEZ1bmN0aW9uQ2FsbBIOCgZzb3VyY2UYASABKAkSDgoGdGFyZ2V0GAIgASgJEhgKEHNvdXJjZV9jb21wb25lbnQYAyABKAkSGAoQdGFyZ2V0X2NvbXBvbmVudBgEIAEoCRIqCgpjYWxsX3NpdGVzGAUgAygLMhYuZ29jb25kdWN0LnYxLkNhbGxTaXRlEg0KBWNhbGxzGAYgASgNEhEKCXRlc3Rfb25seRgHIAEoCBIXCg9jcm9zc19jb21wb25lbnQYCCABKAgiNgoIQ2FsbFNpdGUSDAoEcGF0aBgBIAEoCRIMCgRsaW5lGAIgASgNEg4KBmNvbHVtbhgDIAEoDSIYCgVDeWNsZRIPCgdtZW1iZXJzGAEgAygJIisKCkRpYWdub3N0aWMSDAoEcGF0aBgBIAEoCRIPCgdtZXNzYWdlGAIgASgJIuQBCgdGaW5kaW5nEgwKBHJ1bGUYASABKAkSEAoIc2V2ZXJpdHkYAiABKAkSDwoHc3ViamVjdBgDIAEoCRIPCgdtZXNzYWdlGAQgASgJEg4KBnNvdXJjZRgFIAEoCRIOCgZ0YXJnZXQYBiABKAkSEgoKY29tcG9uZW50cxgHIAMoCRIzCgdtZXRyaWNzGAggAygLMiIuZ29jb25kdWN0LnYxLkZpbmRpbmcuTWV0cmljc0VudHJ5Gi4KDE1ldHJpY3NFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAE6AjgBKowBCg5HcmFwaEV2ZW50VHlwZRIgChxHUkFQSF9FVkVOVF9UWVBFX1VOU1BFQ0lGSUVEEAASGgoWR1JBUEhfRVZFTlRfVFlQRV9SRUFEWRABEhwKGEdSQVBIX0VWRU5UX1RZUEVfQ0hBTkdFRBACEh4KGkdSQVBIX0VWRU5UX1RZUEVfSEVBUlRCRUFUEAMyrAEKDEdyYXBoU2VydmljZRJJCghHZXRHcmFwaBIdLmdvY29uZHVjdC52MS5HZXRHcmFwaFJlcXVlc3QaHi5nb2NvbmR1Y3QudjEuR2V0R3JhcGhSZXNwb25zZRJRCgpXYXRjaEdyYXBoEh8uZ29jb25kdWN0LnYxLldhdGNoR3JhcGhSZXF1ZXN0GiAuZ29jb25kdWN0LnYxLldhdGNoR3JhcGhSZXNwb25zZTABQj9aPWdpdGh1Yi5jb20vY2dhcmRldi9nb2NvbmR1Y3QvaW50ZXJuYWwvcHJvdG9nZW4vdjE7Z29jb25kdWN0djFiBnByb3RvMw", [file_buf_validate_validate]);
+  fileDesc("Cg52MS9ncmFwaC5wcm90bxIMZ29jb25kdWN0LnYxInAKD0dldEdyYXBoUmVxdWVzdBIPCgdyZWZyZXNoGAEgASgIEisKCWNhY2hlX2tleRgCIAEoCUIYukgVchMyEV4kfF5bYS1mMC05XXs2NH0kEh8KDmNhY2hlX3Byb3RvY29sGAMgASgNQge6SAQqAhgBImEKEEdldEdyYXBoUmVzcG9uc2USIgoFZ3JhcGgYASABKAsyEy5nb2NvbmR1Y3QudjEuR3JhcGgSEQoJY2FjaGVfa2V5GAIgASgJEhYKDmNhY2hlX3Byb3RvY29sGAMgASgNIkQKEVdhdGNoR3JhcGhSZXF1ZXN0Ei8KDWZyb21fcmV2aXNpb24YASABKAlCGLpIFXITMhFeJHxeW2EtZjAtOV17NjR9JCJSChJXYXRjaEdyYXBoUmVzcG9uc2USKgoEdHlwZRgBIAEoDjIcLmdvY29uZHVjdC52MS5HcmFwaEV2ZW50VHlwZRIQCghyZXZpc2lvbhgCIAEoCSJHChhHZXRDb21wb25lbnRUeXBlc1JlcXVlc3QSKwoMY29tcG9uZW50X2lkGAEgASgJQhW6SBJyEDIOXlteXHNdezEsMzAwfSQipwEKGUdldENvbXBvbmVudFR5cGVzUmVzcG9uc2USEAoIcmV2aXNpb24YASABKAkSFAoMY29tcG9uZW50X2lkGAIgASgJEiwKBXR5cGVzGAMgAygLMh0uZ29jb25kdWN0LnYxLlR5cGVEZWNsYXJhdGlvbhI0CghpbmNvbWluZxgEIAMoCzIiLmdvY29uZHVjdC52MS5JbmNvbWluZ1R5cGVSZWxhdGlvbiJkChRJbmNvbWluZ1R5cGVSZWxhdGlvbhIMCgRraW5kGAEgASgJEhEKCXNvdXJjZV9pZBgCIAEoCRIYChBzb3VyY2VfY29tcG9uZW50GAMgASgJEhEKCXRhcmdldF9pZBgEIAEoCSK3BAoFR3JhcGgSFgoOc2NoZW1hX3ZlcnNpb24YASABKA0SEAoIcmV2aXNpb24YAiABKAkSEwoLbW9kdWxlX3BhdGgYAyABKAkSKgoFc2NvcGUYBCABKAsyGy5nb2NvbmR1Y3QudjEuQW5hbHlzaXNTY29wZRIsCgZwb2xpY3kYBSABKAsyHC5nb2NvbmR1Y3QudjEuQW5hbHlzaXNQb2xpY3kSKwoHc3VtbWFyeRgGIAEoCzIaLmdvY29uZHVjdC52MS5HcmFwaFN1bW1hcnkSKwoKY29tcG9uZW50cxgHIAMoCzIXLmdvY29uZHVjdC52MS5Db21wb25lbnQSMQoNcmVsYXRpb25zaGlwcxgIIAMoCzIaLmdvY29uZHVjdC52MS5SZWxhdGlvbnNoaXASKQoJZnVuY3Rpb25zGAkgAygLMhYuZ29jb25kdWN0LnYxLkZ1bmN0aW9uEjIKDmZ1bmN0aW9uX2NhbGxzGAogAygLMhouZ29jb25kdWN0LnYxLkZ1bmN0aW9uQ2FsbBIsCg9mdW5jdGlvbl9jeWNsZXMYCyADKAsyEy5nb2NvbmR1Y3QudjEuQ3ljbGUSIwoGY3ljbGVzGAwgAygLMhMuZ29jb25kdWN0LnYxLkN5Y2xlEi0KC2RpYWdub3N0aWNzGA0gAygLMhguZ29jb25kdWN0LnYxLkRpYWdub3N0aWMSJwoIZmluZGluZ3MYDiADKAsyFS5nb2NvbmR1Y3QudjEuRmluZGluZyJnCg1BbmFseXNpc1Njb3BlEg0KBXBhdGhzGAEgAygJEhUKDWlnbm9yZWRfcGF0aHMYAiADKAkSMAoKY29tcG9uZW50cxgDIAEoCzIcLmdvY29uZHVjdC52MS5Db21wb25lbnRSdWxlcyLYAQoOQ29tcG9uZW50UnVsZXMSFAoMYXBwbGljYXRpb25zGAEgAygJEhsKE2FwcGxpY2F0aW9uX21vZHVsZXMYAiADKAkSFgoOc2hhcmVkX21vZHVsZXMYAyADKAkSEQoJbGlicmFyaWVzGAQgAygJEhYKDmluZnJhc3RydWN0dXJlGAUgAygJEhkKEWRldmVsb3BtZW50X3Rvb2xzGAYgAygJEjUKCHRheG9ub215GAcgAygLMiMuZ29jb25kdWN0LnYxLkNvbXBvbmVudENhdGVnb3J5UnVsZSJAChVDb21wb25lbnRDYXRlZ29yeVJ1bGUSCgoCaWQYASABKAkSDAoEcm9sZRgCIAEoCRINCgVwYXRocxgDIAMoCSK7AwoOQW5hbHlzaXNQb2xpY3kSGwoTaW5zdGFiaWxpdHlfZm9ybXVsYRgBIAEoCRIkChxmdW5jdGlvbl9pbnN0YWJpbGl0eV9mb3JtdWxhGAIgASgJEiQKHGZ1bmN0aW9uX2NvdXBsaW5nX2RlZmluaXRpb24YAyABKAkSIAoYZnVuY3Rpb25fY2FsbF9yZXNvbHV0aW9uGAQgASgJEhwKFGlzb2xhdGVkX2luc3RhYmlsaXR5GAUgASgBEhwKFGFic3RyYWN0bmVzc19mb3JtdWxhGAYgASgJEhwKFHVudHlwZWRfYWJzdHJhY3RuZXNzGAcgASgBEiYKHm1haW5fc2VxdWVuY2VfZGlzdGFuY2VfZm9ybXVsYRgIIAEoCRJIChZzdGFibGVfbG93X2Fic3RyYWN0aW9uGAkgASgLMiguZ29jb25kdWN0LnYxLlN0YWJsZUxvd0Fic3RyYWN0aW9uUG9saWN5ElIKG3N0YWJsZV9kZXBlbmRlbmN5X3ByaW5jaXBsZRgKIAEoCzItLmdvY29uZHVjdC52MS5TdGFibGVEZXBlbmRlbmN5UHJpbmNpcGxlUG9saWN5InoKGlN0YWJsZUxvd0Fic3RyYWN0aW9uUG9saWN5EiEKGW1pbmltdW1fYWZmZXJlbnRfY291cGxpbmcYASABKA0SGwoTbWF4aW11bV9pbnN0YWJpbGl0eRgCIAEoARIcChRtYXhpbXVtX2Fic3RyYWN0bmVzcxgDIAEoASJVCh9TdGFibGVEZXBlbmRlbmN5UHJpbmNpcGxlUG9saWN5EhkKEXJlcXVpcmVkX3JlbGF0aW9uGAEgASgJEhcKD3Byb2R1Y3Rpb25fb25seRgCIAEoCCKJBgoMR3JhcGhTdW1tYXJ5EhIKCmNvbXBvbmVudHMYASABKA0SFQoNcmVsYXRpb25zaGlwcxgCIAEoDRIRCglmdW5jdGlvbnMYAyABKA0SHAoUcHJvZHVjdGlvbl9mdW5jdGlvbnMYBCABKA0SFgoOdGVzdF9mdW5jdGlvbnMYBSABKA0SFgoOZnVuY3Rpb25fY2FsbHMYBiABKA0SGwoTZnVuY3Rpb25fY2FsbF9zaXRlcxgHIAEoDRIrCiNjcm9zc19jb21wb25lbnRfZnVuY3Rpb25fY2FsbF9zaXRlcxgIIAEoDRIXCg9mdW5jdGlvbl9jeWNsZXMYCSABKA0SIAoYcHJvZHVjdGlvbl9yZWxhdGlvbnNoaXBzGAogASgNEh8KF3Rlc3Rfb25seV9yZWxhdGlvbnNoaXBzGAsgASgNEhQKDGFwcGxpY2F0aW9ucxgMIAEoDRIbChNhcHBsaWNhdGlvbl9tb2R1bGVzGA0gASgNEhYKDnNoYXJlZF9tb2R1bGVzGA4gASgNEhEKCWxpYnJhcmllcxgPIAEoDRIWCg5pbmZyYXN0cnVjdHVyZRgQIAEoDRIZChFkZXZlbG9wbWVudF90b29scxgRIAEoDRI+CgpjYXRlZ29yaWVzGBIgAygLMiouZ29jb25kdWN0LnYxLkdyYXBoU3VtbWFyeS5DYXRlZ29yaWVzRW50cnkSDgoGY3ljbGVzGBMgASgNEiQKHHJlbGF0aW9uc2hpcF9ydWxlX3Zpb2xhdGlvbnMYFCABKA0SLgomc3RhYmxlX2RlcGVuZGVuY3lfcHJpbmNpcGxlX3Zpb2xhdGlvbnMYFSABKA0SKQohc3RhYmxlX2xvd19hYnN0cmFjdGlvbl9jb21wb25lbnRzGBYgASgNEhAKCGZpbmRpbmdzGBcgASgNEg4KBmVycm9ycxgYIAEoDRIQCgh3YXJuaW5ncxgZIAEoDRoxCg9DYXRlZ29yaWVzRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgNOgI4ASKhCAoJQ29tcG9uZW50EgoKAmlkGAEgASgJEgwKBG5hbWUYAiABKAkSDAoEcm9sZRgDIAEoCRIQCghjYXRlZ29yeRgEIAEoCRITCgthcHBsaWNhdGlvbhgFIAEoCRIQCghwYWNrYWdlcxgGIAEoDRIUCgxzb3VyY2VfZmlsZXMYByABKA0SGAoQcHJvZHVjdGlvbl9maWxlcxgIIAEoDRISCgp0ZXN0X2ZpbGVzGAkgASgNEhsKE2RpcmVjdF9kZXBlbmRlbmNpZXMYCiABKA0SHwoXcHJvZHVjdGlvbl9kZXBlbmRlbmNpZXMYCyABKA0SHgoWdGVzdF9vbmx5X2RlcGVuZGVuY2llcxgMIAEoDRIjChtkaXJlY3RfaW1wb3J0aW5nX2NvbXBvbmVudHMYDSABKA0SJwofcHJvZHVjdGlvbl9pbXBvcnRpbmdfY29tcG9uZW50cxgOIAEoDRImCh50ZXN0X29ubHlfaW1wb3J0aW5nX2NvbXBvbmVudHMYDyABKA0SHwoXdHJhbnNpdGl2ZV9kZXBlbmRlbmNpZXMYECABKA0SJwofdHJhbnNpdGl2ZV9pbXBvcnRpbmdfY29tcG9uZW50cxgRIAEoDRIZChFpbXBvcnRlcl9wYWNrYWdlcxgSIAEoDRIkChxwcm9kdWN0aW9uX2ltcG9ydGVyX3BhY2thZ2VzGBMgASgNEh4KFnRlc3RfaW1wb3J0ZXJfcGFja2FnZXMYFCABKA0SHwoXdXNpbmdfYXBwbGljYXRpb25fY291bnQYFSABKA0SGgoSdXNpbmdfYXBwbGljYXRpb25zGBYgAygJEhkKEWFmZmVyZW50X2NvdXBsaW5nGBcgASgNEhkKEWVmZmVyZW50X2NvdXBsaW5nGBggASgNEhMKC2luc3RhYmlsaXR5GBkgASgBEhYKDmFic3RyYWN0X3R5cGVzGBogASgNEhYKDmNvbmNyZXRlX3R5cGVzGBsgASgNEhQKDGFic3RyYWN0bmVzcxgcIAEoARIeChZtYWluX3NlcXVlbmNlX2Rpc3RhbmNlGB0gASgBEiYKHmlzX3N0YWJsZV93aXRoX2xvd19hYnN0cmFjdGlvbhgeIAEoCBIQCghpbl9jeWNsZRgfIAEoCBIcChRwcm9kdWN0aW9uX2Z1bmN0aW9ucxggIAEoDRIWCg50ZXN0X2Z1bmN0aW9ucxghIAEoDRImCh5wcm9kdWN0aW9uX2luY29taW5nX2NhbGxfc2l0ZXMYIiABKA0SJgoecHJvZHVjdGlvbl9vdXRnb2luZ19jYWxsX3NpdGVzGCMgASgNEiAKGHRlc3RfaW5jb21pbmdfY2FsbF9zaXRlcxgkIAEoDRIgChh0ZXN0X291dGdvaW5nX2NhbGxfc2l0ZXMYJSABKA0irgMKDFJlbGF0aW9uc2hpcBIOCgZzb3VyY2UYASABKAkSDgoGdGFyZ2V0GAIgASgJEiQKHHByb2R1Y3Rpb25fcmVmZXJlbmNpbmdfZmlsZXMYAyABKA0SHgoWdGVzdF9yZWZlcmVuY2luZ19maWxlcxgEIAEoDRIXCg9zb3VyY2VfcGFja2FnZXMYBSADKAkSFwoPdGFyZ2V0X3BhY2thZ2VzGAYgAygJEi4KDGltcG9ydF9zaXRlcxgHIAMoCzIYLmdvY29uZHVjdC52MS5JbXBvcnRTaXRlEiYKHnByb2R1Y3Rpb25fZnVuY3Rpb25fY2FsbF9zaXRlcxgIIAEoDRIgChh0ZXN0X2Z1bmN0aW9uX2NhbGxfc2l0ZXMYCSABKA0SGAoQY2FsbGVyX2Z1bmN0aW9ucxgKIAEoDRIYChBjYWxsZWVfZnVuY3Rpb25zGAsgASgNEhEKCXRlc3Rfb25seRgMIAEoCBIsCiR2aW9sYXRlc19zdGFibGVfZGVwZW5kZW5jeV9wcmluY2lwbGUYDSABKAgSFwoPcnVsZV92aW9sYXRpb25zGA4gAygJInUKCkltcG9ydFNpdGUSFgoOc291cmNlX3BhY2thZ2UYASABKAkSFgoOdGFyZ2V0X3BhY2thZ2UYAiABKAkSDAoEcGF0aBgDIAEoCRIMCgRsaW5lGAQgASgNEg0KBWFsaWFzGAUgASgJEgwKBHRlc3QYBiABKAgiygUKCEZ1bmN0aW9uEgoKAmlkGAEgASgJEgwKBG5hbWUYAiABKAkSDwoHcGFja2FnZRgDIAEoCRIRCgljb21wb25lbnQYBCABKAkSDAoEcGF0aBgFIAEoCRIMCgRsaW5lGAYgASgNEhAKCHJlY2VpdmVyGAcgASgJEg4KBm1ldGhvZBgIIAEoCBIQCghleHBvcnRlZBgJIAEoCBIMCgR0ZXN0GAogASgIEhEKCXN5bnRoZXRpYxgLIAEoCBIZChFpbl9hbmFseXNpc19zY29wZRgMIAEoCBIZChFhZmZlcmVudF9jb3VwbGluZxgNIAEoDRIZChFlZmZlcmVudF9jb3VwbGluZxgOIAEoDRIeChZ0ZXN0X2FmZmVyZW50X2NvdXBsaW5nGA8gASgNEh4KFnRlc3RfZWZmZXJlbnRfY291cGxpbmcYECABKA0SGwoTaW5jb21pbmdfY2FsbF9zaXRlcxgRIAEoDRIbChNvdXRnb2luZ19jYWxsX3NpdGVzGBIgASgNEiAKGHRlc3RfaW5jb21pbmdfY2FsbF9zaXRlcxgTIAEoDRIgChh0ZXN0X291dGdvaW5nX2NhbGxfc2l0ZXMYFCABKA0SKAogY3Jvc3NfY29tcG9uZW50X2NhbGxlcl9mdW5jdGlvbnMYFSABKA0SKAogY3Jvc3NfY29tcG9uZW50X2NhbGxlZV9mdW5jdGlvbnMYFiABKA0SIwobdHJhbnNpdGl2ZV9jYWxsZXJfZnVuY3Rpb25zGBcgASgNEiMKG3RyYW5zaXRpdmVfY2FsbGVlX2Z1bmN0aW9ucxgYIAEoDRIfChd1c2luZ19hcHBsaWNhdGlvbl9jb3VudBgZIAEoDRIaChJ1c2luZ19hcHBsaWNhdGlvbnMYGiADKAkSEAoIaW5fY3ljbGUYGyABKAgSEwoLaW5zdGFiaWxpdHkYHCABKAEiyQEKDEZ1bmN0aW9uQ2FsbBIOCgZzb3VyY2UYASABKAkSDgoGdGFyZ2V0GAIgASgJEhgKEHNvdXJjZV9jb21wb25lbnQYAyABKAkSGAoQdGFyZ2V0X2NvbXBvbmVudBgEIAEoCRIqCgpjYWxsX3NpdGVzGAUgAygLMhYuZ29jb25kdWN0LnYxLkNhbGxTaXRlEg0KBWNhbGxzGAYgASgNEhEKCXRlc3Rfb25seRgHIAEoCBIXCg9jcm9zc19jb21wb25lbnQYCCABKAgiNgoIQ2FsbFNpdGUSDAoEcGF0aBgBIAEoCRIMCgRsaW5lGAIgASgNEg4KBmNvbHVtbhgDIAEoDSIYCgVDeWNsZRIPCgdtZW1iZXJzGAEgAygJIisKCkRpYWdub3N0aWMSDAoEcGF0aBgBIAEoCRIPCgdtZXNzYWdlGAIgASgJIpADCg9UeXBlRGVjbGFyYXRpb24SCgoCaWQYASABKAkSDAoEbmFtZRgCIAEoCRIPCgdwYWNrYWdlGAMgASgJEhEKCWNvbXBvbmVudBgEIAEoCRIMCgRwYXRoGAUgASgJEgwKBGxpbmUYBiABKA0SDAoEa2luZBgHIAEoCRIQCghleHBvcnRlZBgIIAEoCBIMCgR0ZXN0GAkgASgIEhIKCnVuZGVybHlpbmcYCiABKAkSJwoGZmllbGRzGAsgAygLMhcuZ29jb25kdWN0LnYxLlR5cGVGaWVsZBIpCgdtZXRob2RzGAwgAygLMhguZ29jb25kdWN0LnYxLlR5cGVNZXRob2QSKwoGZW1iZWRzGA0gAygLMhsuZ29jb25kdWN0LnYxLlR5cGVSZWZlcmVuY2USLwoKaW1wbGVtZW50cxgOIAMoCzIbLmdvY29uZHVjdC52MS5UeXBlUmVmZXJlbmNlEi8KCnJlZmVyZW5jZXMYDyADKAsyGy5nb2NvbmR1Y3QudjEuVHlwZVJlZmVyZW5jZSJLCglUeXBlRmllbGQSDAoEbmFtZRgBIAEoCRIMCgR0eXBlGAIgASgJEhAKCGVtYmVkZGVkGAMgASgIEhAKCGV4cG9ydGVkGAQgASgIIlkKClR5cGVNZXRob2QSDAoEbmFtZRgBIAEoCRIRCglzaWduYXR1cmUYAiABKAkSEAoIZXhwb3J0ZWQYAyABKAgSGAoQcG9pbnRlcl9yZWNlaXZlchgEIAEoCCIuCg1UeXBlUmVmZXJlbmNlEgoKAmlkGAEgASgJEhEKCWNvbXBvbmVudBgCIAEoCSLkAQoHRmluZGluZxIMCgRydWxlGAEgASgJEhAKCHNldmVyaXR5GAIgASgJEg8KB3N1YmplY3QYAyABKAkSDwoHbWVzc2FnZRgEIAEoCRIOCgZzb3VyY2UYBSABKAkSDgoGdGFyZ2V0GAYgASgJEhIKCmNvbXBvbmVudHMYByADKAkSMwoHbWV0cmljcxgIIAMoCzIiLmdvY29uZHVjdC52MS5GaW5kaW5nLk1ldHJpY3NFbnRyeRouCgxNZXRyaWNzRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgBOgI4ASqMAQoOR3JhcGhFdmVudFR5cGUSIAocR1JBUEhfRVZFTlRfVFlQRV9VTlNQRUNJRklFRBAAEhoKFkdSQVBIX0VWRU5UX1RZUEVfUkVBRFkQARIcChhHUkFQSF9FVkVOVF9UWVBFX0NIQU5HRUQQAhIeChpHUkFQSF9FVkVOVF9UWVBFX0hFQVJUQkVBVBADMpICCgxHcmFwaFNlcnZpY2USSQoIR2V0R3JhcGgSHS5nb2NvbmR1Y3QudjEuR2V0R3JhcGhSZXF1ZXN0Gh4uZ29jb25kdWN0LnYxLkdldEdyYXBoUmVzcG9uc2USUQoKV2F0Y2hHcmFwaBIfLmdvY29uZHVjdC52MS5XYXRjaEdyYXBoUmVxdWVzdBogLmdvY29uZHVjdC52MS5XYXRjaEdyYXBoUmVzcG9uc2UwARJkChFHZXRDb21wb25lbnRUeXBlcxImLmdvY29uZHVjdC52MS5HZXRDb21wb25lbnRUeXBlc1JlcXVlc3QaJy5nb2NvbmR1Y3QudjEuR2V0Q29tcG9uZW50VHlwZXNSZXNwb25zZUI/Wj1naXRodWIuY29tL2NnYXJkZXYvZ29jb25kdWN0L2ludGVybmFsL3Byb3RvZ2VuL3YxO2dvY29uZHVjdHYxYgZwcm90bzM", [file_buf_validate_validate]);
 
 /**
  * GetGraphRequest controls cache validation and an optional immediate refresh.
@@ -115,6 +115,99 @@ export const WatchGraphResponseSchema: GenMessage<WatchGraphResponse> = /*@__PUR
   messageDesc(file_v1_graph, 3);
 
 /**
+ * GetComponentTypesRequest identifies one analyzed component.
+ *
+ * @generated from message goconduct.v1.GetComponentTypesRequest
+ */
+export type GetComponentTypesRequest = Message<"goconduct.v1.GetComponentTypesRequest"> & {
+  /**
+   * @generated from field: string component_id = 1;
+   */
+  componentId: string;
+};
+
+/**
+ * Describes the message goconduct.v1.GetComponentTypesRequest.
+ * Use `create(GetComponentTypesRequestSchema)` to create a new message.
+ */
+export const GetComponentTypesRequestSchema: GenMessage<GetComponentTypesRequest> = /*@__PURE__*/
+  messageDesc(file_v1_graph, 4);
+
+/**
+ * GetComponentTypesResponse carries the declared types of one component and
+ * the relations that reach them from other components.
+ *
+ * @generated from message goconduct.v1.GetComponentTypesResponse
+ */
+export type GetComponentTypesResponse = Message<"goconduct.v1.GetComponentTypesResponse"> & {
+  /**
+   * @generated from field: string revision = 1;
+   */
+  revision: string;
+
+  /**
+   * @generated from field: string component_id = 2;
+   */
+  componentId: string;
+
+  /**
+   * @generated from field: repeated goconduct.v1.TypeDeclaration types = 3;
+   */
+  types: TypeDeclaration[];
+
+  /**
+   * @generated from field: repeated goconduct.v1.IncomingTypeRelation incoming = 4;
+   */
+  incoming: IncomingTypeRelation[];
+};
+
+/**
+ * Describes the message goconduct.v1.GetComponentTypesResponse.
+ * Use `create(GetComponentTypesResponseSchema)` to create a new message.
+ */
+export const GetComponentTypesResponseSchema: GenMessage<GetComponentTypesResponse> = /*@__PURE__*/
+  messageDesc(file_v1_graph, 5);
+
+/**
+ * IncomingTypeRelation records one relation from a type another component
+ * declares toward one type of the requested component. Go satisfies
+ * interfaces implicitly, so this inverse view names the implementers and the
+ * users the declaring component cannot know.
+ *
+ * @generated from message goconduct.v1.IncomingTypeRelation
+ */
+export type IncomingTypeRelation = Message<"goconduct.v1.IncomingTypeRelation"> & {
+  /**
+   * Relation kind: implements, embeds, or references.
+   *
+   * @generated from field: string kind = 1;
+   */
+  kind: string;
+
+  /**
+   * @generated from field: string source_id = 2;
+   */
+  sourceId: string;
+
+  /**
+   * @generated from field: string source_component = 3;
+   */
+  sourceComponent: string;
+
+  /**
+   * @generated from field: string target_id = 4;
+   */
+  targetId: string;
+};
+
+/**
+ * Describes the message goconduct.v1.IncomingTypeRelation.
+ * Use `create(IncomingTypeRelationSchema)` to create a new message.
+ */
+export const IncomingTypeRelationSchema: GenMessage<IncomingTypeRelation> = /*@__PURE__*/
+  messageDesc(file_v1_graph, 6);
+
+/**
  * Graph contains one complete repository analysis.
  *
  * @generated from message goconduct.v1.Graph
@@ -196,7 +289,7 @@ export type Graph = Message<"goconduct.v1.Graph"> & {
  * Use `create(GraphSchema)` to create a new message.
  */
 export const GraphSchema: GenMessage<Graph> = /*@__PURE__*/
-  messageDesc(file_v1_graph, 4);
+  messageDesc(file_v1_graph, 7);
 
 /**
  * @generated from message goconduct.v1.AnalysisScope
@@ -223,7 +316,7 @@ export type AnalysisScope = Message<"goconduct.v1.AnalysisScope"> & {
  * Use `create(AnalysisScopeSchema)` to create a new message.
  */
 export const AnalysisScopeSchema: GenMessage<AnalysisScope> = /*@__PURE__*/
-  messageDesc(file_v1_graph, 5);
+  messageDesc(file_v1_graph, 8);
 
 /**
  * @generated from message goconduct.v1.ComponentRules
@@ -270,7 +363,7 @@ export type ComponentRules = Message<"goconduct.v1.ComponentRules"> & {
  * Use `create(ComponentRulesSchema)` to create a new message.
  */
 export const ComponentRulesSchema: GenMessage<ComponentRules> = /*@__PURE__*/
-  messageDesc(file_v1_graph, 6);
+  messageDesc(file_v1_graph, 9);
 
 /**
  * @generated from message goconduct.v1.ComponentCategoryRule
@@ -297,7 +390,7 @@ export type ComponentCategoryRule = Message<"goconduct.v1.ComponentCategoryRule"
  * Use `create(ComponentCategoryRuleSchema)` to create a new message.
  */
 export const ComponentCategoryRuleSchema: GenMessage<ComponentCategoryRule> = /*@__PURE__*/
-  messageDesc(file_v1_graph, 7);
+  messageDesc(file_v1_graph, 10);
 
 /**
  * @generated from message goconduct.v1.AnalysisPolicy
@@ -359,7 +452,7 @@ export type AnalysisPolicy = Message<"goconduct.v1.AnalysisPolicy"> & {
  * Use `create(AnalysisPolicySchema)` to create a new message.
  */
 export const AnalysisPolicySchema: GenMessage<AnalysisPolicy> = /*@__PURE__*/
-  messageDesc(file_v1_graph, 8);
+  messageDesc(file_v1_graph, 11);
 
 /**
  * @generated from message goconduct.v1.StableLowAbstractionPolicy
@@ -386,7 +479,7 @@ export type StableLowAbstractionPolicy = Message<"goconduct.v1.StableLowAbstract
  * Use `create(StableLowAbstractionPolicySchema)` to create a new message.
  */
 export const StableLowAbstractionPolicySchema: GenMessage<StableLowAbstractionPolicy> = /*@__PURE__*/
-  messageDesc(file_v1_graph, 9);
+  messageDesc(file_v1_graph, 12);
 
 /**
  * @generated from message goconduct.v1.StableDependencyPrinciplePolicy
@@ -408,7 +501,7 @@ export type StableDependencyPrinciplePolicy = Message<"goconduct.v1.StableDepend
  * Use `create(StableDependencyPrinciplePolicySchema)` to create a new message.
  */
 export const StableDependencyPrinciplePolicySchema: GenMessage<StableDependencyPrinciplePolicy> = /*@__PURE__*/
-  messageDesc(file_v1_graph, 10);
+  messageDesc(file_v1_graph, 13);
 
 /**
  * @generated from message goconduct.v1.GraphSummary
@@ -545,7 +638,7 @@ export type GraphSummary = Message<"goconduct.v1.GraphSummary"> & {
  * Use `create(GraphSummarySchema)` to create a new message.
  */
 export const GraphSummarySchema: GenMessage<GraphSummary> = /*@__PURE__*/
-  messageDesc(file_v1_graph, 11);
+  messageDesc(file_v1_graph, 14);
 
 /**
  * @generated from message goconduct.v1.Component
@@ -742,7 +835,7 @@ export type Component = Message<"goconduct.v1.Component"> & {
  * Use `create(ComponentSchema)` to create a new message.
  */
 export const ComponentSchema: GenMessage<Component> = /*@__PURE__*/
-  messageDesc(file_v1_graph, 12);
+  messageDesc(file_v1_graph, 15);
 
 /**
  * @generated from message goconduct.v1.Relationship
@@ -824,7 +917,7 @@ export type Relationship = Message<"goconduct.v1.Relationship"> & {
  * Use `create(RelationshipSchema)` to create a new message.
  */
 export const RelationshipSchema: GenMessage<Relationship> = /*@__PURE__*/
-  messageDesc(file_v1_graph, 13);
+  messageDesc(file_v1_graph, 16);
 
 /**
  * @generated from message goconduct.v1.ImportSite
@@ -866,7 +959,7 @@ export type ImportSite = Message<"goconduct.v1.ImportSite"> & {
  * Use `create(ImportSiteSchema)` to create a new message.
  */
 export const ImportSiteSchema: GenMessage<ImportSite> = /*@__PURE__*/
-  messageDesc(file_v1_graph, 14);
+  messageDesc(file_v1_graph, 17);
 
 /**
  * @generated from message goconduct.v1.Function
@@ -1018,7 +1111,7 @@ export type Function = Message<"goconduct.v1.Function"> & {
  * Use `create(FunctionSchema)` to create a new message.
  */
 export const FunctionSchema: GenMessage<Function> = /*@__PURE__*/
-  messageDesc(file_v1_graph, 15);
+  messageDesc(file_v1_graph, 18);
 
 /**
  * @generated from message goconduct.v1.FunctionCall
@@ -1070,7 +1163,7 @@ export type FunctionCall = Message<"goconduct.v1.FunctionCall"> & {
  * Use `create(FunctionCallSchema)` to create a new message.
  */
 export const FunctionCallSchema: GenMessage<FunctionCall> = /*@__PURE__*/
-  messageDesc(file_v1_graph, 16);
+  messageDesc(file_v1_graph, 19);
 
 /**
  * @generated from message goconduct.v1.CallSite
@@ -1097,7 +1190,7 @@ export type CallSite = Message<"goconduct.v1.CallSite"> & {
  * Use `create(CallSiteSchema)` to create a new message.
  */
 export const CallSiteSchema: GenMessage<CallSite> = /*@__PURE__*/
-  messageDesc(file_v1_graph, 17);
+  messageDesc(file_v1_graph, 20);
 
 /**
  * @generated from message goconduct.v1.Cycle
@@ -1114,7 +1207,7 @@ export type Cycle = Message<"goconduct.v1.Cycle"> & {
  * Use `create(CycleSchema)` to create a new message.
  */
 export const CycleSchema: GenMessage<Cycle> = /*@__PURE__*/
-  messageDesc(file_v1_graph, 18);
+  messageDesc(file_v1_graph, 21);
 
 /**
  * @generated from message goconduct.v1.Diagnostic
@@ -1136,7 +1229,188 @@ export type Diagnostic = Message<"goconduct.v1.Diagnostic"> & {
  * Use `create(DiagnosticSchema)` to create a new message.
  */
 export const DiagnosticSchema: GenMessage<Diagnostic> = /*@__PURE__*/
-  messageDesc(file_v1_graph, 19);
+  messageDesc(file_v1_graph, 22);
+
+/**
+ * TypeDeclaration describes one named Go type declared in one component.
+ *
+ * @generated from message goconduct.v1.TypeDeclaration
+ */
+export type TypeDeclaration = Message<"goconduct.v1.TypeDeclaration"> & {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * @generated from field: string name = 2;
+   */
+  name: string;
+
+  /**
+   * @generated from field: string package = 3;
+   */
+  package: string;
+
+  /**
+   * @generated from field: string component = 4;
+   */
+  component: string;
+
+  /**
+   * @generated from field: string path = 5;
+   */
+  path: string;
+
+  /**
+   * @generated from field: uint32 line = 6;
+   */
+  line: number;
+
+  /**
+   * @generated from field: string kind = 7;
+   */
+  kind: string;
+
+  /**
+   * @generated from field: bool exported = 8;
+   */
+  exported: boolean;
+
+  /**
+   * @generated from field: bool test = 9;
+   */
+  test: boolean;
+
+  /**
+   * @generated from field: string underlying = 10;
+   */
+  underlying: string;
+
+  /**
+   * @generated from field: repeated goconduct.v1.TypeField fields = 11;
+   */
+  fields: TypeField[];
+
+  /**
+   * @generated from field: repeated goconduct.v1.TypeMethod methods = 12;
+   */
+  methods: TypeMethod[];
+
+  /**
+   * @generated from field: repeated goconduct.v1.TypeReference embeds = 13;
+   */
+  embeds: TypeReference[];
+
+  /**
+   * @generated from field: repeated goconduct.v1.TypeReference implements = 14;
+   */
+  implements: TypeReference[];
+
+  /**
+   * @generated from field: repeated goconduct.v1.TypeReference references = 15;
+   */
+  references: TypeReference[];
+};
+
+/**
+ * Describes the message goconduct.v1.TypeDeclaration.
+ * Use `create(TypeDeclarationSchema)` to create a new message.
+ */
+export const TypeDeclarationSchema: GenMessage<TypeDeclaration> = /*@__PURE__*/
+  messageDesc(file_v1_graph, 23);
+
+/**
+ * TypeField describes one field of a struct type.
+ *
+ * @generated from message goconduct.v1.TypeField
+ */
+export type TypeField = Message<"goconduct.v1.TypeField"> & {
+  /**
+   * @generated from field: string name = 1;
+   */
+  name: string;
+
+  /**
+   * @generated from field: string type = 2;
+   */
+  type: string;
+
+  /**
+   * @generated from field: bool embedded = 3;
+   */
+  embedded: boolean;
+
+  /**
+   * @generated from field: bool exported = 4;
+   */
+  exported: boolean;
+};
+
+/**
+ * Describes the message goconduct.v1.TypeField.
+ * Use `create(TypeFieldSchema)` to create a new message.
+ */
+export const TypeFieldSchema: GenMessage<TypeField> = /*@__PURE__*/
+  messageDesc(file_v1_graph, 24);
+
+/**
+ * TypeMethod describes one declared method of a type.
+ *
+ * @generated from message goconduct.v1.TypeMethod
+ */
+export type TypeMethod = Message<"goconduct.v1.TypeMethod"> & {
+  /**
+   * @generated from field: string name = 1;
+   */
+  name: string;
+
+  /**
+   * @generated from field: string signature = 2;
+   */
+  signature: string;
+
+  /**
+   * @generated from field: bool exported = 3;
+   */
+  exported: boolean;
+
+  /**
+   * @generated from field: bool pointer_receiver = 4;
+   */
+  pointerReceiver: boolean;
+};
+
+/**
+ * Describes the message goconduct.v1.TypeMethod.
+ * Use `create(TypeMethodSchema)` to create a new message.
+ */
+export const TypeMethodSchema: GenMessage<TypeMethod> = /*@__PURE__*/
+  messageDesc(file_v1_graph, 25);
+
+/**
+ * TypeReference identifies one related type and the component that declares it.
+ *
+ * @generated from message goconduct.v1.TypeReference
+ */
+export type TypeReference = Message<"goconduct.v1.TypeReference"> & {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * @generated from field: string component = 2;
+   */
+  component: string;
+};
+
+/**
+ * Describes the message goconduct.v1.TypeReference.
+ * Use `create(TypeReferenceSchema)` to create a new message.
+ */
+export const TypeReferenceSchema: GenMessage<TypeReference> = /*@__PURE__*/
+  messageDesc(file_v1_graph, 26);
 
 /**
  * @generated from message goconduct.v1.Finding
@@ -1188,7 +1462,7 @@ export type Finding = Message<"goconduct.v1.Finding"> & {
  * Use `create(FindingSchema)` to create a new message.
  */
 export const FindingSchema: GenMessage<Finding> = /*@__PURE__*/
-  messageDesc(file_v1_graph, 20);
+  messageDesc(file_v1_graph, 27);
 
 /**
  * GraphEventType identifies one event in the graph stream.
@@ -1248,6 +1522,16 @@ export const GraphService: GenService<{
     methodKind: "server_streaming";
     input: typeof WatchGraphRequestSchema;
     output: typeof WatchGraphResponseSchema;
+  },
+  /**
+   * GetComponentTypes returns the declared Go types of one component.
+   *
+   * @generated from rpc goconduct.v1.GraphService.GetComponentTypes
+   */
+  getComponentTypes: {
+    methodKind: "unary";
+    input: typeof GetComponentTypesRequestSchema;
+    output: typeof GetComponentTypesResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_v1_graph, 0);

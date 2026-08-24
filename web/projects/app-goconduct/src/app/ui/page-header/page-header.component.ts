@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, input } from '@angular/core';
+import { Component, input } from '@angular/core';
 
 /**
  * Heading of a routed page, with its counter, its description and its actions.
@@ -12,7 +12,6 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
   selector: 'app-page-header',
   templateUrl: './page-header.component.html',
   styleUrl: './page-header.component.less',
-  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class PageHeaderComponent {
   /** Title of the page. */

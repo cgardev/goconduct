@@ -1,0 +1,138 @@
+<div class="strategy">
+  <app-page-header
+    heading="Strategy"
+    description="The strategy the repository already follows, mined from its production
+      dependencies: the de facto layers, how strongly each group leans on each other one, and
+      where the strategy contradicts itself."
+  />
+
+  @if (graph.unavailable()) {
+    <section class="panel">
+      <app-empty-state
+        icon="@tui.circle-alert"
+        heading="The analysis is unavailable"
+        tone="negative"
+        [description]="graph.error()"
+      />
+    </section>
+  } @else if (graph.loading()) {
+    <section class="strategy__loading" aria-live="polite">
+      <tui-loader size="l" />
+      <p>Reading the repository graph…</p>
+    </section>
+  } @else if (report().groups.length === 0) {
+    <section class="panel">
+      <app-empty-state
+        icon="@tui.layers"
+        heading="No groups to map"
+        description="The analysis found no component in this repository."
+      />
+    </section>
+  } @else {
+    <article class="panel">
+      <header class="panel__header">
+        <div class="panel__title">
+          <h2>De facto layers</h2>
+          <p class="panel__description">
+            Each group sits one layer above the highest group it depends on. Select a group to
+            list the component dependencies behind it.
+          </p>
+        </div>
+      </header>
+      <app-strategy-map [report]="report()" (select)="inspect($event)" />
+    </article>
+
+    <article class="panel">
+      <header class="panel__header">
+        <div class="panel__title">
+          <h2>Dependency matrix</h2>
+          <p class="panel__description">
+            The row group depends on the column group; the cell counts the component
+            dependencies. Red cells belong to a cycle. Select a cell to list what is behind it.
+          </p>
+        </div>
+      </header>
+      <div
+        #matrixSurface
+        class="strategy__matrix"
+        role="group"
+        aria-label="Dependencies between groups, one cell per aggregated dependency"
+      ></div>
+    </article>
+
+    <article class="panel">
+      <header class="panel__header">
+        <div class="panel__title">
+          <h2>Where the strategy contradicts itself</h2>
+          <p class="panel__description">
+            The cycles break the layering; the near-empty edges, with
+            {{ thinLimit }} dependencies or fewer, read as accidental coupling a change can cut.
+          </p>
+        </div>
+      </header>
+
+      <div class="strategy__observations">
+        <section aria-label="Cycles between groups">
+          <h3 class="strategy__subheading">Cycles ({{ cycles().length }})</h3>
+          <ul class="strategy__list">
+            @for (sentence of cycles(); track sentence) {
+              <li class="strategy__cycle">{{ sentence }}</li>
+            } @empty {
+              <li class="strategy__none">No group depends back on a group above it.</li>
+            }
+          </ul>
+        </section>
+
+        <section aria-label="Near-empty edges">
+          <h3 class="strategy__subheading">Near-empty edges ({{ thinEdges().length }})</h3>
+          <ul class="strategy__list">
+            @for (edge of thinEdges(); track edge.source + edge.target) {
+              <li>
+                <button class="strategy__edge" type="button" (click)="inspectEdge(edge)">
+                  {{ edge.source }} → {{ edge.target }}
+                  <small>
+                    {{ edge.weight }} dependenc{{ edge.weight === 1 ? 'y' : 'ies' }}
+                  </small>
+                </button>
+              </li>
+            } @empty {
+              <li class="strategy__none">Every edge between groups carries real weight.</li>
+            }
+          </ul>
+        </section>
+      </div>
+    </article>
+
+    @if (focus(); as focused) {
+      <article class="panel">
+        <header class="panel__header">
+          <div class="panel__title">
+            <h2>
+              {{ focused.source }}
+              @if (focused.target !== '') {
+                → {{ focused.target }}
+              }
+            </h2>
+            <p class="panel__description">
+              The {{ focusedRelationships().length }} component dependencies behind the
+              selection. Each one is a place where the strategy can change.
+            </p>
+          </div>
+          <button appearance="secondary" size="s" tuiButton type="button" (click)="clearFocus()">
+            Clear
+          </button>
+        </header>
+        <ul class="strategy__relationships">
+          @for (
+            relationship of focusedRelationships();
+            track relationship.source + relationship.target
+          ) {
+            <li><code>{{ relationship.source }} → {{ relationship.target }}</code></li>
+          } @empty {
+            <li class="strategy__none">The selection carries no production dependency.</li>
+          }
+        </ul>
+      </article>
+    }
+  }
+</div>

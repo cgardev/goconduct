@@ -10,9 +10,9 @@ import (
 	"connectrpc.com/connect"
 
 	applicationconfiguration "github.com/cgardev/goconduct/cmd/goconduct/internal/configuration"
-	"github.com/cgardev/goconduct/failure"
 	"github.com/cgardev/goconduct/internal/appmodule"
 	"github.com/cgardev/goconduct/internal/library/httpserver"
+	"github.com/cgardev/goconduct/pkg/failure"
 )
 
 type application struct {

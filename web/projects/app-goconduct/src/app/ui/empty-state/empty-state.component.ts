@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, input } from '@angular/core';
+import { Component, input } from '@angular/core';
 import { TuiIcon } from '@taiga-ui/core';
 
 /** What the absence of content means, which decides the icon color. */
@@ -18,7 +18,6 @@ export type EmptyStateTone = 'neutral' | 'positive' | 'negative';
   imports: [TuiIcon],
   templateUrl: './empty-state.component.html',
   styleUrl: './empty-state.component.less',
-  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class EmptyStateComponent {
   /** Taiga icon name shown above the heading. */

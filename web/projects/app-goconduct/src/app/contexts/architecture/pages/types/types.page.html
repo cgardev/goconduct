@@ -1,0 +1,69 @@
+<div class="types">
+  <app-page-header
+    heading="Types"
+    description="Structs, interfaces, aliases and basic types of one component, with their
+      implementation, embedding and reference relations."
+    [counter]="counter()"
+  />
+
+  @if (graph.unavailable()) {
+    <section class="panel">
+      <app-empty-state
+        icon="@tui.circle-alert"
+        heading="The analysis is unavailable"
+        tone="negative"
+        [description]="graph.error()"
+      />
+    </section>
+  } @else if (graph.loading()) {
+    <section class="types__loading" aria-live="polite">
+      <tui-loader size="l" />
+      <p>Reading the repository graph…</p>
+    </section>
+  } @else {
+    <section class="panel types__workspace">
+      <aside class="types__tree">
+        <app-component-tree
+          [components]="componentOptions()"
+          [selectedId]="selectedComponent()"
+          (select)="setComponent($event)"
+        />
+      </aside>
+
+      <div class="types__canvas">
+      @if (selectedComponent() === '') {
+        <app-empty-state
+          icon="@tui.shapes"
+          heading="Pick a component"
+          description="Select one analyzed component to draw its Go types."
+        />
+      } @else if (store.loading()) {
+        <section class="types__loading" aria-live="polite">
+          <tui-loader size="l" />
+          <p>Reading the component types…</p>
+        </section>
+      } @else if (store.error() !== '') {
+        <app-empty-state
+          icon="@tui.circle-alert"
+          heading="The types are unavailable"
+          tone="negative"
+          [description]="store.error()"
+        />
+      } @else if (store.types().length === 0) {
+        <app-empty-state
+          icon="@tui.inbox"
+          heading="No types"
+          description="The component declares no named type."
+        />
+      } @else {
+        <p class="visually-hidden" aria-live="polite">
+          {{ store.types().length }} types diagrammed.
+        </p>
+        <app-type-diagram [model]="model()" (navigateComponent)="setComponent($event)" />
+      }
+      </div>
+    </section>
+  }
+
+  <app-type-detail (navigateComponent)="setComponent($event)" />
+</div>

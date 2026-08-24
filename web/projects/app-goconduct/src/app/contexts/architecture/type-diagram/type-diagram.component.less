@@ -1,0 +1,110 @@
+@import 'tokens.less';
+
+// The hidden access list is positioned against this block.
+.type-diagram {
+  position: relative;
+}
+
+.type-diagram__toolbar {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 0.5rem 1.25rem;
+  border-bottom: 0.0625rem solid @line;
+}
+
+// JointJS writes its own SVG attributes inside this surface, so the
+// stylesheet only sizes the surface; every color inside the diagram comes
+// from the diagram tokens.
+.type-diagram__surface {
+  block-size: 34rem;
+  overflow: hidden;
+  cursor: grab;
+  background-color: @surface;
+  background-image: radial-gradient(@line 0.0625rem, transparent 0.0625rem);
+  background-size: 1.25rem 1.25rem;
+  touch-action: none;
+}
+
+.type-diagram__access {
+  position: absolute;
+  overflow: hidden;
+  inline-size: 0.0625rem;
+  block-size: 0.0625rem;
+  margin: -0.0625rem;
+  padding: 0;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.type-diagram__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: center;
+  min-block-size: 3rem;
+  padding: 0.5rem 1.25rem;
+  color: @ink-tertiary;
+  border-top: 0.0625rem solid @line;
+  font-size: 0.6875rem;
+
+  span {
+    display: inline-flex;
+    gap: 0.4rem;
+    align-items: center;
+  }
+}
+
+.type-diagram__kind {
+  inline-size: 0.75rem;
+  block-size: 0.75rem;
+  border-radius: 0.1875rem;
+}
+
+.type-diagram__kind--struct {
+  background-color: @type-struct;
+}
+
+.type-diagram__kind--interface {
+  background-color: @type-interface;
+}
+
+.type-diagram__kind--alias {
+  background-color: @type-alias;
+}
+
+.type-diagram__kind--basic {
+  background-color: @type-basic;
+}
+
+.type-diagram__sample {
+  inline-size: 1.5rem;
+}
+
+.type-diagram__sample--implements {
+  border-top: 0.125rem dashed @accent;
+}
+
+.type-diagram__sample--embeds {
+  border-top: 0.125rem solid @ink-secondary;
+}
+
+.type-diagram__sample--references {
+  border-top: 0.125rem dotted @ink-tertiary;
+}
+
+.type-diagram__visibility {
+  color: @ink;
+  font-family: @monospace-family;
+  font-weight: 700;
+}
+
+.type-diagram__visibility--private {
+  color: @ink-tertiary;
+}
+
+@media (max-width: 32rem) {
+  .type-diagram__surface {
+    block-size: 24rem;
+  }
+}

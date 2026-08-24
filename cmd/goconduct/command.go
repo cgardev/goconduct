@@ -12,8 +12,8 @@ import (
 	"github.com/spf13/cobra"
 
 	applicationconfiguration "github.com/cgardev/goconduct/cmd/goconduct/internal/configuration"
-	"github.com/cgardev/goconduct/failure"
-	"github.com/cgardev/goconduct/plugin"
+	"github.com/cgardev/goconduct/pkg/failure"
+	"github.com/cgardev/goconduct/pkg/plugin"
 )
 
 type checkSummary struct {

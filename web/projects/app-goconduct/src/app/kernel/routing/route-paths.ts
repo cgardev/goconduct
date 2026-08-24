@@ -10,10 +10,16 @@ export const ROUTE_PATH = {
   empty: '',
   /** Summary of the analysis and the dependency map. */
   overview: 'overview',
+  /** The strategy the repository follows: de facto layers, matrix, and contradictions. */
+  strategy: 'strategy',
   /** Coupling metrics of every analyzed component. */
   components: 'components',
+  /** The balance of every component: zones, ranking, and distribution. */
+  balance: 'balance',
   /** Results of the deterministic architecture rules. */
   findings: 'findings',
+  /** UML-style diagram of the Go types of one component. */
+  types: 'types',
   /** Catch-all path that renders the in-shell 404 page. */
   wildcard: '**',
 } as const;

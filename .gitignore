@@ -13,7 +13,7 @@ node_modules/
 
 # Angular build output.
 #
-# The console the binary embeds lives under plugin/architecture/_resources/web
+# The console the binary embeds lives under pkg/plugin/architecture/_resources/web
 # and stays tracked, because the Go build reads it with go:embed. Only the
 # intermediate output of the Angular build is ignored here.
 /web/dist/

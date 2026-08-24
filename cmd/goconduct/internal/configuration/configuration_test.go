@@ -27,7 +27,18 @@ func TestLoadCombinesArchitectureAndQualityConfiguration(t *testing.T) {
   "quality": {
     "check": {"plugins": ["architecture", "crap"], "failOn": "warning"},
     "coverage": {"command": "custom-go", "packages": ["./internal/..."]},
-    "crap": {"maximumScore": 6}
+    "crap": {"maximumScore": 6},
+    "loc": {
+      "selection": {
+        "paths": ["internal"],
+        "include": ["internal/**"],
+        "exclude": ["internal/protogen/**"]
+      },
+      "generated": {
+        "headerPatterns": ["(?m)^// GENERATED$"],
+        "forceHandwrittenPaths": ["internal/manual.go"]
+      }
+    }
   }
 }`)
 	if err := os.WriteFile(path, payload, 0o600); err != nil {
@@ -42,6 +53,12 @@ func TestLoadCombinesArchitectureAndQualityConfiguration(t *testing.T) {
 	}
 	if configuration.Quality.Coverage.Command != "custom-go" || configuration.Quality.CRAP.MaximumScore != 6 {
 		t.Fatalf("unexpected quality configuration: %+v", configuration.Quality)
+	}
+	if len(configuration.Quality.LOC.Selection.Paths) != 1 ||
+		configuration.Quality.LOC.Selection.Paths[0] != "internal" ||
+		len(configuration.Quality.LOC.Generated.HeaderPatterns) != 1 ||
+		len(configuration.Quality.LOC.Generated.ForceHandwrittenPaths) != 1 {
+		t.Fatalf("unexpected LOC configuration: %+v", configuration.Quality.LOC)
 	}
 	if configuration.Quality.Check.FailOn != FailureThresholdWarning {
 		t.Fatalf("failure threshold is %q", configuration.Quality.Check.FailOn)

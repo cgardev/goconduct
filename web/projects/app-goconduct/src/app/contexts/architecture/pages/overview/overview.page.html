@@ -106,51 +106,39 @@
           description="The analysis found no component in this repository."
         />
       } @else {
-        <div class="graph-map">
-          <svg
-            class="graph-map__edges"
-            viewBox="0 0 100 100"
-            preserveAspectRatio="none"
-            aria-hidden="true"
-          >
-            @for (
-              edge of graph.layout().edges;
-              track edge.relationship.source + edge.relationship.target
-            ) {
-              <line
-                [attr.x1]="edge.x1"
-                [attr.y1]="edge.y1"
-                [attr.x2]="edge.x2"
-                [attr.y2]="edge.y2"
-                [class.graph-map__edge--test]="edge.relationship.testOnly"
-              />
-            }
-          </svg>
+        <app-dependency-map [layout]="graph.layout()" />
+      }
+    </article>
 
-          @for (node of graph.layout().nodes; track node.component.id) {
-            <button
-              class="graph-map__node"
-              type="button"
-              [attr.data-role]="node.component.role"
-              [attr.aria-pressed]="selection.selectedComponentId() === node.component.id"
-              [class.graph-map__node--selected]="
-                selection.selectedComponentId() === node.component.id
-              "
-              [style.left.%]="node.x"
-              [style.top.%]="node.y"
-              [attr.aria-label]="'Inspect ' + node.component.name"
-              (click)="selection.select(node.component.id)"
-            >
-              <span aria-hidden="true">{{ node.component.name.slice(0, 2).toUpperCase() }}</span>
-              <small aria-hidden="true">{{ node.component.name }}</small>
-            </button>
-          }
+    <article class="panel">
+      <header class="panel__header">
+        <div class="panel__title">
+          <h2>Balance of every component</h2>
+          <p class="panel__description">
+            How many components offer as much interface as their stability asks for, and how many
+            drift.
+          </p>
         </div>
+        <a appearance="secondary" size="s" tuiButton [routerLink]="balanceLink">
+          Open the balance page
+        </a>
+      </header>
 
-        <footer class="graph-map__legend">
-          <span><i class="graph-map__sample"></i>Production dependency</span>
-          <span><i class="graph-map__sample graph-map__sample--test"></i>Test-only dependency</span>
-        </footer>
+      @if (graph.components().length === 0) {
+        <app-empty-state
+          icon="@tui.scale"
+          heading="No components to weigh"
+          description="The analysis found no component in this repository."
+        />
+      } @else {
+        <ul class="overview__zones">
+          @for (zone of zones(); track zone.zone) {
+            <li class="overview__zone" [attr.data-zone]="zone.zone">
+              <strong>{{ zone.count | number }}</strong>
+              <span>{{ zone.title }}</span>
+            </li>
+          }
+        </ul>
       }
     </article>
   }

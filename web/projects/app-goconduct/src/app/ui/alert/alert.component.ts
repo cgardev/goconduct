@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
+import { Component, computed, input } from '@angular/core';
 import { TuiIcon } from '@taiga-ui/core';
 
 /** What the message reports, which decides its color and its icon. */
@@ -29,7 +29,6 @@ const TONE_ICONS: Record<AlertTone, string> = {
   imports: [TuiIcon],
   templateUrl: './alert.component.html',
   styleUrl: './alert.component.less',
-  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class AlertComponent {
   /** What the message reports. */

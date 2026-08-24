@@ -7,7 +7,7 @@ import (
 	"github.com/samber/do/v2"
 
 	"github.com/cgardev/goconduct/internal/library/injection"
-	"github.com/cgardev/goconduct/plugin"
+	"github.com/cgardev/goconduct/pkg/plugin"
 )
 
 // ListPluginsUseCase returns the active evaluator catalog.

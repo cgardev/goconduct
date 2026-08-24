@@ -1,0 +1,25 @@
+<div class="strategy-map">
+  <div #surface class="strategy-map__surface" aria-hidden="true"></div>
+
+  <!--
+    The diagram is pointer-only, so this hidden list carries the same
+    selection for the keyboard and assistive technology.
+  -->
+  <ul class="strategy-map__access" aria-label="Strategic groups per layer">
+    @for (layer of report().layers; track $index; let layerIndex = $index) {
+      @for (groupId of layer; track groupId) {
+        <li>
+          <button type="button" (click)="select.emit(groupId)">
+            Inspect {{ groupId }}, layer {{ layerIndex }}
+          </button>
+        </li>
+      }
+    }
+  </ul>
+
+  <footer class="strategy-map__legend">
+    <span>Applications at the top, foundations at the bottom.</span>
+    <span><i class="strategy-map__sample"></i>Aggregated dependencies, with their count</span>
+    <span><i class="strategy-map__sample strategy-map__sample--cycle"></i>Cycle between groups</span>
+  </footer>
+</div>

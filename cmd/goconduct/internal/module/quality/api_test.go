@@ -11,7 +11,7 @@ import (
 	"github.com/cgardev/goconduct/internal/appmodule"
 	goconductv1 "github.com/cgardev/goconduct/internal/protogen/v1"
 	"github.com/cgardev/goconduct/internal/protogen/v1/goconductv1connect"
-	"github.com/cgardev/goconduct/plugin"
+	"github.com/cgardev/goconduct/pkg/plugin"
 )
 
 func TestQualityAPIListsPluginsThroughConnect(t *testing.T) {

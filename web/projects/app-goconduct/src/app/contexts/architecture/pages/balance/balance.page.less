@@ -1,0 +1,120 @@
+@import 'tokens.less';
+@import 'patterns.less';
+
+:host {
+  display: block;
+  flex: 1 1 auto;
+}
+
+.balance {
+  .page-frame();
+}
+
+.balance__loading {
+  .loading-placeholder();
+}
+
+.balance__zones {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.zone-card {
+  .panel-surface();
+
+  padding: 1rem 1.125rem;
+  border-top: 0.1875rem solid @line-strong;
+
+  &[data-zone='pain'] {
+    border-top-color: @danger;
+  }
+
+  &[data-zone='useless'] {
+    border-top-color: @warning;
+  }
+
+  &[data-zone='drifting'] {
+    border-top-color: @ink-secondary;
+  }
+
+  &[data-zone='balanced'] {
+    border-top-color: @accent;
+  }
+
+  &__count {
+    display: block;
+    font-size: 1.75rem;
+    font-weight: 500;
+    line-height: 1.1;
+    letter-spacing: -0.045em;
+    font-variant-numeric: tabular-nums;
+  }
+
+  &__title {
+    display: block;
+    margin-top: 0.35rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+  }
+
+  &__meaning {
+    display: block;
+    margin-top: 0.2rem;
+    color: @ink-tertiary;
+    font-size: 0.75rem;
+    line-height: 1.4;
+  }
+}
+
+.panel {
+  .panel-surface();
+
+  & + .panel {
+    margin-top: 0.75rem;
+  }
+}
+
+.panel__header {
+  .panel-header();
+}
+
+.panel__title h2 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.panel__description {
+  margin: 0.25rem 0 0;
+  color: @ink-secondary;
+  font-size: 0.8125rem;
+}
+
+// amCharts draws on a canvas inside these surfaces, so the stylesheet only
+// sizes them; every color inside comes from the diagram tokens. The inset is
+// a margin, not a padding: amCharts sizes its canvas from the client width,
+// which includes a padding, and the canvas would overflow the panel.
+.balance__ranking {
+  block-size: 30rem;
+  margin: 0 1.25rem 1rem;
+}
+
+.balance__distribution {
+  block-size: 20rem;
+  margin: 0 1.25rem 1rem;
+}
+
+@media (max-width: 75rem) {
+  .balance__zones {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 48rem) {
+  .balance__zones {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

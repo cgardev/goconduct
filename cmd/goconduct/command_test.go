@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	applicationconfiguration "github.com/cgardev/goconduct/cmd/goconduct/internal/configuration"
-	"github.com/cgardev/goconduct/plugin"
+	"github.com/cgardev/goconduct/pkg/plugin"
 )
 
 func TestCombineReportsCountsEvidence(t *testing.T) {

@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, DestroyRef, inject, signal } from '@angular/core';
+import { Component, computed, DestroyRef, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { TuiButton, TuiLink } from '@taiga-ui/core';
 import { TuiButtonLoading } from '@taiga-ui/kit';
@@ -26,7 +26,6 @@ const CLOCK_INTERVAL = 30_000;
   imports: [RouterLink, TuiButton, TuiButtonLoading, TuiLink],
   templateUrl: './top-navigation.component.html',
   styleUrl: './top-navigation.component.less',
-  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class TopNavigationComponent {
   protected readonly graph = inject(GraphStore);

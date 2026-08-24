@@ -6,11 +6,12 @@ import (
 	applicationconfiguration "github.com/cgardev/goconduct/cmd/goconduct/internal/configuration"
 	qualitymodule "github.com/cgardev/goconduct/cmd/goconduct/internal/module/quality"
 	"github.com/cgardev/goconduct/internal/appmodule"
-	"github.com/cgardev/goconduct/plugin/architecture"
-	"github.com/cgardev/goconduct/plugin/coverage"
-	"github.com/cgardev/goconduct/plugin/crap"
-	"github.com/cgardev/goconduct/plugin/duplication"
-	"github.com/cgardev/goconduct/plugin/mutation"
+	"github.com/cgardev/goconduct/pkg/plugin/architecture"
+	"github.com/cgardev/goconduct/pkg/plugin/coverage"
+	"github.com/cgardev/goconduct/pkg/plugin/crap"
+	"github.com/cgardev/goconduct/pkg/plugin/duplication"
+	"github.com/cgardev/goconduct/pkg/plugin/loc"
+	"github.com/cgardev/goconduct/pkg/plugin/mutation"
 )
 
 func applicationPlugins() []appmodule.Plugin {
@@ -19,6 +20,7 @@ func applicationPlugins() []appmodule.Plugin {
 		coverage.Plugin(),
 		crap.Plugin(),
 		duplication.Plugin(),
+		loc.Plugin(),
 		mutation.Plugin(),
 		qualitymodule.Plugin(),
 	}
@@ -33,6 +35,7 @@ func provideRootServices(
 	do.ProvideValue(injector, configuration.Quality.Coverage)
 	do.ProvideValue(injector, configuration.Quality.CRAP)
 	do.ProvideValue(injector, configuration.Quality.Duplication)
+	do.ProvideValue(injector, configuration.Quality.LOC)
 	do.ProvideValue(injector, configuration.Quality.Mutation)
 	check := configuration.CloneCheck()
 	do.ProvideValue(injector, qualitymodule.Configuration{

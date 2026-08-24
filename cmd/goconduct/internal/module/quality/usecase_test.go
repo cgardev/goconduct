@@ -5,8 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/cgardev/goconduct/failure"
-	"github.com/cgardev/goconduct/plugin"
+	"github.com/cgardev/goconduct/pkg/failure"
+	"github.com/cgardev/goconduct/pkg/plugin"
 )
 
 type staticEvaluator struct {

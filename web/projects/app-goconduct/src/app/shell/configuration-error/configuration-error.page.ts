@@ -1,5 +1,4 @@
 import {
-  ChangeDetectionStrategy,
   Component,
   inject,
   InjectionToken,
@@ -36,7 +35,6 @@ export function provideConfigurationError(error: unknown): Provider[] {
   imports: [TuiIcon],
   templateUrl: './configuration-error.page.html',
   styleUrl: './configuration-error.page.less',
-  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ConfigurationErrorPage {
   /** What exactly is wrong, as reported by the runtime environment loader. */

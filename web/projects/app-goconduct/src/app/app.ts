@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component } from '@angular/core';
+import { Component } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 import { TuiRoot } from '@taiga-ui/core';
 
@@ -18,6 +18,5 @@ import { TuiRoot } from '@taiga-ui/core';
       min-height: 100%;
     }
   `,
-  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class App {}

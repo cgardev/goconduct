@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component } from '@angular/core';
+import { Component } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { TuiButton } from '@taiga-ui/core';
 import { navTo } from '../../kernel/routing/app-navigation';
@@ -9,7 +9,6 @@ import { navTo } from '../../kernel/routing/app-navigation';
   imports: [RouterLink, TuiButton],
   templateUrl: './error-404.page.html',
   styleUrl: './error-404.page.less',
-  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class Error404Page {
   protected readonly overviewLink = navTo.overview();

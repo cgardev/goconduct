@@ -10,7 +10,7 @@ cmd/goconduct
   -> cmd/goconduct/internal/module/quality
   -> internal/appmodule
   -> internal/kernel
-  -> plugin/*
+  -> pkg/plugin/*
 
 internal/appmodule
   -> plugin.Host
@@ -19,14 +19,20 @@ internal/kernel
   -> plugin.Catalog
   -> plugin.CommandRunner
 
-plugin/*
-  -> plugin
-  -> policy
+pkg/plugin/*
+  -> pkg/plugin
+  -> pkg/policy
 
-plugin, policy, plugin/*
-  -> failure
+pkg/plugin/architecture
+  -> pkg/report
+  -> internal/architecture
+  -> internal/calculation
+  -> internal/query
 
-failure
+pkg/plugin, pkg/policy, pkg/plugin/*
+  -> pkg/failure
+
+pkg/report, pkg/failure
   -> the Go standard library only
 
 web
@@ -44,11 +50,16 @@ The executable is the only composition root.
 The public `plugin` package owns the extension contract, host, normalized evidence, evaluator catalog, and process boundary.
 It does not import any built-in plugin.
 
-Each `plugin/<name>` package owns one quality capability.
+Each `pkg/plugin/<name>` package owns one quality capability.
 The package exposes a direct evaluator constructor and a lifecycle adapter.
 
 The `policy` package owns deterministic path selection and numeric thresholds.
 Plugins reuse that package instead of implementing different pattern semantics.
+
+The `report` package owns the architecture report model and its vocabulary.
+Every type that `pkg/plugin/architecture` returns to a consumer is declared there.
+`internal/architecture` keeps its own role and severity types.
+`internal/calculation` converts between the two vocabularies at the boundary.
 
 ## Application startup
 
@@ -114,13 +125,14 @@ When a persistent module appears, the kernel must own one production database an
 `internal/library` holds the measurement code the plugins share. Each package
 answers one question and depends on the Go standard library only.
 
-- `gosource` lists the production Go files of one repository scope.
+- `gosource` lists production files or every Go file of one repository scope.
+- `goloc` classifies physical lines and declared functions in one Go file.
 - `gocoverage` answers coverage questions over a Go coverage profile.
 - `gocomplexity` reads functions, counts decision points, and scores change risk.
 - `gomutation` discovers the expressions one mutation can change.
 - `gosimilarity` compares normalized syntax trees.
 
-`plugin/crap`, `plugin/duplication`, and `plugin/mutation` compose these
+`pkg/plugin/crap`, `pkg/plugin/duplication`, and `pkg/plugin/mutation` compose these
 packages. No plugin starts another analysis tool, so one binary carries every
 measurement and no report depends on the output format of a separate program.
 
@@ -167,7 +179,7 @@ The root-owned `/healthz` endpoint also takes precedence over the fallback.
 ## Embedded web application
 
 Angular builds the `app-goconduct` project into `web/dist/app-goconduct`.
-The embed script copies that output into `plugin/architecture/_resources/web`.
+The embed script copies that output into `pkg/plugin/architecture/_resources/web`.
 The Go compiler then includes those files in the executable.
 
 The production binary does not require Node.js or a separate static-file server.
