@@ -19,7 +19,7 @@ import (
 	"go/parser"
 	"go/token"
 
-	"github.com/cgardev/goconduct/failure"
+	"github.com/cgardev/goconduct/pkg/failure"
 )
 
 // Function is one declared Go function or method with its measured complexity.

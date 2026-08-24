@@ -31,7 +31,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/cgardev/goconduct/failure"
+	"github.com/cgardev/goconduct/pkg/failure"
 )
 
 // Location is one function or one method inside one Go source file.

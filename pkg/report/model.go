@@ -1,33 +1,69 @@
 // Package report contains the dependency analysis report model.
 package report
 
-import "github.com/cgardev/goconduct/internal/architecture"
-
 // SchemaVersion identifies the current JSON report contract.
-const SchemaVersion = 8
+const SchemaVersion = 9
 
 // ComponentRole identifies the strategic responsibility of one component.
-type ComponentRole = architecture.Role
+type ComponentRole string
+
+const (
+	// ComponentRoleApplication identifies an application composition root.
+	ComponentRoleApplication ComponentRole = "application"
+	// ComponentRoleApplicationModule identifies a feature owned by one application.
+	ComponentRoleApplicationModule ComponentRole = "application-module"
+	// ComponentRoleSharedModule identifies a feature shared by applications.
+	ComponentRoleSharedModule ComponentRole = "shared-module"
+	// ComponentRoleLibrary identifies shared technical code.
+	ComponentRoleLibrary ComponentRole = "library"
+	// ComponentRoleInfrastructure identifies shared infrastructure code.
+	ComponentRoleInfrastructure ComponentRole = "infrastructure"
+	// ComponentRoleDevelopment identifies development-only code.
+	ComponentRoleDevelopment ComponentRole = "development"
+)
+
+// ValidComponentRole reports whether a role belongs to the closed strategic set.
+func ValidComponentRole(role ComponentRole) bool {
+	switch role {
+	case ComponentRoleApplication,
+		ComponentRoleApplicationModule,
+		ComponentRoleSharedModule,
+		ComponentRoleLibrary,
+		ComponentRoleInfrastructure,
+		ComponentRoleDevelopment:
+		return true
+	default:
+		return false
+	}
+}
 
 // FindingSeverity identifies the effect of one architecture finding.
-type FindingSeverity = architecture.Severity
+type FindingSeverity string
+
+const (
+	// FindingSeverityError identifies a finding that fails the analysis.
+	FindingSeverityError FindingSeverity = "error"
+	// FindingSeverityWarning identifies a finding that reports a risk.
+	FindingSeverityWarning FindingSeverity = "warning"
+)
 
 // Graph contains the dependency data for one repository analysis.
 type Graph struct {
-	SchemaVersion  int            `json:"schemaVersion"`
-	Revision       string         `json:"revision"`
-	ModulePath     string         `json:"modulePath"`
-	Scope          AnalysisScope  `json:"scope"`
-	Policy         AnalysisPolicy `json:"policy"`
-	Summary        GraphSummary   `json:"summary"`
-	Components     []Component    `json:"components"`
-	Relationships  []Relationship `json:"relationships"`
-	Functions      []Function     `json:"functions"`
-	FunctionCalls  []FunctionCall `json:"functionCalls"`
-	FunctionCycles [][]string     `json:"functionCycles"`
-	Cycles         [][]string     `json:"cycles"`
-	Diagnostics    []Diagnostic   `json:"diagnostics"`
-	Findings       []Finding      `json:"findings"`
+	SchemaVersion  int               `json:"schemaVersion"`
+	Revision       string            `json:"revision"`
+	ModulePath     string            `json:"modulePath"`
+	Scope          AnalysisScope     `json:"scope"`
+	Policy         AnalysisPolicy    `json:"policy"`
+	Summary        GraphSummary      `json:"summary"`
+	Components     []Component       `json:"components"`
+	Relationships  []Relationship    `json:"relationships"`
+	Functions      []Function        `json:"functions"`
+	FunctionCalls  []FunctionCall    `json:"functionCalls"`
+	Types          []TypeDeclaration `json:"types"`
+	FunctionCycles [][]string        `json:"functionCycles"`
+	Cycles         [][]string        `json:"cycles"`
+	Diagnostics    []Diagnostic      `json:"diagnostics"`
+	Findings       []Finding         `json:"findings"`
 }
 
 // AnalysisScope defines the repository paths and the component classification rules.
@@ -210,6 +246,71 @@ type Function struct {
 	UsingApplications             []string `json:"usingApplications"`
 	InCycle                       bool     `json:"inCycle"`
 	Instability                   float64  `json:"instability"`
+}
+
+// TypeKind identifies the declaration form of one named Go type.
+type TypeKind string
+
+const (
+	// TypeKindStruct identifies a defined type with a struct underlying type.
+	TypeKindStruct TypeKind = "struct"
+	// TypeKindInterface identifies a defined type with an interface underlying type.
+	TypeKindInterface TypeKind = "interface"
+	// TypeKindAlias identifies an alias declaration for another type.
+	TypeKindAlias TypeKind = "alias"
+	// TypeKindBasic identifies a defined type over a non-composite underlying type.
+	TypeKindBasic TypeKind = "basic"
+)
+
+// ValidTypeKind reports whether a kind belongs to the closed declaration set.
+func ValidTypeKind(kind TypeKind) bool {
+	switch kind {
+	case TypeKindStruct, TypeKindInterface, TypeKindAlias, TypeKindBasic:
+		return true
+	default:
+		return false
+	}
+}
+
+// TypeDeclaration describes one named Go type declared in one component.
+type TypeDeclaration struct {
+	Identifier string          `json:"id"`
+	Name       string          `json:"name"`
+	Package    string          `json:"package"`
+	Component  string          `json:"component"`
+	Path       string          `json:"path,omitempty"`
+	Line       int             `json:"line,omitempty"`
+	Kind       TypeKind        `json:"kind"`
+	Exported   bool            `json:"exported"`
+	Test       bool            `json:"test"`
+	Underlying string          `json:"underlying,omitempty"`
+	Fields     []TypeField     `json:"fields,omitempty"`
+	Methods    []TypeMethod    `json:"methods,omitempty"`
+	Embeds     []TypeReference `json:"embeds,omitempty"`
+	Implements []TypeReference `json:"implements,omitempty"`
+	References []TypeReference `json:"references,omitempty"`
+}
+
+// TypeField describes one field of a struct type.
+type TypeField struct {
+	Name     string `json:"name"`
+	Type     string `json:"type"`
+	Embedded bool   `json:"embedded"`
+	Exported bool   `json:"exported"`
+}
+
+// TypeMethod describes one declared method of a type.
+type TypeMethod struct {
+	Name            string `json:"name"`
+	Signature       string `json:"signature"`
+	Exported        bool   `json:"exported"`
+	PointerReceiver bool   `json:"pointerReceiver"`
+}
+
+// TypeReference identifies one related type and the component that declares it.
+type TypeReference struct {
+	Identifier string `json:"id"`
+	Component  string `json:"component"`
 }
 
 // FunctionCall describes one resolved static call between two Go functions.

@@ -295,6 +295,194 @@ func (x *WatchGraphResponse) GetRevision() string {
 	return ""
 }
 
+// GetComponentTypesRequest identifies one analyzed component.
+type GetComponentTypesRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ComponentId   string                 `protobuf:"bytes,1,opt,name=component_id,json=componentId,proto3" json:"component_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetComponentTypesRequest) Reset() {
+	*x = GetComponentTypesRequest{}
+	mi := &file_v1_graph_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetComponentTypesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetComponentTypesRequest) ProtoMessage() {}
+
+func (x *GetComponentTypesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_v1_graph_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetComponentTypesRequest.ProtoReflect.Descriptor instead.
+func (*GetComponentTypesRequest) Descriptor() ([]byte, []int) {
+	return file_v1_graph_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *GetComponentTypesRequest) GetComponentId() string {
+	if x != nil {
+		return x.ComponentId
+	}
+	return ""
+}
+
+// GetComponentTypesResponse carries the declared types of one component and
+// the relations that reach them from other components.
+type GetComponentTypesResponse struct {
+	state         protoimpl.MessageState  `protogen:"open.v1"`
+	Revision      string                  `protobuf:"bytes,1,opt,name=revision,proto3" json:"revision,omitempty"`
+	ComponentId   string                  `protobuf:"bytes,2,opt,name=component_id,json=componentId,proto3" json:"component_id,omitempty"`
+	Types         []*TypeDeclaration      `protobuf:"bytes,3,rep,name=types,proto3" json:"types,omitempty"`
+	Incoming      []*IncomingTypeRelation `protobuf:"bytes,4,rep,name=incoming,proto3" json:"incoming,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetComponentTypesResponse) Reset() {
+	*x = GetComponentTypesResponse{}
+	mi := &file_v1_graph_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetComponentTypesResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetComponentTypesResponse) ProtoMessage() {}
+
+func (x *GetComponentTypesResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_v1_graph_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetComponentTypesResponse.ProtoReflect.Descriptor instead.
+func (*GetComponentTypesResponse) Descriptor() ([]byte, []int) {
+	return file_v1_graph_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *GetComponentTypesResponse) GetRevision() string {
+	if x != nil {
+		return x.Revision
+	}
+	return ""
+}
+
+func (x *GetComponentTypesResponse) GetComponentId() string {
+	if x != nil {
+		return x.ComponentId
+	}
+	return ""
+}
+
+func (x *GetComponentTypesResponse) GetTypes() []*TypeDeclaration {
+	if x != nil {
+		return x.Types
+	}
+	return nil
+}
+
+func (x *GetComponentTypesResponse) GetIncoming() []*IncomingTypeRelation {
+	if x != nil {
+		return x.Incoming
+	}
+	return nil
+}
+
+// IncomingTypeRelation records one relation from a type another component
+// declares toward one type of the requested component. Go satisfies
+// interfaces implicitly, so this inverse view names the implementers and the
+// users the declaring component cannot know.
+type IncomingTypeRelation struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Relation kind: implements, embeds, or references.
+	Kind            string `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
+	SourceId        string `protobuf:"bytes,2,opt,name=source_id,json=sourceId,proto3" json:"source_id,omitempty"`
+	SourceComponent string `protobuf:"bytes,3,opt,name=source_component,json=sourceComponent,proto3" json:"source_component,omitempty"`
+	TargetId        string `protobuf:"bytes,4,opt,name=target_id,json=targetId,proto3" json:"target_id,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *IncomingTypeRelation) Reset() {
+	*x = IncomingTypeRelation{}
+	mi := &file_v1_graph_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *IncomingTypeRelation) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*IncomingTypeRelation) ProtoMessage() {}
+
+func (x *IncomingTypeRelation) ProtoReflect() protoreflect.Message {
+	mi := &file_v1_graph_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use IncomingTypeRelation.ProtoReflect.Descriptor instead.
+func (*IncomingTypeRelation) Descriptor() ([]byte, []int) {
+	return file_v1_graph_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *IncomingTypeRelation) GetKind() string {
+	if x != nil {
+		return x.Kind
+	}
+	return ""
+}
+
+func (x *IncomingTypeRelation) GetSourceId() string {
+	if x != nil {
+		return x.SourceId
+	}
+	return ""
+}
+
+func (x *IncomingTypeRelation) GetSourceComponent() string {
+	if x != nil {
+		return x.SourceComponent
+	}
+	return ""
+}
+
+func (x *IncomingTypeRelation) GetTargetId() string {
+	if x != nil {
+		return x.TargetId
+	}
+	return ""
+}
+
 // Graph contains one complete repository analysis.
 type Graph struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
@@ -318,7 +506,7 @@ type Graph struct {
 
 func (x *Graph) Reset() {
 	*x = Graph{}
-	mi := &file_v1_graph_proto_msgTypes[4]
+	mi := &file_v1_graph_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -330,7 +518,7 @@ func (x *Graph) String() string {
 func (*Graph) ProtoMessage() {}
 
 func (x *Graph) ProtoReflect() protoreflect.Message {
-	mi := &file_v1_graph_proto_msgTypes[4]
+	mi := &file_v1_graph_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -343,7 +531,7 @@ func (x *Graph) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Graph.ProtoReflect.Descriptor instead.
 func (*Graph) Descriptor() ([]byte, []int) {
-	return file_v1_graph_proto_rawDescGZIP(), []int{4}
+	return file_v1_graph_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *Graph) GetSchemaVersion() uint32 {
@@ -455,7 +643,7 @@ type AnalysisScope struct {
 
 func (x *AnalysisScope) Reset() {
 	*x = AnalysisScope{}
-	mi := &file_v1_graph_proto_msgTypes[5]
+	mi := &file_v1_graph_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -467,7 +655,7 @@ func (x *AnalysisScope) String() string {
 func (*AnalysisScope) ProtoMessage() {}
 
 func (x *AnalysisScope) ProtoReflect() protoreflect.Message {
-	mi := &file_v1_graph_proto_msgTypes[5]
+	mi := &file_v1_graph_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -480,7 +668,7 @@ func (x *AnalysisScope) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AnalysisScope.ProtoReflect.Descriptor instead.
 func (*AnalysisScope) Descriptor() ([]byte, []int) {
-	return file_v1_graph_proto_rawDescGZIP(), []int{5}
+	return file_v1_graph_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *AnalysisScope) GetPaths() []string {
@@ -519,7 +707,7 @@ type ComponentRules struct {
 
 func (x *ComponentRules) Reset() {
 	*x = ComponentRules{}
-	mi := &file_v1_graph_proto_msgTypes[6]
+	mi := &file_v1_graph_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -531,7 +719,7 @@ func (x *ComponentRules) String() string {
 func (*ComponentRules) ProtoMessage() {}
 
 func (x *ComponentRules) ProtoReflect() protoreflect.Message {
-	mi := &file_v1_graph_proto_msgTypes[6]
+	mi := &file_v1_graph_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -544,7 +732,7 @@ func (x *ComponentRules) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ComponentRules.ProtoReflect.Descriptor instead.
 func (*ComponentRules) Descriptor() ([]byte, []int) {
-	return file_v1_graph_proto_rawDescGZIP(), []int{6}
+	return file_v1_graph_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *ComponentRules) GetApplications() []string {
@@ -607,7 +795,7 @@ type ComponentCategoryRule struct {
 
 func (x *ComponentCategoryRule) Reset() {
 	*x = ComponentCategoryRule{}
-	mi := &file_v1_graph_proto_msgTypes[7]
+	mi := &file_v1_graph_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -619,7 +807,7 @@ func (x *ComponentCategoryRule) String() string {
 func (*ComponentCategoryRule) ProtoMessage() {}
 
 func (x *ComponentCategoryRule) ProtoReflect() protoreflect.Message {
-	mi := &file_v1_graph_proto_msgTypes[7]
+	mi := &file_v1_graph_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -632,7 +820,7 @@ func (x *ComponentCategoryRule) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ComponentCategoryRule.ProtoReflect.Descriptor instead.
 func (*ComponentCategoryRule) Descriptor() ([]byte, []int) {
-	return file_v1_graph_proto_rawDescGZIP(), []int{7}
+	return file_v1_graph_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *ComponentCategoryRule) GetId() string {
@@ -674,7 +862,7 @@ type AnalysisPolicy struct {
 
 func (x *AnalysisPolicy) Reset() {
 	*x = AnalysisPolicy{}
-	mi := &file_v1_graph_proto_msgTypes[8]
+	mi := &file_v1_graph_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -686,7 +874,7 @@ func (x *AnalysisPolicy) String() string {
 func (*AnalysisPolicy) ProtoMessage() {}
 
 func (x *AnalysisPolicy) ProtoReflect() protoreflect.Message {
-	mi := &file_v1_graph_proto_msgTypes[8]
+	mi := &file_v1_graph_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -699,7 +887,7 @@ func (x *AnalysisPolicy) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AnalysisPolicy.ProtoReflect.Descriptor instead.
 func (*AnalysisPolicy) Descriptor() ([]byte, []int) {
-	return file_v1_graph_proto_rawDescGZIP(), []int{8}
+	return file_v1_graph_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *AnalysisPolicy) GetInstabilityFormula() string {
@@ -783,7 +971,7 @@ type StableLowAbstractionPolicy struct {
 
 func (x *StableLowAbstractionPolicy) Reset() {
 	*x = StableLowAbstractionPolicy{}
-	mi := &file_v1_graph_proto_msgTypes[9]
+	mi := &file_v1_graph_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -795,7 +983,7 @@ func (x *StableLowAbstractionPolicy) String() string {
 func (*StableLowAbstractionPolicy) ProtoMessage() {}
 
 func (x *StableLowAbstractionPolicy) ProtoReflect() protoreflect.Message {
-	mi := &file_v1_graph_proto_msgTypes[9]
+	mi := &file_v1_graph_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -808,7 +996,7 @@ func (x *StableLowAbstractionPolicy) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StableLowAbstractionPolicy.ProtoReflect.Descriptor instead.
 func (*StableLowAbstractionPolicy) Descriptor() ([]byte, []int) {
-	return file_v1_graph_proto_rawDescGZIP(), []int{9}
+	return file_v1_graph_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *StableLowAbstractionPolicy) GetMinimumAfferentCoupling() uint32 {
@@ -842,7 +1030,7 @@ type StableDependencyPrinciplePolicy struct {
 
 func (x *StableDependencyPrinciplePolicy) Reset() {
 	*x = StableDependencyPrinciplePolicy{}
-	mi := &file_v1_graph_proto_msgTypes[10]
+	mi := &file_v1_graph_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -854,7 +1042,7 @@ func (x *StableDependencyPrinciplePolicy) String() string {
 func (*StableDependencyPrinciplePolicy) ProtoMessage() {}
 
 func (x *StableDependencyPrinciplePolicy) ProtoReflect() protoreflect.Message {
-	mi := &file_v1_graph_proto_msgTypes[10]
+	mi := &file_v1_graph_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -867,7 +1055,7 @@ func (x *StableDependencyPrinciplePolicy) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StableDependencyPrinciplePolicy.ProtoReflect.Descriptor instead.
 func (*StableDependencyPrinciplePolicy) Descriptor() ([]byte, []int) {
-	return file_v1_graph_proto_rawDescGZIP(), []int{10}
+	return file_v1_graph_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *StableDependencyPrinciplePolicy) GetRequiredRelation() string {
@@ -917,7 +1105,7 @@ type GraphSummary struct {
 
 func (x *GraphSummary) Reset() {
 	*x = GraphSummary{}
-	mi := &file_v1_graph_proto_msgTypes[11]
+	mi := &file_v1_graph_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -929,7 +1117,7 @@ func (x *GraphSummary) String() string {
 func (*GraphSummary) ProtoMessage() {}
 
 func (x *GraphSummary) ProtoReflect() protoreflect.Message {
-	mi := &file_v1_graph_proto_msgTypes[11]
+	mi := &file_v1_graph_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -942,7 +1130,7 @@ func (x *GraphSummary) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GraphSummary.ProtoReflect.Descriptor instead.
 func (*GraphSummary) Descriptor() ([]byte, []int) {
-	return file_v1_graph_proto_rawDescGZIP(), []int{11}
+	return file_v1_graph_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *GraphSummary) GetComponents() uint32 {
@@ -1165,7 +1353,7 @@ type Component struct {
 
 func (x *Component) Reset() {
 	*x = Component{}
-	mi := &file_v1_graph_proto_msgTypes[12]
+	mi := &file_v1_graph_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1177,7 +1365,7 @@ func (x *Component) String() string {
 func (*Component) ProtoMessage() {}
 
 func (x *Component) ProtoReflect() protoreflect.Message {
-	mi := &file_v1_graph_proto_msgTypes[12]
+	mi := &file_v1_graph_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1190,7 +1378,7 @@ func (x *Component) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Component.ProtoReflect.Descriptor instead.
 func (*Component) Descriptor() ([]byte, []int) {
-	return file_v1_graph_proto_rawDescGZIP(), []int{12}
+	return file_v1_graph_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *Component) GetId() string {
@@ -1474,7 +1662,7 @@ type Relationship struct {
 
 func (x *Relationship) Reset() {
 	*x = Relationship{}
-	mi := &file_v1_graph_proto_msgTypes[13]
+	mi := &file_v1_graph_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1486,7 +1674,7 @@ func (x *Relationship) String() string {
 func (*Relationship) ProtoMessage() {}
 
 func (x *Relationship) ProtoReflect() protoreflect.Message {
-	mi := &file_v1_graph_proto_msgTypes[13]
+	mi := &file_v1_graph_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1499,7 +1687,7 @@ func (x *Relationship) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Relationship.ProtoReflect.Descriptor instead.
 func (*Relationship) Descriptor() ([]byte, []int) {
-	return file_v1_graph_proto_rawDescGZIP(), []int{13}
+	return file_v1_graph_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *Relationship) GetSource() string {
@@ -1614,7 +1802,7 @@ type ImportSite struct {
 
 func (x *ImportSite) Reset() {
 	*x = ImportSite{}
-	mi := &file_v1_graph_proto_msgTypes[14]
+	mi := &file_v1_graph_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1626,7 +1814,7 @@ func (x *ImportSite) String() string {
 func (*ImportSite) ProtoMessage() {}
 
 func (x *ImportSite) ProtoReflect() protoreflect.Message {
-	mi := &file_v1_graph_proto_msgTypes[14]
+	mi := &file_v1_graph_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1639,7 +1827,7 @@ func (x *ImportSite) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ImportSite.ProtoReflect.Descriptor instead.
 func (*ImportSite) Descriptor() ([]byte, []int) {
-	return file_v1_graph_proto_rawDescGZIP(), []int{14}
+	return file_v1_graph_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *ImportSite) GetSourcePackage() string {
@@ -1720,7 +1908,7 @@ type Function struct {
 
 func (x *Function) Reset() {
 	*x = Function{}
-	mi := &file_v1_graph_proto_msgTypes[15]
+	mi := &file_v1_graph_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1732,7 +1920,7 @@ func (x *Function) String() string {
 func (*Function) ProtoMessage() {}
 
 func (x *Function) ProtoReflect() protoreflect.Message {
-	mi := &file_v1_graph_proto_msgTypes[15]
+	mi := &file_v1_graph_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1745,7 +1933,7 @@ func (x *Function) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Function.ProtoReflect.Descriptor instead.
 func (*Function) Descriptor() ([]byte, []int) {
-	return file_v1_graph_proto_rawDescGZIP(), []int{15}
+	return file_v1_graph_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *Function) GetId() string {
@@ -1960,7 +2148,7 @@ type FunctionCall struct {
 
 func (x *FunctionCall) Reset() {
 	*x = FunctionCall{}
-	mi := &file_v1_graph_proto_msgTypes[16]
+	mi := &file_v1_graph_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1972,7 +2160,7 @@ func (x *FunctionCall) String() string {
 func (*FunctionCall) ProtoMessage() {}
 
 func (x *FunctionCall) ProtoReflect() protoreflect.Message {
-	mi := &file_v1_graph_proto_msgTypes[16]
+	mi := &file_v1_graph_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1985,7 +2173,7 @@ func (x *FunctionCall) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FunctionCall.ProtoReflect.Descriptor instead.
 func (*FunctionCall) Descriptor() ([]byte, []int) {
-	return file_v1_graph_proto_rawDescGZIP(), []int{16}
+	return file_v1_graph_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *FunctionCall) GetSource() string {
@@ -2055,7 +2243,7 @@ type CallSite struct {
 
 func (x *CallSite) Reset() {
 	*x = CallSite{}
-	mi := &file_v1_graph_proto_msgTypes[17]
+	mi := &file_v1_graph_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2067,7 +2255,7 @@ func (x *CallSite) String() string {
 func (*CallSite) ProtoMessage() {}
 
 func (x *CallSite) ProtoReflect() protoreflect.Message {
-	mi := &file_v1_graph_proto_msgTypes[17]
+	mi := &file_v1_graph_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2080,7 +2268,7 @@ func (x *CallSite) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CallSite.ProtoReflect.Descriptor instead.
 func (*CallSite) Descriptor() ([]byte, []int) {
-	return file_v1_graph_proto_rawDescGZIP(), []int{17}
+	return file_v1_graph_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *CallSite) GetPath() string {
@@ -2113,7 +2301,7 @@ type Cycle struct {
 
 func (x *Cycle) Reset() {
 	*x = Cycle{}
-	mi := &file_v1_graph_proto_msgTypes[18]
+	mi := &file_v1_graph_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2125,7 +2313,7 @@ func (x *Cycle) String() string {
 func (*Cycle) ProtoMessage() {}
 
 func (x *Cycle) ProtoReflect() protoreflect.Message {
-	mi := &file_v1_graph_proto_msgTypes[18]
+	mi := &file_v1_graph_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2138,7 +2326,7 @@ func (x *Cycle) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Cycle.ProtoReflect.Descriptor instead.
 func (*Cycle) Descriptor() ([]byte, []int) {
-	return file_v1_graph_proto_rawDescGZIP(), []int{18}
+	return file_v1_graph_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *Cycle) GetMembers() []string {
@@ -2158,7 +2346,7 @@ type Diagnostic struct {
 
 func (x *Diagnostic) Reset() {
 	*x = Diagnostic{}
-	mi := &file_v1_graph_proto_msgTypes[19]
+	mi := &file_v1_graph_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2170,7 +2358,7 @@ func (x *Diagnostic) String() string {
 func (*Diagnostic) ProtoMessage() {}
 
 func (x *Diagnostic) ProtoReflect() protoreflect.Message {
-	mi := &file_v1_graph_proto_msgTypes[19]
+	mi := &file_v1_graph_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2183,7 +2371,7 @@ func (x *Diagnostic) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Diagnostic.ProtoReflect.Descriptor instead.
 func (*Diagnostic) Descriptor() ([]byte, []int) {
-	return file_v1_graph_proto_rawDescGZIP(), []int{19}
+	return file_v1_graph_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *Diagnostic) GetPath() string {
@@ -2196,6 +2384,354 @@ func (x *Diagnostic) GetPath() string {
 func (x *Diagnostic) GetMessage() string {
 	if x != nil {
 		return x.Message
+	}
+	return ""
+}
+
+// TypeDeclaration describes one named Go type declared in one component.
+type TypeDeclaration struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	Package       string                 `protobuf:"bytes,3,opt,name=package,proto3" json:"package,omitempty"`
+	Component     string                 `protobuf:"bytes,4,opt,name=component,proto3" json:"component,omitempty"`
+	Path          string                 `protobuf:"bytes,5,opt,name=path,proto3" json:"path,omitempty"`
+	Line          uint32                 `protobuf:"varint,6,opt,name=line,proto3" json:"line,omitempty"`
+	Kind          string                 `protobuf:"bytes,7,opt,name=kind,proto3" json:"kind,omitempty"`
+	Exported      bool                   `protobuf:"varint,8,opt,name=exported,proto3" json:"exported,omitempty"`
+	Test          bool                   `protobuf:"varint,9,opt,name=test,proto3" json:"test,omitempty"`
+	Underlying    string                 `protobuf:"bytes,10,opt,name=underlying,proto3" json:"underlying,omitempty"`
+	Fields        []*TypeField           `protobuf:"bytes,11,rep,name=fields,proto3" json:"fields,omitempty"`
+	Methods       []*TypeMethod          `protobuf:"bytes,12,rep,name=methods,proto3" json:"methods,omitempty"`
+	Embeds        []*TypeReference       `protobuf:"bytes,13,rep,name=embeds,proto3" json:"embeds,omitempty"`
+	Implements    []*TypeReference       `protobuf:"bytes,14,rep,name=implements,proto3" json:"implements,omitempty"`
+	References    []*TypeReference       `protobuf:"bytes,15,rep,name=references,proto3" json:"references,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TypeDeclaration) Reset() {
+	*x = TypeDeclaration{}
+	mi := &file_v1_graph_proto_msgTypes[23]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TypeDeclaration) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TypeDeclaration) ProtoMessage() {}
+
+func (x *TypeDeclaration) ProtoReflect() protoreflect.Message {
+	mi := &file_v1_graph_proto_msgTypes[23]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TypeDeclaration.ProtoReflect.Descriptor instead.
+func (*TypeDeclaration) Descriptor() ([]byte, []int) {
+	return file_v1_graph_proto_rawDescGZIP(), []int{23}
+}
+
+func (x *TypeDeclaration) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *TypeDeclaration) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *TypeDeclaration) GetPackage() string {
+	if x != nil {
+		return x.Package
+	}
+	return ""
+}
+
+func (x *TypeDeclaration) GetComponent() string {
+	if x != nil {
+		return x.Component
+	}
+	return ""
+}
+
+func (x *TypeDeclaration) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+func (x *TypeDeclaration) GetLine() uint32 {
+	if x != nil {
+		return x.Line
+	}
+	return 0
+}
+
+func (x *TypeDeclaration) GetKind() string {
+	if x != nil {
+		return x.Kind
+	}
+	return ""
+}
+
+func (x *TypeDeclaration) GetExported() bool {
+	if x != nil {
+		return x.Exported
+	}
+	return false
+}
+
+func (x *TypeDeclaration) GetTest() bool {
+	if x != nil {
+		return x.Test
+	}
+	return false
+}
+
+func (x *TypeDeclaration) GetUnderlying() string {
+	if x != nil {
+		return x.Underlying
+	}
+	return ""
+}
+
+func (x *TypeDeclaration) GetFields() []*TypeField {
+	if x != nil {
+		return x.Fields
+	}
+	return nil
+}
+
+func (x *TypeDeclaration) GetMethods() []*TypeMethod {
+	if x != nil {
+		return x.Methods
+	}
+	return nil
+}
+
+func (x *TypeDeclaration) GetEmbeds() []*TypeReference {
+	if x != nil {
+		return x.Embeds
+	}
+	return nil
+}
+
+func (x *TypeDeclaration) GetImplements() []*TypeReference {
+	if x != nil {
+		return x.Implements
+	}
+	return nil
+}
+
+func (x *TypeDeclaration) GetReferences() []*TypeReference {
+	if x != nil {
+		return x.References
+	}
+	return nil
+}
+
+// TypeField describes one field of a struct type.
+type TypeField struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Type          string                 `protobuf:"bytes,2,opt,name=type,proto3" json:"type,omitempty"`
+	Embedded      bool                   `protobuf:"varint,3,opt,name=embedded,proto3" json:"embedded,omitempty"`
+	Exported      bool                   `protobuf:"varint,4,opt,name=exported,proto3" json:"exported,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TypeField) Reset() {
+	*x = TypeField{}
+	mi := &file_v1_graph_proto_msgTypes[24]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TypeField) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TypeField) ProtoMessage() {}
+
+func (x *TypeField) ProtoReflect() protoreflect.Message {
+	mi := &file_v1_graph_proto_msgTypes[24]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TypeField.ProtoReflect.Descriptor instead.
+func (*TypeField) Descriptor() ([]byte, []int) {
+	return file_v1_graph_proto_rawDescGZIP(), []int{24}
+}
+
+func (x *TypeField) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *TypeField) GetType() string {
+	if x != nil {
+		return x.Type
+	}
+	return ""
+}
+
+func (x *TypeField) GetEmbedded() bool {
+	if x != nil {
+		return x.Embedded
+	}
+	return false
+}
+
+func (x *TypeField) GetExported() bool {
+	if x != nil {
+		return x.Exported
+	}
+	return false
+}
+
+// TypeMethod describes one declared method of a type.
+type TypeMethod struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	Name            string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Signature       string                 `protobuf:"bytes,2,opt,name=signature,proto3" json:"signature,omitempty"`
+	Exported        bool                   `protobuf:"varint,3,opt,name=exported,proto3" json:"exported,omitempty"`
+	PointerReceiver bool                   `protobuf:"varint,4,opt,name=pointer_receiver,json=pointerReceiver,proto3" json:"pointer_receiver,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *TypeMethod) Reset() {
+	*x = TypeMethod{}
+	mi := &file_v1_graph_proto_msgTypes[25]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TypeMethod) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TypeMethod) ProtoMessage() {}
+
+func (x *TypeMethod) ProtoReflect() protoreflect.Message {
+	mi := &file_v1_graph_proto_msgTypes[25]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TypeMethod.ProtoReflect.Descriptor instead.
+func (*TypeMethod) Descriptor() ([]byte, []int) {
+	return file_v1_graph_proto_rawDescGZIP(), []int{25}
+}
+
+func (x *TypeMethod) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *TypeMethod) GetSignature() string {
+	if x != nil {
+		return x.Signature
+	}
+	return ""
+}
+
+func (x *TypeMethod) GetExported() bool {
+	if x != nil {
+		return x.Exported
+	}
+	return false
+}
+
+func (x *TypeMethod) GetPointerReceiver() bool {
+	if x != nil {
+		return x.PointerReceiver
+	}
+	return false
+}
+
+// TypeReference identifies one related type and the component that declares it.
+type TypeReference struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Component     string                 `protobuf:"bytes,2,opt,name=component,proto3" json:"component,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TypeReference) Reset() {
+	*x = TypeReference{}
+	mi := &file_v1_graph_proto_msgTypes[26]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TypeReference) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TypeReference) ProtoMessage() {}
+
+func (x *TypeReference) ProtoReflect() protoreflect.Message {
+	mi := &file_v1_graph_proto_msgTypes[26]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TypeReference.ProtoReflect.Descriptor instead.
+func (*TypeReference) Descriptor() ([]byte, []int) {
+	return file_v1_graph_proto_rawDescGZIP(), []int{26}
+}
+
+func (x *TypeReference) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *TypeReference) GetComponent() string {
+	if x != nil {
+		return x.Component
 	}
 	return ""
 }
@@ -2216,7 +2752,7 @@ type Finding struct {
 
 func (x *Finding) Reset() {
 	*x = Finding{}
-	mi := &file_v1_graph_proto_msgTypes[20]
+	mi := &file_v1_graph_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2228,7 +2764,7 @@ func (x *Finding) String() string {
 func (*Finding) ProtoMessage() {}
 
 func (x *Finding) ProtoReflect() protoreflect.Message {
-	mi := &file_v1_graph_proto_msgTypes[20]
+	mi := &file_v1_graph_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2241,7 +2777,7 @@ func (x *Finding) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Finding.ProtoReflect.Descriptor instead.
 func (*Finding) Descriptor() ([]byte, []int) {
-	return file_v1_graph_proto_rawDescGZIP(), []int{20}
+	return file_v1_graph_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *Finding) GetRule() string {
@@ -2317,7 +2853,19 @@ const file_v1_graph_proto_rawDesc = "" +
 	"\rfrom_revision\x18\x01 \x01(\tB\x18\xbaH\x15r\x132\x11^$|^[a-f0-9]{64}$R\ffromRevision\"b\n" +
 	"\x12WatchGraphResponse\x120\n" +
 	"\x04type\x18\x01 \x01(\x0e2\x1c.goconduct.v1.GraphEventTypeR\x04type\x12\x1a\n" +
-	"\brevision\x18\x02 \x01(\tR\brevision\"\xd8\x05\n" +
+	"\brevision\x18\x02 \x01(\tR\brevision\"T\n" +
+	"\x18GetComponentTypesRequest\x128\n" +
+	"\fcomponent_id\x18\x01 \x01(\tB\x15\xbaH\x12r\x102\x0e^[^\\s]{1,300}$R\vcomponentId\"\xcf\x01\n" +
+	"\x19GetComponentTypesResponse\x12\x1a\n" +
+	"\brevision\x18\x01 \x01(\tR\brevision\x12!\n" +
+	"\fcomponent_id\x18\x02 \x01(\tR\vcomponentId\x123\n" +
+	"\x05types\x18\x03 \x03(\v2\x1d.goconduct.v1.TypeDeclarationR\x05types\x12>\n" +
+	"\bincoming\x18\x04 \x03(\v2\".goconduct.v1.IncomingTypeRelationR\bincoming\"\x8f\x01\n" +
+	"\x14IncomingTypeRelation\x12\x12\n" +
+	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x1b\n" +
+	"\tsource_id\x18\x02 \x01(\tR\bsourceId\x12)\n" +
+	"\x10source_component\x18\x03 \x01(\tR\x0fsourceComponent\x12\x1b\n" +
+	"\ttarget_id\x18\x04 \x01(\tR\btargetId\"\xd8\x05\n" +
 	"\x05Graph\x12%\n" +
 	"\x0eschema_version\x18\x01 \x01(\rR\rschemaVersion\x12\x1a\n" +
 	"\brevision\x18\x02 \x01(\tR\brevision\x12\x1f\n" +
@@ -2521,7 +3069,44 @@ const file_v1_graph_proto_rawDesc = "" +
 	"\n" +
 	"Diagnostic\x12\x12\n" +
 	"\x04path\x18\x01 \x01(\tR\x04path\x12\x18\n" +
-	"\amessage\x18\x02 \x01(\tR\amessage\"\xb7\x02\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\"\x8d\x04\n" +
+	"\x0fTypeDeclaration\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12\x18\n" +
+	"\apackage\x18\x03 \x01(\tR\apackage\x12\x1c\n" +
+	"\tcomponent\x18\x04 \x01(\tR\tcomponent\x12\x12\n" +
+	"\x04path\x18\x05 \x01(\tR\x04path\x12\x12\n" +
+	"\x04line\x18\x06 \x01(\rR\x04line\x12\x12\n" +
+	"\x04kind\x18\a \x01(\tR\x04kind\x12\x1a\n" +
+	"\bexported\x18\b \x01(\bR\bexported\x12\x12\n" +
+	"\x04test\x18\t \x01(\bR\x04test\x12\x1e\n" +
+	"\n" +
+	"underlying\x18\n" +
+	" \x01(\tR\n" +
+	"underlying\x12/\n" +
+	"\x06fields\x18\v \x03(\v2\x17.goconduct.v1.TypeFieldR\x06fields\x122\n" +
+	"\amethods\x18\f \x03(\v2\x18.goconduct.v1.TypeMethodR\amethods\x123\n" +
+	"\x06embeds\x18\r \x03(\v2\x1b.goconduct.v1.TypeReferenceR\x06embeds\x12;\n" +
+	"\n" +
+	"implements\x18\x0e \x03(\v2\x1b.goconduct.v1.TypeReferenceR\n" +
+	"implements\x12;\n" +
+	"\n" +
+	"references\x18\x0f \x03(\v2\x1b.goconduct.v1.TypeReferenceR\n" +
+	"references\"k\n" +
+	"\tTypeField\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12\x12\n" +
+	"\x04type\x18\x02 \x01(\tR\x04type\x12\x1a\n" +
+	"\bembedded\x18\x03 \x01(\bR\bembedded\x12\x1a\n" +
+	"\bexported\x18\x04 \x01(\bR\bexported\"\x85\x01\n" +
+	"\n" +
+	"TypeMethod\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12\x1c\n" +
+	"\tsignature\x18\x02 \x01(\tR\tsignature\x12\x1a\n" +
+	"\bexported\x18\x03 \x01(\bR\bexported\x12)\n" +
+	"\x10pointer_receiver\x18\x04 \x01(\bR\x0fpointerReceiver\"=\n" +
+	"\rTypeReference\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1c\n" +
+	"\tcomponent\x18\x02 \x01(\tR\tcomponent\"\xb7\x02\n" +
 	"\aFinding\x12\x12\n" +
 	"\x04rule\x18\x01 \x01(\tR\x04rule\x12\x1a\n" +
 	"\bseverity\x18\x02 \x01(\tR\bseverity\x12\x18\n" +
@@ -2540,11 +3125,12 @@ const file_v1_graph_proto_rawDesc = "" +
 	"\x1cGRAPH_EVENT_TYPE_UNSPECIFIED\x10\x00\x12\x1a\n" +
 	"\x16GRAPH_EVENT_TYPE_READY\x10\x01\x12\x1c\n" +
 	"\x18GRAPH_EVENT_TYPE_CHANGED\x10\x02\x12\x1e\n" +
-	"\x1aGRAPH_EVENT_TYPE_HEARTBEAT\x10\x032\xac\x01\n" +
+	"\x1aGRAPH_EVENT_TYPE_HEARTBEAT\x10\x032\x92\x02\n" +
 	"\fGraphService\x12I\n" +
 	"\bGetGraph\x12\x1d.goconduct.v1.GetGraphRequest\x1a\x1e.goconduct.v1.GetGraphResponse\x12Q\n" +
 	"\n" +
-	"WatchGraph\x12\x1f.goconduct.v1.WatchGraphRequest\x1a .goconduct.v1.WatchGraphResponse0\x01B?Z=github.com/cgardev/goconduct/internal/protogen/v1;goconductv1b\x06proto3"
+	"WatchGraph\x12\x1f.goconduct.v1.WatchGraphRequest\x1a .goconduct.v1.WatchGraphResponse0\x01\x12d\n" +
+	"\x11GetComponentTypes\x12&.goconduct.v1.GetComponentTypesRequest\x1a'.goconduct.v1.GetComponentTypesResponseB?Z=github.com/cgardev/goconduct/internal/protogen/v1;goconductv1b\x06proto3"
 
 var (
 	file_v1_graph_proto_rawDescOnce sync.Once
@@ -2559,64 +3145,80 @@ func file_v1_graph_proto_rawDescGZIP() []byte {
 }
 
 var file_v1_graph_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_v1_graph_proto_msgTypes = make([]protoimpl.MessageInfo, 23)
+var file_v1_graph_proto_msgTypes = make([]protoimpl.MessageInfo, 30)
 var file_v1_graph_proto_goTypes = []any{
 	(GraphEventType)(0),                     // 0: goconduct.v1.GraphEventType
 	(*GetGraphRequest)(nil),                 // 1: goconduct.v1.GetGraphRequest
 	(*GetGraphResponse)(nil),                // 2: goconduct.v1.GetGraphResponse
 	(*WatchGraphRequest)(nil),               // 3: goconduct.v1.WatchGraphRequest
 	(*WatchGraphResponse)(nil),              // 4: goconduct.v1.WatchGraphResponse
-	(*Graph)(nil),                           // 5: goconduct.v1.Graph
-	(*AnalysisScope)(nil),                   // 6: goconduct.v1.AnalysisScope
-	(*ComponentRules)(nil),                  // 7: goconduct.v1.ComponentRules
-	(*ComponentCategoryRule)(nil),           // 8: goconduct.v1.ComponentCategoryRule
-	(*AnalysisPolicy)(nil),                  // 9: goconduct.v1.AnalysisPolicy
-	(*StableLowAbstractionPolicy)(nil),      // 10: goconduct.v1.StableLowAbstractionPolicy
-	(*StableDependencyPrinciplePolicy)(nil), // 11: goconduct.v1.StableDependencyPrinciplePolicy
-	(*GraphSummary)(nil),                    // 12: goconduct.v1.GraphSummary
-	(*Component)(nil),                       // 13: goconduct.v1.Component
-	(*Relationship)(nil),                    // 14: goconduct.v1.Relationship
-	(*ImportSite)(nil),                      // 15: goconduct.v1.ImportSite
-	(*Function)(nil),                        // 16: goconduct.v1.Function
-	(*FunctionCall)(nil),                    // 17: goconduct.v1.FunctionCall
-	(*CallSite)(nil),                        // 18: goconduct.v1.CallSite
-	(*Cycle)(nil),                           // 19: goconduct.v1.Cycle
-	(*Diagnostic)(nil),                      // 20: goconduct.v1.Diagnostic
-	(*Finding)(nil),                         // 21: goconduct.v1.Finding
-	nil,                                     // 22: goconduct.v1.GraphSummary.CategoriesEntry
-	nil,                                     // 23: goconduct.v1.Finding.MetricsEntry
+	(*GetComponentTypesRequest)(nil),        // 5: goconduct.v1.GetComponentTypesRequest
+	(*GetComponentTypesResponse)(nil),       // 6: goconduct.v1.GetComponentTypesResponse
+	(*IncomingTypeRelation)(nil),            // 7: goconduct.v1.IncomingTypeRelation
+	(*Graph)(nil),                           // 8: goconduct.v1.Graph
+	(*AnalysisScope)(nil),                   // 9: goconduct.v1.AnalysisScope
+	(*ComponentRules)(nil),                  // 10: goconduct.v1.ComponentRules
+	(*ComponentCategoryRule)(nil),           // 11: goconduct.v1.ComponentCategoryRule
+	(*AnalysisPolicy)(nil),                  // 12: goconduct.v1.AnalysisPolicy
+	(*StableLowAbstractionPolicy)(nil),      // 13: goconduct.v1.StableLowAbstractionPolicy
+	(*StableDependencyPrinciplePolicy)(nil), // 14: goconduct.v1.StableDependencyPrinciplePolicy
+	(*GraphSummary)(nil),                    // 15: goconduct.v1.GraphSummary
+	(*Component)(nil),                       // 16: goconduct.v1.Component
+	(*Relationship)(nil),                    // 17: goconduct.v1.Relationship
+	(*ImportSite)(nil),                      // 18: goconduct.v1.ImportSite
+	(*Function)(nil),                        // 19: goconduct.v1.Function
+	(*FunctionCall)(nil),                    // 20: goconduct.v1.FunctionCall
+	(*CallSite)(nil),                        // 21: goconduct.v1.CallSite
+	(*Cycle)(nil),                           // 22: goconduct.v1.Cycle
+	(*Diagnostic)(nil),                      // 23: goconduct.v1.Diagnostic
+	(*TypeDeclaration)(nil),                 // 24: goconduct.v1.TypeDeclaration
+	(*TypeField)(nil),                       // 25: goconduct.v1.TypeField
+	(*TypeMethod)(nil),                      // 26: goconduct.v1.TypeMethod
+	(*TypeReference)(nil),                   // 27: goconduct.v1.TypeReference
+	(*Finding)(nil),                         // 28: goconduct.v1.Finding
+	nil,                                     // 29: goconduct.v1.GraphSummary.CategoriesEntry
+	nil,                                     // 30: goconduct.v1.Finding.MetricsEntry
 }
 var file_v1_graph_proto_depIdxs = []int32{
-	5,  // 0: goconduct.v1.GetGraphResponse.graph:type_name -> goconduct.v1.Graph
+	8,  // 0: goconduct.v1.GetGraphResponse.graph:type_name -> goconduct.v1.Graph
 	0,  // 1: goconduct.v1.WatchGraphResponse.type:type_name -> goconduct.v1.GraphEventType
-	6,  // 2: goconduct.v1.Graph.scope:type_name -> goconduct.v1.AnalysisScope
-	9,  // 3: goconduct.v1.Graph.policy:type_name -> goconduct.v1.AnalysisPolicy
-	12, // 4: goconduct.v1.Graph.summary:type_name -> goconduct.v1.GraphSummary
-	13, // 5: goconduct.v1.Graph.components:type_name -> goconduct.v1.Component
-	14, // 6: goconduct.v1.Graph.relationships:type_name -> goconduct.v1.Relationship
-	16, // 7: goconduct.v1.Graph.functions:type_name -> goconduct.v1.Function
-	17, // 8: goconduct.v1.Graph.function_calls:type_name -> goconduct.v1.FunctionCall
-	19, // 9: goconduct.v1.Graph.function_cycles:type_name -> goconduct.v1.Cycle
-	19, // 10: goconduct.v1.Graph.cycles:type_name -> goconduct.v1.Cycle
-	20, // 11: goconduct.v1.Graph.diagnostics:type_name -> goconduct.v1.Diagnostic
-	21, // 12: goconduct.v1.Graph.findings:type_name -> goconduct.v1.Finding
-	7,  // 13: goconduct.v1.AnalysisScope.components:type_name -> goconduct.v1.ComponentRules
-	8,  // 14: goconduct.v1.ComponentRules.taxonomy:type_name -> goconduct.v1.ComponentCategoryRule
-	10, // 15: goconduct.v1.AnalysisPolicy.stable_low_abstraction:type_name -> goconduct.v1.StableLowAbstractionPolicy
-	11, // 16: goconduct.v1.AnalysisPolicy.stable_dependency_principle:type_name -> goconduct.v1.StableDependencyPrinciplePolicy
-	22, // 17: goconduct.v1.GraphSummary.categories:type_name -> goconduct.v1.GraphSummary.CategoriesEntry
-	15, // 18: goconduct.v1.Relationship.import_sites:type_name -> goconduct.v1.ImportSite
-	18, // 19: goconduct.v1.FunctionCall.call_sites:type_name -> goconduct.v1.CallSite
-	23, // 20: goconduct.v1.Finding.metrics:type_name -> goconduct.v1.Finding.MetricsEntry
-	1,  // 21: goconduct.v1.GraphService.GetGraph:input_type -> goconduct.v1.GetGraphRequest
-	3,  // 22: goconduct.v1.GraphService.WatchGraph:input_type -> goconduct.v1.WatchGraphRequest
-	2,  // 23: goconduct.v1.GraphService.GetGraph:output_type -> goconduct.v1.GetGraphResponse
-	4,  // 24: goconduct.v1.GraphService.WatchGraph:output_type -> goconduct.v1.WatchGraphResponse
-	23, // [23:25] is the sub-list for method output_type
-	21, // [21:23] is the sub-list for method input_type
-	21, // [21:21] is the sub-list for extension type_name
-	21, // [21:21] is the sub-list for extension extendee
-	0,  // [0:21] is the sub-list for field type_name
+	24, // 2: goconduct.v1.GetComponentTypesResponse.types:type_name -> goconduct.v1.TypeDeclaration
+	7,  // 3: goconduct.v1.GetComponentTypesResponse.incoming:type_name -> goconduct.v1.IncomingTypeRelation
+	9,  // 4: goconduct.v1.Graph.scope:type_name -> goconduct.v1.AnalysisScope
+	12, // 5: goconduct.v1.Graph.policy:type_name -> goconduct.v1.AnalysisPolicy
+	15, // 6: goconduct.v1.Graph.summary:type_name -> goconduct.v1.GraphSummary
+	16, // 7: goconduct.v1.Graph.components:type_name -> goconduct.v1.Component
+	17, // 8: goconduct.v1.Graph.relationships:type_name -> goconduct.v1.Relationship
+	19, // 9: goconduct.v1.Graph.functions:type_name -> goconduct.v1.Function
+	20, // 10: goconduct.v1.Graph.function_calls:type_name -> goconduct.v1.FunctionCall
+	22, // 11: goconduct.v1.Graph.function_cycles:type_name -> goconduct.v1.Cycle
+	22, // 12: goconduct.v1.Graph.cycles:type_name -> goconduct.v1.Cycle
+	23, // 13: goconduct.v1.Graph.diagnostics:type_name -> goconduct.v1.Diagnostic
+	28, // 14: goconduct.v1.Graph.findings:type_name -> goconduct.v1.Finding
+	10, // 15: goconduct.v1.AnalysisScope.components:type_name -> goconduct.v1.ComponentRules
+	11, // 16: goconduct.v1.ComponentRules.taxonomy:type_name -> goconduct.v1.ComponentCategoryRule
+	13, // 17: goconduct.v1.AnalysisPolicy.stable_low_abstraction:type_name -> goconduct.v1.StableLowAbstractionPolicy
+	14, // 18: goconduct.v1.AnalysisPolicy.stable_dependency_principle:type_name -> goconduct.v1.StableDependencyPrinciplePolicy
+	29, // 19: goconduct.v1.GraphSummary.categories:type_name -> goconduct.v1.GraphSummary.CategoriesEntry
+	18, // 20: goconduct.v1.Relationship.import_sites:type_name -> goconduct.v1.ImportSite
+	21, // 21: goconduct.v1.FunctionCall.call_sites:type_name -> goconduct.v1.CallSite
+	25, // 22: goconduct.v1.TypeDeclaration.fields:type_name -> goconduct.v1.TypeField
+	26, // 23: goconduct.v1.TypeDeclaration.methods:type_name -> goconduct.v1.TypeMethod
+	27, // 24: goconduct.v1.TypeDeclaration.embeds:type_name -> goconduct.v1.TypeReference
+	27, // 25: goconduct.v1.TypeDeclaration.implements:type_name -> goconduct.v1.TypeReference
+	27, // 26: goconduct.v1.TypeDeclaration.references:type_name -> goconduct.v1.TypeReference
+	30, // 27: goconduct.v1.Finding.metrics:type_name -> goconduct.v1.Finding.MetricsEntry
+	1,  // 28: goconduct.v1.GraphService.GetGraph:input_type -> goconduct.v1.GetGraphRequest
+	3,  // 29: goconduct.v1.GraphService.WatchGraph:input_type -> goconduct.v1.WatchGraphRequest
+	5,  // 30: goconduct.v1.GraphService.GetComponentTypes:input_type -> goconduct.v1.GetComponentTypesRequest
+	2,  // 31: goconduct.v1.GraphService.GetGraph:output_type -> goconduct.v1.GetGraphResponse
+	4,  // 32: goconduct.v1.GraphService.WatchGraph:output_type -> goconduct.v1.WatchGraphResponse
+	6,  // 33: goconduct.v1.GraphService.GetComponentTypes:output_type -> goconduct.v1.GetComponentTypesResponse
+	31, // [31:34] is the sub-list for method output_type
+	28, // [28:31] is the sub-list for method input_type
+	28, // [28:28] is the sub-list for extension type_name
+	28, // [28:28] is the sub-list for extension extendee
+	0,  // [0:28] is the sub-list for field type_name
 }
 
 func init() { file_v1_graph_proto_init() }
@@ -2630,7 +3232,7 @@ func file_v1_graph_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_v1_graph_proto_rawDesc), len(file_v1_graph_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   23,
+			NumMessages:   30,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -18,8 +18,8 @@ import (
 	"os"
 	"slices"
 
-	"github.com/cgardev/goconduct/failure"
 	"github.com/cgardev/goconduct/internal/library/gocomplexity"
+	"github.com/cgardev/goconduct/pkg/failure"
 )
 
 // Category names the kind of change one mutation makes.

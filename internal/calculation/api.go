@@ -1,12 +1,15 @@
 package calculation
 
-import "github.com/cgardev/goconduct/internal/architecture"
+import (
+	"github.com/cgardev/goconduct/internal/architecture"
+	"github.com/cgardev/goconduct/pkg/report"
+)
 
 // ComponentDescriptor identifies one classified source component.
 type ComponentDescriptor struct {
 	Identifier  string
 	Name        string
-	Role        architecture.Role
+	Role        report.ComponentRole
 	Category    string
 	Application string
 }

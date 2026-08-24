@@ -6,7 +6,7 @@ import (
 )
 
 func TestGraph_MarshalJSONContract(t *testing.T) {
-	t.Run("Scenario: The report uses schema version 8 and the current metric field names", func(t *testing.T) {
+	t.Run("Scenario: The report uses schema version 9 and the current metric field names", func(t *testing.T) {
 		var graph Graph
 		var payload []byte
 		var marshalError error
@@ -34,18 +34,18 @@ func TestGraph_MarshalJSONContract(t *testing.T) {
 			payload, marshalError = json.Marshal(graph)
 		})
 
-		if !t.Run("Then the JSON report uses schema version 8", func(t *testing.T) {
+		if !t.Run("Then the JSON report uses schema version 9", func(t *testing.T) {
 			if marshalError != nil {
 				t.Fatalf("encode report: %v", marshalError)
 			}
-			if SchemaVersion != 8 {
-				t.Fatalf("schema version is %d, want 8", SchemaVersion)
+			if SchemaVersion != 9 {
+				t.Fatalf("schema version is %d, want 9", SchemaVersion)
 			}
 			if err := json.Unmarshal(payload, &document); err != nil {
 				t.Fatalf("decode report: %v", err)
 			}
-			if document["schemaVersion"] != float64(8) {
-				t.Fatalf("encoded schema version is %v, want 8", document["schemaVersion"])
+			if document["schemaVersion"] != float64(9) {
+				t.Fatalf("encoded schema version is %v, want 9", document["schemaVersion"])
 			}
 
 			relationships, ok := document["relationships"].([]any)

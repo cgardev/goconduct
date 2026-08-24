@@ -3,7 +3,7 @@ package appmodule
 import (
 	"github.com/samber/do/v2"
 
-	"github.com/cgardev/goconduct/plugin"
+	"github.com/cgardev/goconduct/pkg/plugin"
 )
 
 // Host aliases the public plugin host for application composition roots.

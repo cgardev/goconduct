@@ -6,7 +6,7 @@ import (
 
 	"github.com/samber/do/v2"
 
-	"github.com/cgardev/goconduct/plugin"
+	"github.com/cgardev/goconduct/pkg/plugin"
 )
 
 // Module contains services shared by every goconduct plugin.

@@ -9,7 +9,7 @@ import (
 
 	"golang.org/x/tools/cover"
 
-	"github.com/cgardev/goconduct/failure"
+	"github.com/cgardev/goconduct/pkg/failure"
 )
 
 // Profile reports which statements of a repository the test run reached.

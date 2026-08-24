@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/cgardev/goconduct/failure"
+	"github.com/cgardev/goconduct/pkg/failure"
 )
 
 func writeSource(t *testing.T, source string) string {

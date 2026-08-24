@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/cgardev/goconduct/failure"
+	"github.com/cgardev/goconduct/pkg/failure"
 )
 
 var (

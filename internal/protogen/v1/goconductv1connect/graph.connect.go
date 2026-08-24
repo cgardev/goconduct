@@ -37,6 +37,9 @@ const (
 	GraphServiceGetGraphProcedure = "/goconduct.v1.GraphService/GetGraph"
 	// GraphServiceWatchGraphProcedure is the fully-qualified name of the GraphService's WatchGraph RPC.
 	GraphServiceWatchGraphProcedure = "/goconduct.v1.GraphService/WatchGraph"
+	// GraphServiceGetComponentTypesProcedure is the fully-qualified name of the GraphService's
+	// GetComponentTypes RPC.
+	GraphServiceGetComponentTypesProcedure = "/goconduct.v1.GraphService/GetComponentTypes"
 )
 
 // GraphServiceClient is a client for the goconduct.v1.GraphService service.
@@ -45,6 +48,8 @@ type GraphServiceClient interface {
 	GetGraph(context.Context, *connect.Request[v1.GetGraphRequest]) (*connect.Response[v1.GetGraphResponse], error)
 	// WatchGraph reports graph revisions while the dashboard remains open.
 	WatchGraph(context.Context, *connect.Request[v1.WatchGraphRequest]) (*connect.ServerStreamForClient[v1.WatchGraphResponse], error)
+	// GetComponentTypes returns the declared Go types of one component.
+	GetComponentTypes(context.Context, *connect.Request[v1.GetComponentTypesRequest]) (*connect.Response[v1.GetComponentTypesResponse], error)
 }
 
 // NewGraphServiceClient constructs a client for the goconduct.v1.GraphService service. By default,
@@ -70,13 +75,20 @@ func NewGraphServiceClient(httpClient connect.HTTPClient, baseURL string, opts .
 			connect.WithSchema(graphServiceMethods.ByName("WatchGraph")),
 			connect.WithClientOptions(opts...),
 		),
+		getComponentTypes: connect.NewClient[v1.GetComponentTypesRequest, v1.GetComponentTypesResponse](
+			httpClient,
+			baseURL+GraphServiceGetComponentTypesProcedure,
+			connect.WithSchema(graphServiceMethods.ByName("GetComponentTypes")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // graphServiceClient implements GraphServiceClient.
 type graphServiceClient struct {
-	getGraph   *connect.Client[v1.GetGraphRequest, v1.GetGraphResponse]
-	watchGraph *connect.Client[v1.WatchGraphRequest, v1.WatchGraphResponse]
+	getGraph          *connect.Client[v1.GetGraphRequest, v1.GetGraphResponse]
+	watchGraph        *connect.Client[v1.WatchGraphRequest, v1.WatchGraphResponse]
+	getComponentTypes *connect.Client[v1.GetComponentTypesRequest, v1.GetComponentTypesResponse]
 }
 
 // GetGraph calls goconduct.v1.GraphService.GetGraph.
@@ -89,12 +101,19 @@ func (c *graphServiceClient) WatchGraph(ctx context.Context, req *connect.Reques
 	return c.watchGraph.CallServerStream(ctx, req)
 }
 
+// GetComponentTypes calls goconduct.v1.GraphService.GetComponentTypes.
+func (c *graphServiceClient) GetComponentTypes(ctx context.Context, req *connect.Request[v1.GetComponentTypesRequest]) (*connect.Response[v1.GetComponentTypesResponse], error) {
+	return c.getComponentTypes.CallUnary(ctx, req)
+}
+
 // GraphServiceHandler is an implementation of the goconduct.v1.GraphService service.
 type GraphServiceHandler interface {
 	// GetGraph returns the complete active dependency graph.
 	GetGraph(context.Context, *connect.Request[v1.GetGraphRequest]) (*connect.Response[v1.GetGraphResponse], error)
 	// WatchGraph reports graph revisions while the dashboard remains open.
 	WatchGraph(context.Context, *connect.Request[v1.WatchGraphRequest], *connect.ServerStream[v1.WatchGraphResponse]) error
+	// GetComponentTypes returns the declared Go types of one component.
+	GetComponentTypes(context.Context, *connect.Request[v1.GetComponentTypesRequest]) (*connect.Response[v1.GetComponentTypesResponse], error)
 }
 
 // NewGraphServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -116,12 +135,20 @@ func NewGraphServiceHandler(svc GraphServiceHandler, opts ...connect.HandlerOpti
 		connect.WithSchema(graphServiceMethods.ByName("WatchGraph")),
 		connect.WithHandlerOptions(opts...),
 	)
+	graphServiceGetComponentTypesHandler := connect.NewUnaryHandler(
+		GraphServiceGetComponentTypesProcedure,
+		svc.GetComponentTypes,
+		connect.WithSchema(graphServiceMethods.ByName("GetComponentTypes")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/goconduct.v1.GraphService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case GraphServiceGetGraphProcedure:
 			graphServiceGetGraphHandler.ServeHTTP(w, r)
 		case GraphServiceWatchGraphProcedure:
 			graphServiceWatchGraphHandler.ServeHTTP(w, r)
+		case GraphServiceGetComponentTypesProcedure:
+			graphServiceGetComponentTypesHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -137,4 +164,8 @@ func (UnimplementedGraphServiceHandler) GetGraph(context.Context, *connect.Reque
 
 func (UnimplementedGraphServiceHandler) WatchGraph(context.Context, *connect.Request[v1.WatchGraphRequest], *connect.ServerStream[v1.WatchGraphResponse]) error {
 	return connect.NewError(connect.CodeUnimplemented, errors.New("goconduct.v1.GraphService.WatchGraph is not implemented"))
+}
+
+func (UnimplementedGraphServiceHandler) GetComponentTypes(context.Context, *connect.Request[v1.GetComponentTypesRequest]) (*connect.Response[v1.GetComponentTypesResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("goconduct.v1.GraphService.GetComponentTypes is not implemented"))
 }

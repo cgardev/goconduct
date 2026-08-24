@@ -14,7 +14,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/cgardev/goconduct/failure"
+	"github.com/cgardev/goconduct/pkg/failure"
 )
 
 // alphaSource and betaSource come from the published description of the method.

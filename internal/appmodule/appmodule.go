@@ -8,7 +8,7 @@ import (
 
 	"github.com/samber/do/v2"
 
-	"github.com/cgardev/goconduct/plugin"
+	"github.com/cgardev/goconduct/pkg/plugin"
 )
 
 // ScopeResolver selects the dependency graph for one request.

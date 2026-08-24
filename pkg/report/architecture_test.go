@@ -11,7 +11,7 @@ import (
 )
 
 func TestReportModel_KeepPackagePure(t *testing.T) {
-	t.Run("Scenario: The report model has only a pure domain dependency", func(t *testing.T) {
+	t.Run("Scenario: The report model has no dependency", func(t *testing.T) {
 		var imports []string
 		var parseError error
 
@@ -64,12 +64,9 @@ func TestReportModel_KeepPackagePure(t *testing.T) {
 			return
 		}
 
-		t.Run("And the report model imports only the pure architecture model", func(t *testing.T) {
-			permitted := []string{
-				"github.com/cgardev/goconduct/internal/architecture",
-			}
-			if !slices.Equal(imports, permitted) {
-				t.Errorf("model.go imports %v, want only %v", imports, permitted)
+		t.Run("And the public report model imports no package", func(t *testing.T) {
+			if len(imports) != 0 {
+				t.Errorf("model.go imports %v, want no import", imports)
 			}
 		})
 	})

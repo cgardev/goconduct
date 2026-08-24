@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/cgardev/goconduct/failure"
+	"github.com/cgardev/goconduct/pkg/failure"
 )
 
 // CacheMode selects the source for a dependency graph.

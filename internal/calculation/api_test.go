@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/cgardev/goconduct/internal/architecture"
+	"github.com/cgardev/goconduct/pkg/report"
 )
 
 func TestAPI_CollectAndBuildComponentGraph(t *testing.T) {
@@ -23,19 +24,19 @@ func TestAPI_CollectAndBuildComponentGraph(t *testing.T) {
 			application = ComponentDescriptor{
 				Identifier:  "cmd/control",
 				Name:        "control",
-				Role:        architecture.RoleApplication,
+				Role:        report.ComponentRoleApplication,
 				Category:    "application",
 				Application: "control",
 			}
 			library = ComponentDescriptor{
 				Identifier: "internal/library/data",
 				Name:       "data",
-				Role:       architecture.RoleLibrary,
+				Role:       report.ComponentRoleLibrary,
 			}
 			development = ComponentDescriptor{
 				Identifier: "internal/devtool/generator",
 				Name:       "generator",
-				Role:       architecture.RoleDevelopment,
+				Role:       report.ComponentRoleDevelopment,
 				Category:   "development-tool",
 			}
 
@@ -141,7 +142,7 @@ func TestAPI_CollectAndBuildComponentGraph(t *testing.T) {
 				t.Errorf("component source counters are incorrect: %+v", control)
 			}
 			data := apiTestComponentByIdentifier(t, graph, library.Identifier)
-			if data.Category != string(architecture.RoleLibrary) || data.ConcreteTypes != 2 {
+			if data.Category != string(report.ComponentRoleLibrary) || data.ConcreteTypes != 2 {
 				t.Errorf("library fallback category or type count is incorrect: %+v", data)
 			}
 		})
@@ -210,8 +211,8 @@ func TestAPI_ExposeRulesAndGraphAlgorithms(t *testing.T) {
 
 		t.Run("When the public rule helpers evaluate the graph", func(*testing.T) {
 			violations = RelationshipRuleViolations(
-				ComponentDescriptor{Role: architecture.RoleApplication},
-				ComponentDescriptor{Role: architecture.RoleDevelopment},
+				ComponentDescriptor{Role: report.ComponentRoleApplication},
+				ComponentDescriptor{Role: report.ComponentRoleDevelopment},
 				false,
 			)
 			AnnotateStableDependencyPrincipleViolations(graph.Relationships, graph.Components)
@@ -255,8 +256,8 @@ func TestAPI_ExposeRulesAndGraphAlgorithms(t *testing.T) {
 				t.Errorf("default findings are %+v", findings)
 			}
 			if testViolations := RelationshipRuleViolations(
-				ComponentDescriptor{Role: architecture.RoleApplication},
-				ComponentDescriptor{Role: architecture.RoleDevelopment},
+				ComponentDescriptor{Role: report.ComponentRoleApplication},
+				ComponentDescriptor{Role: report.ComponentRoleDevelopment},
 				true,
 			); len(testViolations) != 0 {
 				t.Errorf("test-only violations are %v", testViolations)

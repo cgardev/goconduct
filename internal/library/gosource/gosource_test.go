@@ -7,7 +7,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/cgardev/goconduct/failure"
+	"github.com/cgardev/goconduct/pkg/failure"
 )
 
 func newRepository(t *testing.T) string {
@@ -47,6 +47,55 @@ func TestFilesListEveryProductionSource(t *testing.T) {
 	want := []string{"internal/order/order.go", "root.go"}
 	if !slices.Equal(files, want) {
 		t.Errorf("the walk lists %v, want %v", files, want)
+	}
+}
+
+func TestAllFilesIncludesTestsAndPolicyOwnedDirectories(t *testing.T) {
+	root := newRepository(t)
+
+	files, err := AllFiles(root, nil)
+	if err != nil {
+		t.Fatalf("list every Go source file: %v", err)
+	}
+
+	want := []string{
+		".hidden/hidden.go",
+		"internal/order/order.go",
+		"internal/order/order_test.go",
+		"root.go",
+		"root_test.go",
+		"target/generated/generated.go",
+		"testdata/fixture/fixture.go",
+		"vendor/other/other.go",
+	}
+	if !slices.Equal(files, want) {
+		t.Errorf("the complete walk lists %v, want %v", files, want)
+	}
+}
+
+func TestAllFilesDeduplicatesOverlappingScopes(t *testing.T) {
+	root := newRepository(t)
+
+	files, err := AllFiles(root, []string{"internal", "internal/order", "root_test.go"})
+	if err != nil {
+		t.Fatalf("list selected Go source files: %v", err)
+	}
+
+	want := []string{
+		"internal/order/order.go",
+		"internal/order/order_test.go",
+		"root_test.go",
+	}
+	if !slices.Equal(files, want) {
+		t.Errorf("the selected walk lists %v, want %v", files, want)
+	}
+}
+
+func TestAllFilesRejectsASelectedNonGoFile(t *testing.T) {
+	_, err := AllFiles(newRepository(t), []string{"internal/order/notes.md"})
+
+	if !errors.Is(err, failure.ErrValidation) {
+		t.Errorf("the walk error is %v, want a validation failure", err)
 	}
 }
 

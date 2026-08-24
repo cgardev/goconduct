@@ -1,0 +1,6 @@
+package sample
+
+// Main executes the sample logic.
+func Main() {
+	println("sample")
+}

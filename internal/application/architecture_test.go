@@ -19,7 +19,7 @@ func TestLayerArchitecture_KeepApplicationTransportIndependent(t *testing.T) {
 			allowedImports: []string{
 				"context",
 				"fmt",
-				"github.com/cgardev/goconduct/failure",
+				"github.com/cgardev/goconduct/pkg/failure",
 			},
 		},
 	}

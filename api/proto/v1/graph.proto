@@ -13,6 +13,9 @@ service GraphService {
 
   // WatchGraph reports graph revisions while the dashboard remains open.
   rpc WatchGraph(WatchGraphRequest) returns (stream WatchGraphResponse);
+
+  // GetComponentTypes returns the declared Go types of one component.
+  rpc GetComponentTypes(GetComponentTypesRequest) returns (GetComponentTypesResponse);
 }
 
 // GetGraphRequest controls cache validation and an optional immediate refresh.
@@ -46,6 +49,32 @@ enum GraphEventType {
 message WatchGraphResponse {
   GraphEventType type = 1;
   string revision = 2;
+}
+
+// GetComponentTypesRequest identifies one analyzed component.
+message GetComponentTypesRequest {
+  string component_id = 1 [(buf.validate.field).string.pattern = "^[^\\s]{1,300}$"];
+}
+
+// GetComponentTypesResponse carries the declared types of one component and
+// the relations that reach them from other components.
+message GetComponentTypesResponse {
+  string revision = 1;
+  string component_id = 2;
+  repeated TypeDeclaration types = 3;
+  repeated IncomingTypeRelation incoming = 4;
+}
+
+// IncomingTypeRelation records one relation from a type another component
+// declares toward one type of the requested component. Go satisfies
+// interfaces implicitly, so this inverse view names the implementers and the
+// users the declaring component cannot know.
+message IncomingTypeRelation {
+  // Relation kind: implements, embeds, or references.
+  string kind = 1;
+  string source_id = 2;
+  string source_component = 3;
+  string target_id = 4;
 }
 
 // Graph contains one complete repository analysis.
@@ -261,6 +290,47 @@ message Cycle {
 message Diagnostic {
   string path = 1;
   string message = 2;
+}
+
+// TypeDeclaration describes one named Go type declared in one component.
+message TypeDeclaration {
+  string id = 1;
+  string name = 2;
+  string package = 3;
+  string component = 4;
+  string path = 5;
+  uint32 line = 6;
+  string kind = 7;
+  bool exported = 8;
+  bool test = 9;
+  string underlying = 10;
+  repeated TypeField fields = 11;
+  repeated TypeMethod methods = 12;
+  repeated TypeReference embeds = 13;
+  repeated TypeReference implements = 14;
+  repeated TypeReference references = 15;
+}
+
+// TypeField describes one field of a struct type.
+message TypeField {
+  string name = 1;
+  string type = 2;
+  bool embedded = 3;
+  bool exported = 4;
+}
+
+// TypeMethod describes one declared method of a type.
+message TypeMethod {
+  string name = 1;
+  string signature = 2;
+  bool exported = 3;
+  bool pointer_receiver = 4;
+}
+
+// TypeReference identifies one related type and the component that declares it.
+message TypeReference {
+  string id = 1;
+  string component = 2;
 }
 
 message Finding {

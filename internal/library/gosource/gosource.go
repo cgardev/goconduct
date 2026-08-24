@@ -12,7 +12,7 @@ import (
 
 	"golang.org/x/mod/modfile"
 
-	"github.com/cgardev/goconduct/failure"
+	"github.com/cgardev/goconduct/pkg/failure"
 )
 
 // ignoredDirectories hold generated output, dependencies, or version control
@@ -53,6 +53,52 @@ func Files(root string, selected []string) ([]string, error) {
 	}
 	slices.Sort(files)
 	return files, nil
+}
+
+// AllFiles lists every Go source file under the selected repository paths.
+// It includes test and generated files. It does not follow symbolic links or
+// apply implicit directory exclusions, because the caller owns that policy.
+func AllFiles(root string, selected []string) ([]string, error) {
+	scopes, err := Scopes(root, selected)
+	if err != nil {
+		return nil, err
+	}
+	if len(scopes) == 0 {
+		scopes = []string{"."}
+	}
+	files := make([]string, 0)
+	for _, scope := range scopes {
+		absolute := filepath.Join(root, filepath.FromSlash(scope))
+		information, err := os.Stat(absolute)
+		if err != nil {
+			return nil, failure.Unavailable(fmt.Sprintf("inspect Go source scope %q", scope), err)
+		}
+		if !information.IsDir() && !strings.HasSuffix(scope, ".go") {
+			return nil, failure.Validation(fmt.Sprintf(
+				"analysis path %q is not a directory or Go source file",
+				scope,
+			), nil)
+		}
+		walkError := filepath.WalkDir(absolute, func(current string, entry fs.DirEntry, walkError error) error {
+			if walkError != nil {
+				return walkError
+			}
+			if entry.Type()&fs.ModeSymlink != 0 || entry.IsDir() || !strings.HasSuffix(entry.Name(), ".go") {
+				return nil
+			}
+			relative, err := filepath.Rel(root, current)
+			if err != nil {
+				return err
+			}
+			files = append(files, filepath.ToSlash(relative))
+			return nil
+		})
+		if walkError != nil {
+			return nil, failure.Unavailable(fmt.Sprintf("discover Go source files under %q", scope), walkError)
+		}
+	}
+	slices.Sort(files)
+	return slices.Compact(files), nil
 }
 
 // Scopes normalizes each selected path against the repository root.

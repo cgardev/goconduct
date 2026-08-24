@@ -3,11 +3,10 @@ package query
 import (
 	"cmp"
 	"fmt"
-	"slices"
 	"strings"
 
-	"github.com/cgardev/goconduct/failure"
-	"github.com/cgardev/goconduct/internal/report"
+	"github.com/cgardev/goconduct/pkg/failure"
+	"github.com/cgardev/goconduct/pkg/report"
 )
 
 // FunctionSort selects the metric that orders functions.
@@ -154,21 +153,14 @@ func ParseFunctionSort(value string) (FunctionSort, error) {
 
 // Functions returns functions that match the supplied parameters.
 func Functions(graph report.Graph, query FunctionsParams) FunctionsResult {
-	functions := make([]report.Function, 0)
-	for _, function := range graph.Functions {
-		if !functionMatchesQuery(function, query) {
-			continue
-		}
-		functions = append(functions, function)
-	}
-	slices.SortFunc(functions, functionComparison(query.Sort, query.IncludeTests))
-	matched := len(functions)
-	functions = applyLimit(functions, query.Limit)
+	selection := Select(graph.Functions, func(function report.Function) bool {
+		return functionMatchesQuery(function, query)
+	}, functionComparison(query.Sort, query.IncludeTests), query.Limit)
 	return FunctionsResult{
 		Analysis:  analysisHeader(graph),
-		Matched:   matched,
-		Returned:  len(functions),
-		Functions: functions,
+		Matched:   selection.Matched,
+		Returned:  len(selection.Values),
+		Functions: selection.Values,
 	}
 }
 
@@ -283,24 +275,19 @@ func findFunction(functions []report.Function, identifier string) (report.Functi
 
 // FunctionCalls returns resolved calls that match the supplied parameters.
 func FunctionCalls(graph report.Graph, query FunctionCallsParams) FunctionCallsResult {
-	calls := make([]report.FunctionCall, 0)
-	for _, call := range graph.FunctionCalls {
-		if functionCallMatchesQuery(call, query) {
-			calls = append(calls, call)
-		}
-	}
-	matched := len(calls)
-	calls = applyLimit(calls, query.Limit)
+	selection := Select(graph.FunctionCalls, func(call report.FunctionCall) bool {
+		return functionCallMatchesQuery(call, query)
+	}, nil, query.Limit)
 	callSites := 0
-	for _, call := range calls {
+	for _, call := range selection.Values {
 		callSites += call.Calls
 	}
 	return FunctionCallsResult{
 		Analysis:  analysisHeader(graph),
-		Matched:   matched,
-		Returned:  len(calls),
+		Matched:   selection.Matched,
+		Returned:  len(selection.Values),
 		CallSites: callSites,
-		Calls:     calls,
+		Calls:     selection.Values,
 	}
 }
 
@@ -315,5 +302,5 @@ func functionCallMatchesQuery(call report.FunctionCall, query FunctionCallsParam
 }
 
 // mutate4go-manifest-begin
-// {"version":1,"tested_at":"2026-08-22T07:16:00Z","module_hash":"039235e89827e611661bd29c4934eff1ef8b4359e4cdd889994a231ade8e7ef3","functions":[{"id":"func/ParseFunctionSort","name":"ParseFunctionSort","line":143,"end_line":153,"hash":"5a0079cd3ef6c535c77b17509343981f507e82706ce53dbbd8c51146d103b361"},{"id":"func/Functions","name":"Functions","line":156,"end_line":173,"hash":"fd462794e25ba004fbfecd32fc2381ae09c7db7250236825dfeebd755b41c290"},{"id":"func/functionMatchesQuery","name":"functionMatchesQuery","line":175,"end_line":183,"hash":"22e62a56d83addb2eb9ccccd24d4a26b753bbca9a1d8af0cdde52553dc565811"},{"id":"func/functionComparison","name":"functionComparison","line":185,"end_line":197,"hash":"13d66804c722f5d225728f48748d91b9eee74891b2eb9d8e5eec13b38cd51c8c"},{"id":"func/functionSortDescriptorFor","name":"functionSortDescriptorFor","line":199,"end_line":206,"hash":"f63da7aa23895b1baa24f7aaa3e0349ba58e3ffecd178b6171f3cbbb78913e62"},{"id":"func/describeFunctionSorts","name":"describeFunctionSorts","line":208,"end_line":214,"hash":"32a9059db4cfa579c0ce184cb2d5d232a4d37eed5c726056266203ffbf76d20e"},{"id":"func/functionIncomingCallSites","name":"functionIncomingCallSites","line":216,"end_line":221,"hash":"e086225040ec47c33ea3d6a86e6784cf5445191fdff5ca067326a326ea71cec8"},{"id":"func/functionOutgoingCallSites","name":"functionOutgoingCallSites","line":223,"end_line":228,"hash":"6746f1eaee26b6b01c23c0d43cb9435facd2267445f6abfe0f0db54ac516e461"},{"id":"func/functionAfferentCoupling","name":"functionAfferentCoupling","line":230,"end_line":235,"hash":"62a25eae6b1363efde96619d99c57edf48c2b4578dd1215b6223db48d7f357f6"},{"id":"func/functionEfferentCoupling","name":"functionEfferentCoupling","line":237,"end_line":242,"hash":"adb37c4341117d020038b33f404881c7bc634a1986851c32050eba74fecc012b"},{"id":"func/GetFunction","name":"GetFunction","line":245,"end_line":273,"hash":"0b5578ece3cb51a96214ce280404808ce9df7a27f9a52e986f9a95d2e5be5eac"},{"id":"func/findFunction","name":"findFunction","line":275,"end_line":282,"hash":"52ddee9d8e90501c1c0206d07c50bed6236c9c17d845311b4a6bb01194015b4f"},{"id":"func/FunctionCalls","name":"FunctionCalls","line":285,"end_line":305,"hash":"84f21d40a031c92c034b8b38947eea4a5d9fdb312c6b421766710a3a2ea36b20"},{"id":"func/functionCallMatchesQuery","name":"functionCallMatchesQuery","line":307,"end_line":315,"hash":"f4918674e7845a62a3c442b9125daaf0fe86abd0162981b33b9ec469e1aea24e"}]}
+// {"version":1,"tested_at":"2026-08-23T21:34:41Z","module_hash":"88916104c1ddbe88dbe95e78aeb3d77086cd70f8b166496f4f873497aa9e0868","functions":[{"id":"func/ParseFunctionSort","name":"ParseFunctionSort","line":142,"end_line":152,"hash":"84c4d08395e487a658842f2fb64c5d7976ab53d61f89f9d7de9f4997830275cf"},{"id":"func/Functions","name":"Functions","line":155,"end_line":165,"hash":"db2ff5fb2e21c2b74a17ace6ab0e433bf7a869f053bb8e3a288d7ec5924da4d3"},{"id":"func/functionMatchesQuery","name":"functionMatchesQuery","line":167,"end_line":175,"hash":"22e62a56d83addb2eb9ccccd24d4a26b753bbca9a1d8af0cdde52553dc565811"},{"id":"func/functionComparison","name":"functionComparison","line":177,"end_line":189,"hash":"99cb354e13cf64bb4eedfcc16037c21782bcd895fd8eb5f6745778c4e7493ef7"},{"id":"func/functionSortDescriptorFor","name":"functionSortDescriptorFor","line":191,"end_line":198,"hash":"f63da7aa23895b1baa24f7aaa3e0349ba58e3ffecd178b6171f3cbbb78913e62"},{"id":"func/describeFunctionSorts","name":"describeFunctionSorts","line":200,"end_line":206,"hash":"32a9059db4cfa579c0ce184cb2d5d232a4d37eed5c726056266203ffbf76d20e"},{"id":"func/functionIncomingCallSites","name":"functionIncomingCallSites","line":208,"end_line":213,"hash":"e086225040ec47c33ea3d6a86e6784cf5445191fdff5ca067326a326ea71cec8"},{"id":"func/functionOutgoingCallSites","name":"functionOutgoingCallSites","line":215,"end_line":220,"hash":"6746f1eaee26b6b01c23c0d43cb9435facd2267445f6abfe0f0db54ac516e461"},{"id":"func/functionAfferentCoupling","name":"functionAfferentCoupling","line":222,"end_line":227,"hash":"62a25eae6b1363efde96619d99c57edf48c2b4578dd1215b6223db48d7f357f6"},{"id":"func/functionEfferentCoupling","name":"functionEfferentCoupling","line":229,"end_line":234,"hash":"adb37c4341117d020038b33f404881c7bc634a1986851c32050eba74fecc012b"},{"id":"func/GetFunction","name":"GetFunction","line":237,"end_line":265,"hash":"bd39b460474a9deeba15fd5fc97f5713dfa5c9b3bd8b5013c82dad0fa01bb31d"},{"id":"func/findFunction","name":"findFunction","line":267,"end_line":274,"hash":"52ddee9d8e90501c1c0206d07c50bed6236c9c17d845311b4a6bb01194015b4f"},{"id":"func/FunctionCalls","name":"FunctionCalls","line":277,"end_line":292,"hash":"9afcd562a4eadeb012ba581d12e1a77839ac9f43b105d74a59c9dc6040cd8762"},{"id":"func/functionCallMatchesQuery","name":"functionCallMatchesQuery","line":294,"end_line":302,"hash":"f4918674e7845a62a3c442b9125daaf0fe86abd0162981b33b9ec469e1aea24e"}]}
 // mutate4go-manifest-end

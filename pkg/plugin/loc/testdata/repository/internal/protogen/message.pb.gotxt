@@ -1,0 +1,3 @@
+package protogen
+
+func Generated() {}

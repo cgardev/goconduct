@@ -7,9 +7,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/cgardev/goconduct/failure"
-	"github.com/cgardev/goconduct/internal/architecture"
-	"github.com/cgardev/goconduct/internal/report"
+	"github.com/cgardev/goconduct/pkg/failure"
+	"github.com/cgardev/goconduct/pkg/report"
 )
 
 // FindingSeverity selects findings by severity.
@@ -175,6 +174,26 @@ type ComponentOverview struct {
 	InCycle                       bool                 `json:"inCycle"`
 }
 
+// ComponentTypesResult contains the declared types of one component and the
+// relations that reach them from other components.
+type ComponentTypesResult struct {
+	Analysis  AnalysisHeader           `json:"analysis"`
+	Component string                   `json:"component"`
+	Types     []report.TypeDeclaration `json:"types"`
+	Incoming  []IncomingTypeRelation   `json:"incoming"`
+}
+
+// IncomingTypeRelation records one relation from a type another component
+// declares toward one type of the selected component. Go satisfies interfaces
+// implicitly, so the declaring component cannot list its implementers itself;
+// this inverse view supplies them.
+type IncomingTypeRelation struct {
+	Kind            string `json:"kind"`
+	SourceID        string `json:"sourceId"`
+	SourceComponent string `json:"sourceComponent"`
+	TargetID        string `json:"targetId"`
+}
+
 // ComponentResult contains one component and its related graph resources.
 type ComponentResult struct {
 	Analysis               AnalysisHeader        `json:"analysis"`
@@ -221,26 +240,23 @@ func ParseFindingSeverity(value string) (FindingSeverity, error) {
 
 // Findings returns findings that match the supplied parameters.
 func Findings(graph report.Graph, query FindingsParams) FindingsResult {
-	findings := make([]report.Finding, 0)
-	for _, finding := range graph.Findings {
+	selection := Select(graph.Findings, func(finding report.Finding) bool {
 		if query.Severity != FindingSeverityAll && string(finding.Severity) != string(query.Severity) {
-			continue
+			return false
 		}
 		if query.Rule != "" && finding.Rule != query.Rule {
-			continue
+			return false
 		}
 		if query.Component != "" && !findingMatchesComponent(finding, query.Component) {
-			continue
+			return false
 		}
-		findings = append(findings, finding)
-	}
-	matched := len(findings)
-	findings = applyLimit(findings, query.Limit)
+		return true
+	}, nil, query.Limit)
 	return FindingsResult{
 		Analysis: analysisHeader(graph),
-		Matched:  matched,
-		Returned: len(findings),
-		Findings: findings,
+		Matched:  selection.Matched,
+		Returned: len(selection.Values),
+		Findings: selection.Values,
 	}
 }
 
@@ -253,7 +269,7 @@ func findingMatchesComponent(finding report.Finding, identifier string) bool {
 
 // ParseComponentRole validates one component role filter.
 func ParseComponentRole(value string) (string, error) {
-	if value == "all" || architecture.ValidRole(report.ComponentRole(value)) {
+	if value == "all" || report.ValidComponentRole(report.ComponentRole(value)) {
 		return value, nil
 	}
 	return "", failure.New(
@@ -282,26 +298,22 @@ func ParseComponentSort(value string) (ComponentSort, error) {
 
 // Components returns component summaries that match the supplied parameters.
 func Components(graph report.Graph, query ComponentsParams) ComponentsResult {
-	components := make([]report.Component, 0)
-	for _, component := range graph.Components {
+	selection := Select(graph.Components, func(component report.Component) bool {
 		if query.Role != "all" && string(component.Role) != query.Role {
-			continue
+			return false
 		}
 		if query.Category != "" && component.Category != query.Category {
-			continue
+			return false
 		}
-		components = append(components, component)
-	}
-	slices.SortFunc(components, componentComparison(query.Sort))
-	matched := len(components)
-	components = applyLimit(components, query.Limit)
-	overviews := make([]ComponentOverview, 0, len(components))
-	for _, component := range components {
+		return true
+	}, componentComparison(query.Sort), query.Limit)
+	overviews := make([]ComponentOverview, 0, len(selection.Values))
+	for _, component := range selection.Values {
 		overviews = append(overviews, newComponentOverview(component))
 	}
 	return ComponentsResult{
 		Analysis:   analysisHeader(graph),
-		Matched:    matched,
+		Matched:    selection.Matched,
 		Returned:   len(overviews),
 		Components: overviews,
 	}
@@ -413,13 +425,77 @@ func GetComponent(graph report.Graph, identifier string) (ComponentResult, error
 	}, nil
 }
 
-func applyLimit[Value any](values []Value, limit int) []Value {
-	if limit <= 0 {
-		return values
+// ComponentTypes returns the declared types of one component.
+// The types keep the deterministic identifier order of the graph.
+func ComponentTypes(graph report.Graph, identifier string) (ComponentTypesResult, error) {
+	if identifier == "" {
+		return ComponentTypesResult{}, failure.New(
+			failure.ErrValidation,
+			"component identifier must not be empty",
+			nil,
+		)
 	}
-	return values[:min(limit, len(values))]
+	found := slices.ContainsFunc(graph.Components, func(component report.Component) bool {
+		return component.Identifier == identifier
+	})
+	if !found {
+		return ComponentTypesResult{}, failure.NotFound(
+			"dependency graph component",
+			identifier,
+			nil,
+		)
+	}
+	declarations := make([]report.TypeDeclaration, 0)
+	for _, declaration := range graph.Types {
+		if declaration.Component == identifier {
+			declarations = append(declarations, declaration)
+		}
+	}
+	return ComponentTypesResult{
+		Analysis:  analysisHeader(graph),
+		Component: identifier,
+		Types:     declarations,
+		Incoming:  incomingTypeRelations(graph, identifier),
+	}, nil
+}
+
+// incomingTypeRelations collects every relation whose target the selected
+// component declares and whose source another component declares. The result
+// is sorted by target, kind, and source, so two runs over one graph agree.
+func incomingTypeRelations(graph report.Graph, identifier string) []IncomingTypeRelation {
+	incoming := make([]IncomingTypeRelation, 0)
+	for _, declaration := range graph.Types {
+		if declaration.Component == identifier {
+			continue
+		}
+		for kind, references := range map[string][]report.TypeReference{
+			"implements": declaration.Implements,
+			"embeds":     declaration.Embeds,
+			"references": declaration.References,
+		} {
+			for _, reference := range references {
+				if reference.Component != identifier {
+					continue
+				}
+				incoming = append(incoming, IncomingTypeRelation{
+					Kind:            kind,
+					SourceID:        declaration.Identifier,
+					SourceComponent: declaration.Component,
+					TargetID:        reference.Identifier,
+				})
+			}
+		}
+	}
+	slices.SortFunc(incoming, func(first, second IncomingTypeRelation) int {
+		return cmp.Or(
+			strings.Compare(first.TargetID, second.TargetID),
+			strings.Compare(first.Kind, second.Kind),
+			strings.Compare(first.SourceID, second.SourceID),
+		)
+	})
+	return incoming
 }
 
 // mutate4go-manifest-begin
-// {"version":1,"tested_at":"2026-08-22T07:15:59Z","module_hash":"1de9534d30b1e882b9669a0e18d25a538d4db6f160eccbcb4dc6b77f65113981","functions":[{"id":"func/analysisHeader","name":"analysisHeader","line":189,"end_line":195,"hash":"2bc962a44bad128b22ff7f0b775f8787264f1e74bb4e7b6b2d39a63df12f6970"},{"id":"func/Summary","name":"Summary","line":198,"end_line":205,"hash":"f0f783ba977624a9143c8c3b95c7c398a38074db75813a2b90c3ce66475ea526"},{"id":"func/ParseFindingSeverity","name":"ParseFindingSeverity","line":208,"end_line":220,"hash":"fd56dc87de374d44ebf2d673395b2593882860195b7e7a200bb2b52f8345bd4d"},{"id":"func/Findings","name":"Findings","line":223,"end_line":245,"hash":"91e5c36d66c095e0b221a231630db37df6315211ec7af989fa4e142ba7061e3c"},{"id":"func/findingMatchesComponent","name":"findingMatchesComponent","line":247,"end_line":252,"hash":"7f9eb7ad2e917babae1aa50acf24bb0e5b6f15db10f19be9d6b9119b3460de2a"},{"id":"func/ParseComponentRole","name":"ParseComponentRole","line":255,"end_line":268,"hash":"075e38d0fecc8905191b7198c6c3161ce27bb984a5b588c40bd7e3b21996f068"},{"id":"func/ParseComponentSort","name":"ParseComponentSort","line":271,"end_line":281,"hash":"329bbe45e3aea55ea79aee786d1163b837bbbc084955e2d48653400476cdadaf"},{"id":"func/Components","name":"Components","line":284,"end_line":308,"hash":"a6115500ed62db24af66da909e10fe3606388c23c68d019c9147cdd29567712c"},{"id":"func/newComponentOverview","name":"newComponentOverview","line":310,"end_line":329,"hash":"080825db79472832cf10ce479e75849fd5e2c7b2a4eabcbc1a9e146124e50d72"},{"id":"func/componentComparison","name":"componentComparison","line":331,"end_line":340,"hash":"c21eefb39a9f17b38be5bb93bf3f91beb247084634779bb78dc27d42af7561c5"},{"id":"func/componentSortDescriptorFor","name":"componentSortDescriptorFor","line":342,"end_line":349,"hash":"7993cfd4d946f96e840e79725b945aebb975ef988d5f66ff2183bc6510606f87"},{"id":"func/describeComponentSorts","name":"describeComponentSorts","line":351,"end_line":357,"hash":"c1a50dbf9f19f0da55e43666cd41adf3c0f19ff918f33b902a84f000f848fbb8"},{"id":"func/GetComponent","name":"GetComponent","line":360,"end_line":414,"hash":"05112c328a6cb1c8fa1c10fcf1e0519a99563a50ccc42dfb7de9aa997842f7b4"},{"id":"func/applyLimit","name":"applyLimit","line":416,"end_line":421,"hash":"f69f1b495bd0b7dda6d20a1b9b3ff20c1da38af6ede1a34cfee2369223b89f43"}]}
+// {"version":1,"tested_at":"2026-08-23T21:34:41Z","module_hash":"4f99b1e8146b46de2a7c83b75aba340dcbe48b000507b2313fb7c35ef13cdf45","functions":[{"id":"func/analysisHeader","name":"analysisHeader","line":188,"end_line":194,"hash":"2bc962a44bad128b22ff7f0b775f8787264f1e74bb4e7b6b2d39a63df12f6970"},{"id":"func/Summary","name":"Summary","line":197,"end_line":204,"hash":"f0f783ba977624a9143c8c3b95c7c398a38074db75813a2b90c3ce66475ea526"},{"id":"func/ParseFindingSeverity","name":"ParseFindingSeverity","line":207,"end_line":219,"hash":"a6767835522fb4b742820397869cdf4e28e3b37bcf42c1953c42707897cd10d7"},{"id":"func/Findings","name":"Findings","line":222,"end_line":241,"hash":"7f08ed5a766d3b3b1d5bb51ec2867085ce8be64efc5300fe1528796b271c9ed5"},{"id":"func/findingMatchesComponent","name":"findingMatchesComponent","line":243,"end_line":248,"hash":"7f9eb7ad2e917babae1aa50acf24bb0e5b6f15db10f19be9d6b9119b3460de2a"},{"id":"func/ParseComponentRole","name":"ParseComponentRole","line":251,"end_line":264,"hash":"9efb923ae56333394e9f37ca5e94da0ce523860429e8439859907d69fb73e167"},{"id":"func/ParseComponentSort","name":"ParseComponentSort","line":267,"end_line":277,"hash":"93834511e15b78e275ebcf0e7ce433ebd420c7ed1b0f587fc70ce7e4aa629664"},{"id":"func/Components","name":"Components","line":280,"end_line":300,"hash":"d794ab332bd01b6455e88c09b503e80779cf5474d545927a2526df1efecf0d80"},{"id":"func/newComponentOverview","name":"newComponentOverview","line":302,"end_line":321,"hash":"080825db79472832cf10ce479e75849fd5e2c7b2a4eabcbc1a9e146124e50d72"},{"id":"func/componentComparison","name":"componentComparison","line":323,"end_line":332,"hash":"040e9dd18a93affaf2c3de869946027dee4375ee176d314d2e48ea7b2e3b6884"},{"id":"func/componentSortDescriptorFor","name":"componentSortDescriptorFor","line":334,"end_line":341,"hash":"7993cfd4d946f96e840e79725b945aebb975ef988d5f66ff2183bc6510606f87"},{"id":"func/describeComponentSorts","name":"describeComponentSorts","line":343,"end_line":349,"hash":"c1a50dbf9f19f0da55e43666cd41adf3c0f19ff918f33b902a84f000f848fbb8"},{"id":"func/GetComponent","name":"GetComponent","line":352,"end_line":406,"hash":"b91eebff576cffe4a74889d38924ec5e02962ea93cb4a1374f5c54ebf22621da"}]}
 // mutate4go-manifest-end

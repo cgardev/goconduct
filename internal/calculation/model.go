@@ -1,21 +1,18 @@
 package calculation
 
-import (
-	"github.com/cgardev/goconduct/internal/architecture"
-	"github.com/cgardev/goconduct/internal/report"
-)
+import "github.com/cgardev/goconduct/pkg/report"
 
 const graphSchemaVersion = report.SchemaVersion
 
 type componentRole = report.ComponentRole
 
 const (
-	componentRoleApplication       = architecture.RoleApplication
-	componentRoleApplicationModule = architecture.RoleApplicationModule
-	componentRoleSharedModule      = architecture.RoleSharedModule
-	componentRoleLibrary           = architecture.RoleLibrary
-	componentRoleInfrastructure    = architecture.RoleInfrastructure
-	componentRoleDevelopment       = architecture.RoleDevelopment
+	componentRoleApplication       = report.ComponentRoleApplication
+	componentRoleApplicationModule = report.ComponentRoleApplicationModule
+	componentRoleSharedModule      = report.ComponentRoleSharedModule
+	componentRoleLibrary           = report.ComponentRoleLibrary
+	componentRoleInfrastructure    = report.ComponentRoleInfrastructure
+	componentRoleDevelopment       = report.ComponentRoleDevelopment
 )
 
 // Graph contains one complete dependency analysis report.
@@ -58,6 +55,6 @@ type Diagnostic = report.Diagnostic
 type Finding = report.Finding
 
 const (
-	findingSeverityError   = architecture.SeverityError
-	findingSeverityWarning = architecture.SeverityWarning
+	findingSeverityError   = report.FindingSeverityError
+	findingSeverityWarning = report.FindingSeverityWarning
 )

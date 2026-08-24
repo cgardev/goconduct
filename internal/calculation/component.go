@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/cgardev/goconduct/internal/architecture"
+	"github.com/cgardev/goconduct/pkg/report"
 )
 
 const (
@@ -600,7 +601,7 @@ func toArchitectureGraph(graph Graph) architecture.Graph {
 	for index, component := range graph.Components {
 		components[index] = architecture.Component{
 			Identifier:               component.Identifier,
-			Role:                     component.Role,
+			Role:                     architecture.Role(component.Role),
 			Application:              component.Application,
 			AfferentCoupling:         component.AfferentCoupling,
 			EfferentCoupling:         component.EfferentCoupling,
@@ -638,7 +639,7 @@ func mapArchitectureFindings(source []architecture.Finding) []Finding {
 	for _, finding := range source {
 		findings = append(findings, Finding{
 			Rule:       finding.Rule,
-			Severity:   finding.Severity,
+			Severity:   report.FindingSeverity(finding.Severity),
 			Subject:    finding.Subject,
 			Message:    finding.Message,
 			Source:     finding.Source,

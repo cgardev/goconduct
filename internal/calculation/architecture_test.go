@@ -70,7 +70,7 @@ func TestLayerArchitecture_KeepCalculationPure(t *testing.T) {
 			permittedImports := []string{
 				"cmp",
 				"github.com/cgardev/goconduct/internal/architecture",
-				"github.com/cgardev/goconduct/internal/report",
+				"github.com/cgardev/goconduct/pkg/report",
 				"math",
 				"slices",
 				"sort",

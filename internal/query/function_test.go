@@ -5,7 +5,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/cgardev/goconduct/failure"
+	"github.com/cgardev/goconduct/pkg/failure"
 )
 
 func TestFunctionQueries_ReturnDirectFunctionResources(t *testing.T) {

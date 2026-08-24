@@ -2,10 +2,11 @@ package query
 
 import (
 	"errors"
+	"slices"
 	"testing"
 
-	"github.com/cgardev/goconduct/failure"
-	"github.com/cgardev/goconduct/internal/architecture"
+	"github.com/cgardev/goconduct/pkg/failure"
+	"github.com/cgardev/goconduct/pkg/report"
 )
 
 func TestFindingsQuery_FilterWithoutExternalTools(t *testing.T) {
@@ -305,6 +306,114 @@ func TestComponentQuery_ReturnDependenciesAndImporters(t *testing.T) {
 	})
 }
 
+func TestComponentTypesQuery_SelectDeclaredTypes(t *testing.T) {
+	t.Run("Scenario: A reader requests the types of one component", func(t *testing.T) {
+		var graph Graph
+		var result ComponentTypesResult
+		var queryError error
+
+		t.Run("Given a graph with types in two components", func(*testing.T) {
+			graph = queryFixtureGraph()
+		})
+
+		t.Run("When the reader queries one component identifier", func(*testing.T) {
+			result, queryError = ComponentTypes(graph, "packages/beta")
+		})
+
+		t.Run("Then the result contains only that component's types, in identifier order", func(t *testing.T) {
+			if queryError != nil {
+				t.Fatalf("ComponentTypes fails: %v", queryError)
+			}
+			if result.Component != "packages/beta" || result.Analysis.Revision != "revision-1" {
+				t.Fatalf("unexpected result header: %+v", result)
+			}
+			identifiers := make([]string, 0, len(result.Types))
+			for _, declaration := range result.Types {
+				identifiers = append(identifiers, declaration.Identifier)
+			}
+			want := []string{"packages/beta.Client", "packages/beta.Options"}
+			if !slices.Equal(identifiers, want) {
+				t.Errorf("selected types are %v, want %v", identifiers, want)
+			}
+		})
+
+		t.Run("And a cross-component relation keeps the other component identifier", func(t *testing.T) {
+			if len(result.Types) == 0 {
+				t.Fatal("the result contains no types")
+			}
+			implements := result.Types[0].Implements
+			if len(implements) != 1 || implements[0].Component != "packages/alpha" {
+				t.Errorf("Client implements %+v, want a packages/alpha reference", implements)
+			}
+		})
+	})
+
+	// Go satisfies interfaces implicitly, so the component that declares one
+	// cannot list its implementers itself. The query supplies the inverse
+	// view: the relations that reach the component from the outside.
+	t.Run("Scenario: A reader requests the incoming relations of one component", func(t *testing.T) {
+		var result ComponentTypesResult
+		var queryError error
+
+		t.Run("When the reader queries the component that declares the interface", func(*testing.T) {
+			result, queryError = ComponentTypes(queryFixtureGraph(), "packages/alpha")
+		})
+
+		t.Run("Then the implementer of its interface arrives as an incoming relation", func(t *testing.T) {
+			if queryError != nil {
+				t.Fatalf("ComponentTypes fails: %v", queryError)
+			}
+			want := []IncomingTypeRelation{{
+				Kind:            "implements",
+				SourceID:        "packages/beta.Client",
+				SourceComponent: "packages/beta",
+				TargetID:        "packages/alpha.Reader",
+			}}
+			if !slices.Equal(result.Incoming, want) {
+				t.Errorf("incoming relations are %+v, want %+v", result.Incoming, want)
+			}
+		})
+
+		t.Run("And the component with no incoming relation receives an empty list", func(t *testing.T) {
+			betaResult, betaError := ComponentTypes(queryFixtureGraph(), "packages/beta")
+			if betaError != nil {
+				t.Fatalf("ComponentTypes fails: %v", betaError)
+			}
+			if len(betaResult.Incoming) != 0 {
+				t.Errorf("incoming relations are %+v, want none", betaResult.Incoming)
+			}
+		})
+	})
+
+	t.Run("Scenario: A reader requests the types of an unknown component", func(t *testing.T) {
+		var queryError error
+
+		t.Run("When the reader queries a missing identifier", func(*testing.T) {
+			_, queryError = ComponentTypes(queryFixtureGraph(), "packages/missing")
+		})
+
+		t.Run("Then the query returns a typed not-found error", func(t *testing.T) {
+			if !errors.Is(queryError, failure.ErrNotFound) {
+				t.Fatalf("component types error is %v, want ErrNotFound", queryError)
+			}
+		})
+	})
+
+	t.Run("Scenario: A reader requests types without an identifier", func(t *testing.T) {
+		var queryError error
+
+		t.Run("When the reader queries an empty identifier", func(*testing.T) {
+			_, queryError = ComponentTypes(queryFixtureGraph(), "")
+		})
+
+		t.Run("Then the query returns a typed validation error", func(t *testing.T) {
+			if !errors.Is(queryError, failure.ErrValidation) {
+				t.Fatalf("component types error is %v, want ErrValidation", queryError)
+			}
+		})
+	})
+}
+
 func TestQueryOptions_ParseClosedVocabulary(t *testing.T) {
 	testCases := []struct {
 		name  string
@@ -355,7 +464,7 @@ func TestQueryOptions_ParseClosedVocabulary(t *testing.T) {
 }
 
 func TestComponentRole_AcceptAllAndStrategicRole(t *testing.T) {
-	testCases := []string{"all", string(architecture.RoleLibrary)}
+	testCases := []string{"all", string(report.ComponentRoleLibrary)}
 	for _, value := range testCases {
 		t.Run("Scenario: The component role filter is "+value, func(t *testing.T) {
 			var result string
@@ -442,6 +551,32 @@ func queryFixtureGraph() Graph {
 		Functions: []Function{
 			{Identifier: "packages/alpha.Read", Component: "packages/alpha"},
 			{Identifier: "packages/beta.Run", Component: "packages/beta"},
+		},
+		Types: []TypeDeclaration{
+			{
+				Identifier: "packages/alpha.Reader",
+				Name:       "Reader",
+				Package:    "packages/alpha",
+				Component:  "packages/alpha",
+				Kind:       typeKindInterface,
+			},
+			{
+				Identifier: "packages/beta.Client",
+				Name:       "Client",
+				Package:    "packages/beta",
+				Component:  "packages/beta",
+				Kind:       typeKindStruct,
+				Implements: []TypeReference{
+					{Identifier: "packages/alpha.Reader", Component: "packages/alpha"},
+				},
+			},
+			{
+				Identifier: "packages/beta.Options",
+				Name:       "Options",
+				Package:    "packages/beta",
+				Component:  "packages/beta",
+				Kind:       typeKindStruct,
+			},
 		},
 		FunctionCalls: []FunctionCall{
 			{

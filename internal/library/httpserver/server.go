@@ -13,7 +13,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cgardev/goconduct/failure"
+	"github.com/cgardev/goconduct/pkg/failure"
 )
 
 const shutdownTimeout = 15 * time.Second
